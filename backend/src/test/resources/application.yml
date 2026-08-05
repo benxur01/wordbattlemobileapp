@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:wordbattle;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: false
+
+wordbattle:
+  jwt:
+    secret: test-secret-that-is-long-enough-for-hs256-signing!!
+    ttl: P1D
+    issuer: wordbattle-test
+  telegram:
+    bot-token: test-bot-token
+  dev-login-enabled: true
+
+logging:
+  level:
+    root: WARN
+    uz.wordbattle: INFO

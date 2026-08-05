@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: wordbattle
+      POSTGRES_USER: wordbattle
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-wordbattle}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wordbattle"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/wordbattle
+      DB_USER: wordbattle
+      DB_PASSWORD: ${DB_PASSWORD:-wordbattle}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET kerak}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-false}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  db-data:
