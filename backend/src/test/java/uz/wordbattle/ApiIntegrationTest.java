@@ -1,6 +1,7 @@
 package uz.wordbattle;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -9,12 +10,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import uz.wordbattle.match.MatchEntity;
+import uz.wordbattle.match.MatchRepository;
 
 /** Walks the same path the app does: log in, claim a nickname, read the profile. */
 @SpringBootTest
@@ -26,6 +30,9 @@ class ApiIntegrationTest {
 
     @Autowired
     private ObjectMapper mapper;
+
+    @Autowired
+    private MatchRepository matches;
 
     private String login(String name) throws Exception {
         String body = mvc.perform(post("/api/auth/dev")
@@ -146,6 +153,38 @@ class ApiIntegrationTest {
                 .andExpect(jsonPath("$[0].user.nickname").value("bekzod_99"));
         mvc.perform(get("/api/friends").header("Authorization", "Bearer " + b))
                 .andExpect(jsonPath("$[0].user.nickname").value("aziza_m"));
+    }
+
+    /**
+     * The other player's history outlives the account: the duel happened, and
+     * the row that is left has no name on it, so the server has to supply one.
+     */
+    @Test
+    void aDeletedOpponentIsStillNamedInTheHistory() throws Exception {
+        String a = login("Gulnora");
+        String b = login("Hasan");
+        claim(a, "gulnora_t");
+        claim(b, "hasan_dev");
+
+        MatchEntity match = new MatchEntity(userId(a), userId(b), false, Instant.now().minusSeconds(300));
+        match.setWinnerId(userId(a));
+        match.setEndReason(MatchEntity.EndReason.WORDS_LIMIT);
+        match.setChainLength(9);
+        match.setFinishedAt(Instant.now());
+        matches.save(match);
+
+        mvc.perform(get("/api/matches").header("Authorization", "Bearer " + a))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].opponent.nickname").value("hasan_dev"));
+
+        mvc.perform(delete("/api/users/me").header("Authorization", "Bearer " + b))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/matches").header("Authorization", "Bearer " + a))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].opponent.nickname").doesNotExist())
+                .andExpect(jsonPath("$[0].opponent.displayName").value("O'chirilgan akkaunt"))
+                .andExpect(jsonPath("$[0].opponent.initial").value("?"));
     }
 
     @Test

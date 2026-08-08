@@ -32,7 +32,11 @@ class UserDto {
   final int rating;
   final int streakDays;
 
-  String get label => nickname ?? displayName ?? 'player';
+  /// The name every screen draws. The server labels the players it cannot name
+  /// — a deleted opponent arrives as "O'chirilgan akkaunt" — so this last
+  /// fallback is for a live account with no nickname yet and no name from
+  /// Google. Rare, but it is still a person the app has to address in Uzbek.
+  String get label => nickname ?? displayName ?? "O'yinchi";
 }
 
 class NicknameCheck {

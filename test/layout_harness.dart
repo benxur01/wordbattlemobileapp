@@ -182,9 +182,22 @@ final _requests = [
 
 final _invite = PendingInvite(inviteId: 'inv-1', user: _user(6, 'otabek_z', rating: 1188), secondsLeft: 12);
 
+/// An opponent who has since deleted their account, exactly as the server sends
+/// one: the row is anonymised, so there is no nickname left and the name it
+/// carries is the label the server puts there instead.
+const _deletedOpponent = UserDto(
+  id: 13,
+  nickname: null,
+  displayName: "O'chirilgan akkaunt",
+  initial: '?',
+  city: null,
+  rating: 1200,
+  streakDays: 0,
+);
+
 /// Every history row shape at once: a win and a loss, all four end reasons, an
-/// unrated bot duel, the longest nickname the server accepts (16 characters)
-/// and a battle old enough to carry its year — the widest each line can get.
+/// unrated bot duel, a deleted opponent, the longest name a row can carry and a
+/// battle old enough to carry its year — the widest each line can get.
 final _history = [
   MatchSummaryDto(
     id: 1,
@@ -224,6 +237,18 @@ final _history = [
   ),
   MatchSummaryDto(
     id: 4,
+    opponent: _deletedOpponent,
+    botOpponent: false,
+    won: false,
+    rated: true,
+    delta: -14,
+    ratingAfter: 1249,
+    chainLength: 5,
+    endReason: 'forfeit',
+    finishedAt: DateTime.now().subtract(const Duration(days: 6)),
+  ),
+  MatchSummaryDto(
+    id: 5,
     opponent: _user(12, 'shahzod_the_best', rating: 1455),
     botOpponent: false,
     won: false,

@@ -94,7 +94,9 @@ public class MatchController {
         Long opponentId = iAmPlayerOne ? match.getPlayerTwoId() : match.getPlayerOneId();
 
         // A deleted opponent still has to render: the duel happened, and this
-        // player's own history is not theirs to erase.
+        // player's own history is not theirs to erase. `allByIds` serves live
+        // players only, so a deleted one is simply absent from `known` and gets
+        // named here — the anonymised row itself has no name left to send.
         UserDto opponent = opponentId == null
                 ? new UserDto(DuelSession.BOT_ID, "wordbot", "Word Bot", "W", null, 1200, 0)
                 : known.getOrDefault(

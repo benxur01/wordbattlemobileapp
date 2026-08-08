@@ -52,9 +52,16 @@ public class UserService {
                 .orElseThrow(() -> ApiException.notFound("user_not_found", "Foydalanuvchi topilmadi"));
     }
 
-    /** Bulk lookup for the callers that would otherwise loop over {@link #require}. */
+    /**
+     * Bulk lookup for the callers that would otherwise loop over {@link #require}
+     * — and, like it, live players only. A deleted account keeps its row, so
+     * without this filter it came back as a nameless shell that every caller had
+     * to recognise for itself; missing is the one state they all already handle.
+     */
     public List<User> allByIds(Collection<Long> ids) {
-        return ids.isEmpty() ? List.of() : users.findAllById(ids);
+        return ids.isEmpty()
+                ? List.of()
+                : users.findAllById(ids).stream().filter(user -> !user.isDeleted()).toList();
     }
 
     public boolean nicknameTaken(String nickname) {

@@ -229,13 +229,14 @@ class HistoryScreen extends StatelessWidget {
     );
   }
 
-  /// `MatchEntity.EndReason`, lowercased by the server. `words_limit` is the
-  /// words-to-win target rather than a rule the player has to know, so it is
-  /// named by the number itself (the server's `duel.words-to-win` is 9). An
-  /// unknown code means the server grew a reason this build has no word for —
-  /// better a plain sentence than a raw enum name.
+  /// `MatchEntity.EndReason`, lowercased by the server. `words_limit` names no
+  /// number on purpose: the target that applied to *this* battle is not stored
+  /// with it, so any number printed here would be today's `duel.words-to-win`
+  /// pinned onto a battle that may have been won under another one. An unknown
+  /// code means the server grew a reason this build has no word for — better a
+  /// plain sentence than a raw enum name.
   static String _endReason(String code) => switch (code) {
-        'words_limit' => "9 so'z",
+        'words_limit' => "So'z chegarasi",
         'timeout' => 'Vaqt tugadi',
         'forfeit' => 'Taslim',
         'no_moves' => "So'z topolmadi",
