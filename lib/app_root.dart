@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'api/api_client.dart';
+import 'api/api_config.dart';
 import 'api/api_exception.dart';
 import 'api/duel_models.dart';
 import 'api/game_socket.dart';
+import 'api/google_auth.dart';
 import 'api/models.dart';
 import 'api/session.dart';
 import 'models.dart';
@@ -44,6 +46,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   final ApiClient _api = ApiClient();
   late final Session _session = Session(_api);
   final GameSocket _socket = GameSocket();
+  final GoogleAuth _google = GoogleAuth();
 
   WBScreen screen = WBScreen.loading;
   String? banner; // transient error / notice shown over the current screen
@@ -163,6 +166,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       if (!mounted) return;
       if (status == SocketStatus.disconnected) {
         setState(() => banner = 'Aloqa uzildi — qayta ulanmoqda…');
+        unawaited(_probeSessionAfterDropouts());
       } else if (status == SocketStatus.connected) {
         setState(() => banner = null);
       }
@@ -172,9 +176,32 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
   // ------------------------------------------------------------------- auth
 
-  /// The design's Telegram button. Until a bot token is configured the backend
-  /// only offers the development login, which is what this uses.
-  Future<void> login() async {
+  /// The onboarding button: the phone gets an idToken from Google, the server
+  /// checks it with Google and hands back the session the rest of the app runs
+  /// on. The only production way in.
+  Future<void> loginWithGoogle() async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      banner = null;
+    });
+    try {
+      final idToken = await _google.signIn();
+      if (idToken == null) {
+        // The account sheet was dismissed — nothing went wrong, so no banner.
+        if (mounted) setState(() => busy = false);
+        return;
+      }
+      await _completeLogin(await _api.loginWithGoogle(idToken));
+    } on ApiException catch (e) {
+      _loginFailed(e);
+    }
+  }
+
+  /// Development escape hatch, offered only while [ApiConfig.googleServerClientId]
+  /// is still the placeholder — without it there would be no way into the app
+  /// before the real client ID is pasted in. It disappears the moment one is.
+  Future<void> loginDev() async {
     if (busy) return;
     setState(() {
       busy = true;
@@ -182,22 +209,118 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     });
     try {
       final id = DateTime.now().millisecondsSinceEpoch % 1000000000;
-      final result = await _api.loginDev(id, 'player$id');
-      await _session.save(result.token, result.user);
-      if (!mounted) return;
-      me = result.user;
-      _connectSocket();
-      setState(() {
-        busy = false;
-        screen = result.needsNickname ? WBScreen.onb2 : WBScreen.lobby;
-      });
-      unawaited(_refreshSocial());
+      await _completeLogin(await _api.loginDev('player$id'));
     } on ApiException catch (e) {
+      _loginFailed(e);
+    }
+  }
+
+  Future<void> _completeLogin(({String token, UserDto user, bool needsNickname}) result) async {
+    await _session.save(result.token, result.user);
+    if (!mounted) return;
+    me = result.user;
+    _connectSocket();
+    setState(() {
+      busy = false;
+      screen = result.needsNickname ? WBScreen.onb2 : WBScreen.lobby;
+    });
+    unawaited(_refreshSocial());
+  }
+
+  void _loginFailed(ApiException e) {
+    if (!mounted) return;
+    setState(() {
+      busy = false;
+      banner = e.message;
+    });
+  }
+
+  // ------------------------------------------------------- session lifetime
+
+  /// True when the failure means the session is over rather than that one call
+  /// went wrong. A 401 is the obvious case; `user_not_found` is the other one —
+  /// the account was deleted, so the token is signed correctly but names
+  /// nobody.
+  bool _isSessionOver(ApiException e) => e.isUnauthorized || e.code == 'user_not_found';
+
+  /// The single place an API failure is turned into UI. Anything that ends the
+  /// session drops it and returns to onboarding; everything else is a banner.
+  /// Before this existed a token that expired mid-session left the app in a
+  /// reconnect loop with no way out but reinstalling.
+  void _onApiError(ApiException e) {
+    if (!mounted) return;
+    if (_isSessionOver(e)) {
+      unawaited(_endSession("Sessiya tugadi — qaytadan kiring"));
+      return;
+    }
+    setState(() => banner = e.message);
+  }
+
+  /// Drops everything tied to the logged-in player and returns to onboarding.
+  Future<void> _endSession(String? notice, {bool forgetGoogle = true}) async {
+    _socketEvents?.cancel();
+    _socketStatus?.cancel();
+    _socketEvents = null;
+    _socketStatus = null;
+    await _socket.disconnect();
+    if (forgetGoogle) await _google.signOut();
+    await _session.clear();
+    if (!mounted) return;
+    setState(() {
+      me = null;
+      profile = null;
+      board = null;
+      friends = const [];
+      friendRequests = const [];
+      searchResults = const [];
+      search = '';
+      _sentRequests.clear();
+      duel = null;
+      finished = null;
+      outgoingInvite = null;
+      incomingInvite = null;
+      queuedAt = null;
+      nickname = '';
+      nickState = NickState.idle;
+      busy = false;
+      banner = notice;
+      screen = WBScreen.onb1;
+    });
+  }
+
+  /// The profile screen's "Chiqish".
+  Future<void> logout() => _endSession(null);
+
+  /// The profile screen's "Akkauntni o'chirish", after its confirmation.
+  Future<void> deleteAccount() async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await _api.deleteAccount();
+      await _endSession("Akkaunt o'chirildi");
+    } on ApiException catch (e) {
+      // A token that is already dead means the account is gone either way.
+      if (_isSessionOver(e)) {
+        await _endSession("Akkaunt o'chirildi");
+        return;
+      }
       if (!mounted) return;
       setState(() {
         busy = false;
         banner = e.message;
       });
+    }
+  }
+
+  /// The socket cannot report a 401: a refused handshake looks exactly like a
+  /// dead network. After a couple of failed reconnects the token is checked
+  /// over REST, which can say which one it is.
+  Future<void> _probeSessionAfterDropouts() async {
+    if (_session.token == null || _socket.failedAttempts < 2) return;
+    try {
+      await _api.me();
+    } on ApiException catch (e) {
+      if (_isSessionOver(e)) await _endSession("Sessiya tugadi — qaytadan kiring");
     }
   }
 
@@ -277,8 +400,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         friends = friendList;
         friendRequests = requests;
       });
-    } on ApiException catch (_) {
-      // The lobby still works without the counters; no need to shout.
+    } on ApiException catch (e) {
+      // The lobby still works without the counters, so a failure here is
+      // silent — unless it is the session itself that has gone.
+      if (_isSessionOver(e)) _onApiError(e);
     }
   }
 
@@ -288,7 +413,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() => board = data);
     } on ApiException catch (e) {
-      if (mounted) setState(() => banner = e.message);
+      _onApiError(e);
     }
   }
 
@@ -301,7 +426,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         me = data.user;
       });
     } on ApiException catch (e) {
-      if (mounted) setState(() => banner = e.message);
+      _onApiError(e);
     }
   }
 
@@ -314,7 +439,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         practiceHints = const [];
       });
     } on ApiException catch (e) {
-      if (mounted) setState(() => banner = e.message);
+      _onApiError(e);
     }
   }
 
@@ -342,8 +467,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       try {
         final results = await _api.searchUsers(value.trim());
         if (mounted) setState(() => searchResults = results);
-      } on ApiException catch (_) {
-        if (mounted) setState(() => searchResults = const []);
+      } on ApiException catch (e) {
+        if (!mounted) return;
+        setState(() => searchResults = const []);
+        if (_isSessionOver(e)) _onApiError(e);
       }
     });
   }
@@ -369,7 +496,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     try {
       await _api.acceptFriendRequest(request.id);
     } on ApiException catch (e) {
-      if (mounted) setState(() => banner = e.message);
+      _onApiError(e);
     }
     await _refreshSocial();
   }
@@ -379,7 +506,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     try {
       await _api.declineFriendRequest(request.id);
     } on ApiException catch (e) {
-      if (mounted) setState(() => banner = e.message);
+      _onApiError(e);
     }
   }
 
@@ -463,6 +590,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           if (screen == WBScreen.invite) screen = WBScreen.friends;
           if (screen == WBScreen.incoming) screen = WBScreen.lobby;
         });
+      case 'duel.aborted':
+        // The server is going away mid-duel. Nobody won; say so plainly rather
+        // than leaving the duel screen frozen on a turn that will never end.
+        setState(() {
+          duel = null;
+          finished = null;
+          banner = event.payload['message'] as String? ?? 'Jang bekor qilindi';
+          if (screen == WBScreen.duel) screen = WBScreen.lobby;
+        });
       case 'error':
         setState(() => banner = event.payload['message'] as String? ?? 'Xatolik');
     }
@@ -503,8 +639,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     });
   }
 
+  /// Leaving a pending invite behind used to be possible from the invite
+  /// screen's "skip to matchmaking": the friend could then accept a challenge
+  /// from someone already in another duel, which put one player in two duels at
+  /// once and broke both. The invite is withdrawn first now.
   void startMatchmaking() {
+    final pending = outgoingInvite;
+    if (pending != null) _socket.send('invite.decline', {'inviteId': pending.inviteId});
     setState(() {
+      outgoingInvite = null;
       queuedAt = DateTime.now();
       finished = null;
       screen = WBScreen.match;
@@ -663,7 +806,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           message: banner ?? "Serverga ulanib bo'lmadi",
           onRetry: _bootstrap,
         ),
-      WBScreen.onb1 => Onboarding1Screen(onNext: login, busy: busy),
+      WBScreen.onb1 => Onboarding1Screen(
+          onGoogle: loginWithGoogle,
+          onDevLogin: ApiConfig.googleConfigured ? null : loginDev,
+          busy: busy,
+        ),
       WBScreen.onb2 => Onboarding2Screen(
           nickname: nickname,
           nickState: nickState,
@@ -738,6 +885,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onFriends: () => go(WBScreen.friends),
           onBoard: () => go(WBScreen.board),
           friendRequestCount: friendRequests.length,
+          onLogout: logout,
+          onDeleteAccount: deleteAccount,
+          busy: busy,
           previousTab: previousNavTab,
         ),
       WBScreen.practice => PracticeScreen(

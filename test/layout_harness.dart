@@ -184,8 +184,9 @@ final _invite = PendingInvite(inviteId: 'inv-1', user: _user(6, 'otabek_z', rati
 Map<String, Widget> buildScreens() => {
       'loading': const LoadingScreen(),
       'offline': LoadingScreen(message: "Serverga ulanib bo'lmadi", onRetry: () {}),
-      'onb1': Onboarding1Screen(onNext: () {}),
-      'onb1-busy': Onboarding1Screen(onNext: () {}, busy: true),
+      'onb1': Onboarding1Screen(onGoogle: () {}),
+      'onb1-dev': Onboarding1Screen(onGoogle: () {}, onDevLogin: () {}),
+      'onb1-busy': Onboarding1Screen(onGoogle: () {}, busy: true),
       'onb2-idle': Onboarding2Screen(
         nickname: '',
         nickState: NickState.idle,
@@ -273,6 +274,8 @@ Map<String, Widget> buildScreens() => {
         onFriends: () {},
         onBoard: () {},
         friendRequestCount: 2,
+        onLogout: () {},
+        onDeleteAccount: () {},
       ),
       'profile-loading': ProfileScreen(
         profile: null,
@@ -280,6 +283,8 @@ Map<String, Widget> buildScreens() => {
         onFriends: () {},
         onBoard: () {},
         friendRequestCount: 0,
+        onLogout: () {},
+        onDeleteAccount: () {},
       ),
       'practice': PracticeScreen(
         word: const PracticeWordDto(

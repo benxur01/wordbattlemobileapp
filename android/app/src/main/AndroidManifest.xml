@@ -1,9 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The release build talks to the game server and to Google Sign-In, so
+         the permission has to be here and not only in the debug manifest
+         Flutter generates for hot reload. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- usesCleartextTraffic="false": in a shipped build the JWT and every duel
+         frame would otherwise cross the network readable by anyone on the same
+         WiFi. The debug manifest relaxes this for a development server. -->
     <application
         android:label="Word Battle"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:enableOnBackInvokedCallback="true">
+        android:enableOnBackInvokedCallback="true"
+        android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"

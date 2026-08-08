@@ -46,9 +46,12 @@ Testlar (Postgres kerak emas — H2 da ishlaydi):
 | Env | Nima uchun | Standart |
 |---|---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | PostgreSQL ulanishi | `localhost:5432/wordbattle` |
-| `JWT_SECRET` | Tokenlarni imzolash. **Kamida 32 bayt** | ishlab chiqishga mo'ljallangan qiymat |
+| `JWT_SECRET` | Tokenlarni imzolash. **Kamida 32 bayt. Standart qiymat yo'q** — berilmasa server ko'tarilmaydi | — |
+| `CORS_ALLOWED_ORIGINS` | Brauzer origin'lari (vergul bilan). Bo'sh bo'lsa CORS umuman yo'q — telefon ilovasiga kerak emas | bo'sh |
+| `TIME_ZONE` | Streak va kunlik so'z qaysi kun bo'yicha almashadi | `Asia/Tashkent` |
+| `WS_FRAMES_PER_SECOND` / `WS_FRAME_BURST` | Soketdagi freym cheklovi (bitta o'yinchiga) | `20` / `40` |
 | `JWT_TTL` | Token amal qilish muddati (ISO-8601) | `P30D` |
-| `TELEGRAM_BOT_TOKEN` | @BotFather tokeni; bo'sh bo'lsa Telegram login o'chadi | bo'sh |
+| `GOOGLE_WEB_CLIENT_ID` | Google **Web** OAuth client ID; bo'sh bo'lsa Google login o'chadi | bo'sh |
 | `DEV_LOGIN_ENABLED` | `/api/auth/dev` ni yoqadi — **prodda hech qachon** | `false` |
 | `PORT` | HTTP porti | `8080` |
 
@@ -60,11 +63,14 @@ O'yin qoidalari `application.yml` dagi `wordbattle.duel` va
 
 ## Autentifikatsiya
 
-1. Ilova Telegram'dan `initData` oladi va uni `/api/auth/telegram` ga yuboradi.
-2. Server imzoni bot tokeni bilan tekshiradi (HMAC-SHA256, Telegram spetsifikatsiyasi),
-   `auth_date` eskirganini rad etadi, so'ng JWT qaytaradi.
+1. Ilova Google Sign-In'dan `idToken` oladi va uni `/api/auth/google` ga yuboradi.
+2. Server imzoni Google'ning ochiq kalitlari bilan tekshiradi (RS256, JWK set
+   keshlanadi), `iss` va `aud` (Web client ID) ni solishtiradi, muddati
+   o'tganini rad etadi, so'ng JWT qaytaradi.
 3. Barcha keyingi so'rovlar: `Authorization: Bearer <token>`.
-   WebSocket esa `?token=<jwt>` bilan ulanadi (brauzer WS'da header qo'ya olmaydi).
+   WebSocket ham xuddi shu header bilan ulanadi — token URL'ga tushsa, u proxy
+   va balanser loglarida qolib ketadi. Brauzer WS handshake'ida header qo'ya
+   olmagani uchun `?token=<jwt>` shakli ham qabul qilinadi (faqat web build).
 
 Token yaroqsiz bo'lsa API `401` qaytaradi — ilova shu holatda foydalanuvchini
 onboarding'ga qaytarishi kerak.
@@ -78,8 +84,8 @@ Barchasi `/api` ostida. `*` — token talab qilinmaydi.
 ### Auth
 | Method | Path | Izoh |
 |---|---|---|
-| POST\* | `/auth/telegram` | `{initData}` → `{token, user, needsNickname}` |
-| POST\* | `/auth/dev` | `{telegramId, displayName}` — faqat `DEV_LOGIN_ENABLED=true` |
+| POST\* | `/auth/google` | `{idToken}` → `{token, user, needsNickname}` |
+| POST\* | `/auth/dev` | `{displayName}` — faqat `DEV_LOGIN_ENABLED=true` |
 
 ### Foydalanuvchi
 | Method | Path | Izoh |
@@ -91,6 +97,7 @@ Barchasi `/api` ostida. `*` — token talab qilinmaydi.
 | GET | `/users/me/profile` | statistika, 30 kunlik reyting grafigi, 8 ta nishon |
 | GET | `/users/{id}/profile` | boshqa o'yinchi profili |
 | GET | `/users/search?q=` | taxallus bo'yicha qidiruv |
+| DELETE | `/users/me` | akkauntni o'chirish — `204`, token shu zahoti o'lik |
 
 ### Do'stlar
 | Method | Path | Izoh |
@@ -148,6 +155,7 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `duel.rejected` | `code, message` — **navbat yo'qolmaydi**, faqat xato ko'rsatiladi |
 | `duel.finished` | `result(win/lose), reason, rated, delta, ratingBefore, ratingAfter, chainLength, yourWords, averageMs, newWords, streakDays, stuckLetter, hints[]` |
 | `invite.sent` / `invite.incoming` / `invite.declined` / `invite.expired` | `inviteId`, `from`/`to`, `expiresInSeconds` |
+| `duel.aborted` | `duelId, message` — server o'chmoqda, jang hech kimning foydasiga tugamadi |
 | `error` | `code, message` |
 
 `duel.rejected` kodlari: `letters_only`, `too_short`, `wrong_letter`,
@@ -199,8 +207,10 @@ ustidagi unikal indeks. Ikki o'yinchi bir vaqtda bir nomni so'rasa, biri
 
 ## Prodga chiqarishdan oldin
 
-1. `JWT_SECRET` va `TELEGRAM_BOT_TOKEN` ni to'ldiring, `DEV_LOGIN_ENABLED=false`.
-2. HTTPS/WSS terminatsiyasi (nginx yoki cloud LB) qo'ying — token URL'da ketadi.
+1. `JWT_SECRET` va `GOOGLE_WEB_CLIENT_ID` ni to'ldiring, `DEV_LOGIN_ENABLED=false`.
+   (Sirsiz server ataylab ko'tarilmaydi.)
+2. HTTPS/WSS terminatsiyasi (nginx yoki cloud LB) qo'ying — ilova release
+   build'da cleartext HTTP'ni umuman rad etadi.
 3. Postgres uchun zaxira nusxa (backup) sozlang.
 4. `/actuator/health/readiness` va `/liveness` ni monitoringga ulang.
 
@@ -220,8 +230,9 @@ Redis'ga ko'chirish kifoya — qolgan mantiq o'zgarmaydi.
 - `Glicko2Test` — reyting matematikasi (g'olib ko'tariladi, kuchli raqib
   ustidan g'alaba qimmatroq, deviation chegaralari)
 - `NicknamePolicyTest` — taxallus qoidalari va takliflar
-- `TelegramAuthServiceTest` — haqiqiy imzo qabul qilinadi, o'zgartirilgani va
-  eskirgani rad etiladi
+- `GoogleAuthServiceTest` — Google imzolagan `idToken` qabul qilinadi;
+  boshqa ilova uchun berilgani, o'zgartirilgani va eskirgani rad etiladi
+- `JwtServiceTest` — sirsiz yoki namunaviy sir bilan server ko'tarilmasligi
 - `DuelSessionTest` — zanjir holati va harflar ketma-ketligi
 - `ApiIntegrationTest` — login → taxallus → do'stlik → reyting yo'li
 - `DuelWebSocketTest` — ikkita haqiqiy mijoz: juftlanish, noto'g'ri so'zlarning

@@ -216,3 +216,72 @@ class PracticeWordDto {
   final String ipa;
   final String meaning;
 }
+
+/// One finished duel in the history list.
+class MatchSummaryDto {
+  const MatchSummaryDto({
+    required this.id,
+    required this.opponent,
+    required this.botOpponent,
+    required this.won,
+    required this.rated,
+    required this.delta,
+    required this.ratingAfter,
+    required this.chainLength,
+    required this.endReason,
+    required this.finishedAt,
+  });
+
+  factory MatchSummaryDto.fromJson(Map<String, dynamic> json) => MatchSummaryDto(
+        id: (json['id'] as num).toInt(),
+        opponent: UserDto.fromJson(json['opponent'] as Map<String, dynamic>),
+        botOpponent: json['botOpponent'] as bool? ?? false,
+        won: json['won'] as bool? ?? false,
+        rated: json['rated'] as bool? ?? false,
+        delta: (json['delta'] as num?)?.toInt() ?? 0,
+        ratingAfter: (json['ratingAfter'] as num?)?.toInt() ?? 0,
+        chainLength: (json['chainLength'] as num?)?.toInt() ?? 0,
+        endReason: json['endReason'] as String? ?? '',
+        finishedAt: DateTime.parse(json['finishedAt'] as String),
+      );
+
+  final int id;
+  final UserDto opponent;
+  final bool botOpponent;
+  final bool won;
+  final bool rated;
+  final int delta;
+  final int ratingAfter;
+  final int chainLength;
+  final String endReason;
+  final DateTime finishedAt;
+}
+
+/// A finished duel with its full chain, for the replay view.
+class MatchDetailDto {
+  const MatchDetailDto({required this.summary, required this.chain});
+
+  factory MatchDetailDto.fromJson(Map<String, dynamic> json) => MatchDetailDto(
+        summary: MatchSummaryDto.fromJson(json['summary'] as Map<String, dynamic>),
+        chain: ((json['chain'] as List?) ?? const [])
+            .map((e) => MatchWordDto.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  final MatchSummaryDto summary;
+  final List<MatchWordDto> chain;
+}
+
+class MatchWordDto {
+  const MatchWordDto({required this.word, required this.mine, required this.spentMs});
+
+  factory MatchWordDto.fromJson(Map<String, dynamic> json) => MatchWordDto(
+        word: json['word'] as String,
+        mine: json['mine'] as bool? ?? false,
+        spentMs: (json['spentMs'] as num?)?.toInt() ?? 0,
+      );
+
+  final String word;
+  final bool mine;
+  final int spentMs;
+}

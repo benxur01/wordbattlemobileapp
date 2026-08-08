@@ -12,44 +12,51 @@ import uz.wordbattle.user.UserService;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final TelegramAuthService telegram;
+    private final GoogleAuthService google;
     private final JwtService jwt;
     private final UserService users;
     private final AppProperties props;
 
-    public AuthController(TelegramAuthService telegram, JwtService jwt, UserService users, AppProperties props) {
-        this.telegram = telegram;
+    public AuthController(GoogleAuthService google, JwtService jwt, UserService users, AppProperties props) {
+        this.google = google;
         this.jwt = jwt;
         this.users = users;
         this.props = props;
     }
 
-    public record TelegramLoginRequest(@NotBlank String initData) {}
+    public record GoogleLoginRequest(@NotBlank String idToken) {}
 
-    public record DevLoginRequest(Long telegramId, String displayName) {}
+    public record DevLoginRequest(String displayName) {}
 
     public record LoginResponse(String token, UserDto user, boolean needsNickname) {}
 
-    /** Production login: the client forwards Telegram's signed initData. */
-    @PostMapping("/telegram")
-    public LoginResponse telegramLogin(@RequestBody TelegramLoginRequest request) {
-        TelegramAuthService.TelegramUser tgUser = telegram.verify(request.initData());
-        User user = users.findOrCreateByTelegramId(tgUser.id(), tgUser.displayName());
+    /**
+     * The only production login: the client forwards the idToken Google
+     * Sign-In gave it, and the server checks it against Google's public keys.
+     */
+    @PostMapping("/google")
+    public LoginResponse googleLogin(@RequestBody GoogleLoginRequest request) {
+        GoogleAuthService.GoogleUser googleUser = google.verify(request.idToken());
+        User user = users.findOrCreateByGoogleSubject(googleUser.subject(), googleUser.displayName());
         return response(user);
     }
 
     /**
-     * Development shortcut so the app can be exercised without a bot token.
-     * Disabled unless {@code wordbattle.dev-login-enabled} is true.
+     * Development shortcut so the app and the tests can be exercised without
+     * Google credentials. Every call mints a fresh throwaway account — it
+     * carries no provider identity, so it can never be handed to a real player
+     * signing in with Google. Disabled unless
+     * {@code wordbattle.dev-login-enabled} is true.
      */
     @PostMapping("/dev")
     public LoginResponse devLogin(@RequestBody DevLoginRequest request) {
         if (!props.devLoginEnabled()) {
             throw ApiException.unauthorized("dev_login_disabled", "Dev login o'chirilgan");
         }
-        long telegramId = request.telegramId() != null ? request.telegramId() : System.nanoTime() % 1_000_000_000L;
-        String name = request.displayName() != null ? request.displayName() : "dev_" + telegramId;
-        return response(users.findOrCreateByTelegramId(telegramId, name));
+        String name = request.displayName() != null && !request.displayName().isBlank()
+                ? request.displayName()
+                : "dev_" + System.nanoTime() % 1_000_000_000L;
+        return response(users.createDevUser(name));
     }
 
     private LoginResponse response(User user) {

@@ -35,15 +35,28 @@ management:
 
 wordbattle:
   jwt:
-    # Override in production. HS256 needs at least 32 bytes.
-    secret: ${JWT_SECRET:change-me-in-production-please-32-bytes-minimum!!}
+    # No default: the server refuses to start without one, because a default
+    # secret is a secret everyone with the repository already knows.
+    # Generate with: openssl rand -base64 48   (HS256 needs at least 32 bytes)
+    secret: ${JWT_SECRET:}
     ttl: ${JWT_TTL:P30D}
     issuer: wordbattle
-  telegram:
-    # Bot token from @BotFather. Empty disables Telegram login (dev login only).
-    bot-token: ${TELEGRAM_BOT_TOKEN:}
-    # How long a Telegram initData payload stays acceptable.
-    max-age: PT24H
+  cors:
+    # Empty by default: a phone app is not a browser and needs no CORS. Set
+    # this only when a web build has to reach the API from another origin,
+    # e.g. CORS_ALLOWED_ORIGINS=https://play.example.com
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  # Daily streaks and the practice word roll over at local midnight, not UTC.
+  time-zone: ${TIME_ZONE:Asia/Tashkent}
+  limits:
+    socket-frames-per-second: ${WS_FRAMES_PER_SECOND:20}
+    socket-frame-burst: ${WS_FRAME_BURST:40}
+  google:
+    # TODO: the *Web* OAuth client id from Google Cloud Console → APIs &
+    # Services → Credentials (the "Web application" entry, NOT the Android
+    # one). The same value goes into ApiConfig.googleServerClientId on the
+    # client. Empty disables Google login, leaving only the dev login.
+    web-client-id: ${GOOGLE_WEB_CLIENT_ID:}
   duel:
     turn-seconds: 15
     min-word-length: 3
@@ -63,3 +76,6 @@ wordbattle:
 logging:
   level:
     uz.wordbattle: INFO
+    # Per-frame socket traffic is DEBUG: at INFO a single chatty client fills
+    # the log faster than anything useful in it.
+    uz.wordbattle.ws.GameSocketHandler: ${WS_LOG_LEVEL:INFO}

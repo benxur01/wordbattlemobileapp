@@ -16,9 +16,10 @@ wordbattle:
     secret: test-secret-that-is-long-enough-for-hs256-signing!!
     ttl: P1D
     issuer: wordbattle-test
-  telegram:
-    bot-token: test-bot-token
+  google:
+    web-client-id: test-web-client.apps.googleusercontent.com
   dev-login-enabled: true
+  time-zone: Asia/Tashkent
 
 logging:
   level:

@@ -10,7 +10,7 @@ import '../widgets/spinner_ring.dart';
 
 /// The player's own profile, entirely server-driven: stats, the 30-day rating
 /// chart and which badges are unlocked.
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
     required this.profile,
@@ -18,6 +18,9 @@ class ProfileScreen extends StatelessWidget {
     required this.onFriends,
     required this.onBoard,
     required this.friendRequestCount,
+    required this.onLogout,
+    required this.onDeleteAccount,
+    this.busy = false,
     this.previousTab,
   });
 
@@ -28,11 +31,37 @@ class ProfileScreen extends StatelessWidget {
   final VoidCallback onBoard;
   final int friendRequestCount;
 
+  /// Signs out on this device; the account itself stays.
+  final VoidCallback onLogout;
+
+  /// Deletes the account for good. Confirmed here before it is called.
+  final VoidCallback onDeleteAccount;
+
+  /// True while a sign-out or deletion is in flight.
+  final bool busy;
+
   /// Which tab the previous screen highlighted, so the bar can animate.
   final WBTab? previousTab;
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  /// Deleting an account cannot be undone, so the button asks once more in
+  /// place rather than acting on the first tap. Inline instead of a dialog:
+  /// the whole UI is a scaled fixed-width canvas, and a system dialog would
+  /// land outside it at a different size.
+  bool _confirmingDelete = false;
+
+  @override
   Widget build(BuildContext context) {
+    final profile = widget.profile;
+    final friendRequestCount = widget.friendRequestCount;
+    final previousTab = widget.previousTab;
+    final onHome = widget.onHome;
+    final onFriends = widget.onFriends;
+    final onBoard = widget.onBoard;
     final data = profile;
     if (data == null) {
       return Column(
@@ -246,6 +275,8 @@ class ProfileScreen extends StatelessWidget {
                 // one stays a client-side detail keyed by its code.
                 children: [for (final badge in data.badges) _badgeTile(badge)],
               ),
+              const SizedBox(height: 22),
+              _accountSection(),
             ],
           ),
         ),
@@ -258,6 +289,76 @@ class ProfileScreen extends StatelessWidget {
           onBoard: onBoard,
           onProfile: () {},
         ),
+      ],
+    );
+  }
+
+  /// Signing out and deleting the account. The store this ships through
+  /// requires the deletion path to be reachable from inside the app, and a
+  /// player who wants off a shared phone needs the sign-out either way.
+  Widget _accountSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Akkaunt', style: WBText.grotesk(size: 13.5, weight: FontWeight.w600)),
+        const SizedBox(height: 11),
+        _AccountButton(
+          label: 'Chiqish',
+          color: WBColors.textA(.75),
+          border: WBColors.whiteA(.12),
+          onTap: widget.busy ? null : widget.onLogout,
+        ),
+        const SizedBox(height: 9),
+        if (!_confirmingDelete)
+          _AccountButton(
+            label: "Akkauntni o'chirish",
+            color: WBColors.redSoft,
+            border: WBColors.redA(.28),
+            onTap: widget.busy ? null : () => setState(() => _confirmingDelete = true),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+            decoration: BoxDecoration(
+              color: WBColors.redA(.08),
+              border: Border.all(color: WBColors.redA(.3)),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  "Akkaunt butunlay o'chiriladi: taxallus, do'stlar, reyting tarixi va "
+                  "o'rganilgan so'zlar qaytarilmaydi. Tugagan janglar raqiblaringiz "
+                  "tarixida nomsiz bo'lib qoladi.",
+                  style: WBText.grotesk(size: 12, height: 1.45, color: WBColors.textA(.72)),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AccountButton(
+                        label: 'Bekor qilish',
+                        color: WBColors.textA(.75),
+                        border: WBColors.whiteA(.12),
+                        onTap: widget.busy ? null : () => setState(() => _confirmingDelete = false),
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: _AccountButton(
+                        label: widget.busy ? "O'chirilmoqda…" : "Ha, o'chirish",
+                        color: WBColors.redSoft,
+                        border: WBColors.redA(.45),
+                        fill: WBColors.redA(.14),
+                        onTap: widget.busy ? null : widget.onDeleteAccount,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -333,6 +434,44 @@ class ProfileScreen extends StatelessWidget {
         ),
       ),
     };
+  }
+}
+
+/// A flat, bordered row button — the account actions are deliberately quieter
+/// than the amber calls to action everywhere else in the app.
+class _AccountButton extends StatelessWidget {
+  const _AccountButton({
+    required this.label,
+    required this.color,
+    required this.border,
+    required this.onTap,
+    this.fill,
+  });
+
+  final String label;
+  final Color color;
+  final Color border;
+  final Color? fill;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Opacity(
+        opacity: onTap == null ? .5 : 1,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          decoration: BoxDecoration(
+            color: fill ?? WBColors.whiteA(.04),
+            border: Border.all(color: border),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          alignment: Alignment.center,
+          child: Text(label, style: WBText.grotesk(size: 13, weight: FontWeight.w600, color: color)),
+        ),
+      ),
+    );
   }
 }
 

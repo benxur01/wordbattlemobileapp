@@ -1,5 +1,5 @@
 name: word_battle
-description: "A new Flutter project."
+description: "1v1 realtime English word-chain game. Flutter client for the Word Battle server."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -37,6 +37,9 @@ dependencies:
   http: ^1.2.2
   web_socket_channel: ^3.0.1
   shared_preferences: ^2.3.2
+  # The only sign-in the app has: the phone gets an idToken, the server checks
+  # it against Google's public keys.
+  google_sign_in: ^7.2.0
 
 dev_dependencies:
   flutter_test:

@@ -46,9 +46,16 @@ public class MatchmakingService {
             sockets.sendError(userId, "already_in_duel", "Siz allaqachon jangdasiz");
             return;
         }
-        User user = users.require(userId);
-        queue.put(userId, new Waiting(userId, user.getRating(), Instant.now()));
-        sockets.send(userId, "queue.joined", Map.of("since", Instant.now().toString()));
+        // Re-joining used to restart the clock, which narrowed the rating window
+        // again — a client that repeats the frame would never widen its search
+        // (and would hit the database once per repeat).
+        Waiting existing = queue.get(userId);
+        if (existing == null) {
+            User user = users.require(userId);
+            existing = new Waiting(userId, user.getRating(), Instant.now());
+            queue.put(userId, existing);
+        }
+        sockets.send(userId, "queue.joined", Map.of("since", existing.since().toString()));
         // Try immediately: with someone already waiting there is no reason to
         // sit through a tick first.
         pair();
@@ -81,7 +88,7 @@ public class MatchmakingService {
         for (int i = 0; i < waiting.size(); i++) {
             Waiting first = waiting.get(i);
             if (!queue.containsKey(first.userId())) continue;
-            if (!sockets.isConnected(first.userId())) {
+            if (!sockets.isConnected(first.userId()) || duels.isPlaying(first.userId())) {
                 queue.remove(first.userId());
                 continue;
             }
@@ -116,7 +123,7 @@ public class MatchmakingService {
         for (Waiting waiting : new ArrayList<>(queue.values())) {
             if (Duration.between(waiting.since(), Instant.now()).toSeconds() < limit) continue;
             if (queue.remove(waiting.userId()) == null) continue;
-            if (!sockets.isConnected(waiting.userId())) continue;
+            if (!sockets.isConnected(waiting.userId()) || duels.isPlaying(waiting.userId())) continue;
             log.info("No human for {} after {}s, starting a bot duel", waiting.userId(), limit);
             duels.startAgainstBot(waiting.userId());
         }

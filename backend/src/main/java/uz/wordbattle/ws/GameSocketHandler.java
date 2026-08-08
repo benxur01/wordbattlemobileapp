@@ -31,6 +31,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
 
     private final ObjectMapper mapper;
     private final SocketRegistry sockets;
+    private final FrameRateLimiter rateLimiter;
     private final MatchmakingService matchmaking;
     private final DuelService duels;
     private final InviteService invites;
@@ -42,6 +43,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
     public GameSocketHandler(
             ObjectMapper mapper,
             SocketRegistry sockets,
+            FrameRateLimiter rateLimiter,
             MatchmakingService matchmaking,
             DuelService duels,
             InviteService invites,
@@ -51,6 +53,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
             AppProperties props) {
         this.mapper = mapper;
         this.sockets = sockets;
+        this.rateLimiter = rateLimiter;
         this.matchmaking = matchmaking;
         this.duels = duels;
         this.invites = invites;
@@ -71,6 +74,8 @@ public class GameSocketHandler extends TextWebSocketHandler {
         if (userId == null) return;
 
         sockets.register(userId, session);
+        // Back inside the grace window: the drop must not cost them the duel.
+        duels.connectionRestored(userId);
         presence.connected(userId);
         users.markSeen(userId);
         log.info("Socket connected: user={} online={}", userId, presence.onlineCount());
@@ -86,14 +91,28 @@ public class GameSocketHandler extends TextWebSocketHandler {
         hello.put("pendingFriendRequests", friends.pendingRequestCount(userId));
         sockets.send(userId, "hello", hello);
 
-        // Reconnecting mid-duel: hand the player back their live state.
-        duels.duelOf(userId).ifPresent(duel -> duels.sendState(duel, userId));
+        // Reconnecting mid-duel: hand the player back their live state. If the
+        // duel ended while they were away, hand them the result instead — the
+        // finish frame went to a socket that was already gone, and without it
+        // the app sits on a duel screen that will never move again.
+        duels.duelOf(userId).ifPresentOrElse(
+                duel -> {
+                    presence.battleStarted(userId);
+                    duels.sendState(duel, userId);
+                },
+                () -> duels.sendMissedFinish(userId));
     }
 
     @Override
     protected void handleTextMessage(@NonNull WebSocketSession session, @NonNull TextMessage message) {
         Long userId = userIdOf(session);
         if (userId == null) return;
+
+        if (!rateLimiter.allow(userId)) {
+            log.warn("Rate limit hit by user {}", userId);
+            sockets.sendError(userId, "too_many_frames", "Juda ko'p so'rov — biroz kuting");
+            return;
+        }
 
         Envelope envelope;
         try {
@@ -104,7 +123,8 @@ public class GameSocketHandler extends TextWebSocketHandler {
         }
 
         String type = envelope.type() == null ? "" : envelope.type();
-        if (!"ping".equals(type)) log.info("Frame from {}: {}", userId, type);
+        // Per-frame traffic at INFO buried everything else in the log.
+        if (!"ping".equals(type)) log.debug("Frame from {}: {}", userId, type);
         try {
             switch (type) {
                 case "ping" -> sockets.send(userId, "pong", Map.of());
@@ -128,12 +148,24 @@ public class GameSocketHandler extends TextWebSocketHandler {
         Long userId = userIdOf(session);
         if (userId == null) return;
 
-        sockets.unregister(userId, session);
+        // A reconnect registers the new socket before the old one's close
+        // callback arrives, and every step below keys off the user id alone —
+        // running them for a socket that has already been replaced would tear
+        // down the state of the session that is right now live and playing.
+        // Only unregister can tell the two apart, so it decides.
+        if (!sockets.unregister(userId, session)) {
+            log.info("Stale socket closed: user={} status={} (already reconnected)", userId, status);
+            return;
+        }
+
+        rateLimiter.forget(userId);
         matchmaking.leave(userId);
         invites.cancelAllFor(userId);
         // Dropping out of a live duel hands the win to the opponent, exactly as
         // quitting does — otherwise pulling the plug would be a free escape.
-        duels.forfeit(userId);
+        // The app reconnects by itself though, so the forfeit is held back for
+        // a grace period rather than landing on every flaky-network blip.
+        duels.connectionLost(userId);
         presence.disconnected(userId);
         users.markSeen(userId);
         log.info("Socket closed: user={} status={}", userId, status);

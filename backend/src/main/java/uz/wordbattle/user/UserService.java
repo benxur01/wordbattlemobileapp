@@ -2,36 +2,59 @@ package uz.wordbattle.user;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uz.wordbattle.common.ApiException;
+import uz.wordbattle.config.AppProperties;
 
 @Service
 public class UserService {
 
     private final UserRepository users;
+    private final AppProperties props;
 
-    public UserService(UserRepository users) {
+    public UserService(UserRepository users, AppProperties props) {
         this.users = users;
+        this.props = props;
     }
 
     @Transactional
-    public User findOrCreateByTelegramId(long telegramId, String displayName) {
-        return users.findByTelegramId(telegramId)
-                .map(existing -> {
-                    existing.setLastSeenAt(Instant.now());
-                    return existing;
-                })
-                .orElseGet(() -> users.save(new User(telegramId, displayName)));
+    public User findOrCreateByGoogleSubject(String googleSubject, String displayName) {
+        return users.findByGoogleSubject(googleSubject)
+                .map(this::seen)
+                .orElseGet(() -> users.save(User.withGoogle(googleSubject, displayName)));
     }
 
+    private User seen(User user) {
+        user.setLastSeenAt(Instant.now());
+        return user;
+    }
+
+    /** Backs {@code /api/auth/dev}: a fresh account with no provider behind it. */
+    @Transactional
+    public User createDevUser(String displayName) {
+        return users.save(User.withoutProvider(displayName));
+    }
+
+    /**
+     * A live player. A deleted account is gone as far as everything the game
+     * does is concerned — including the token it left behind, which stops
+     * working here rather than resolving to an empty shell.
+     */
     public User require(Long id) {
+        if (id == null) throw ApiException.notFound("user_not_found", "Foydalanuvchi topilmadi");
         return users.findById(id)
+                .filter(user -> !user.isDeleted())
                 .orElseThrow(() -> ApiException.notFound("user_not_found", "Foydalanuvchi topilmadi"));
+    }
+
+    /** Bulk lookup for the callers that would otherwise loop over {@link #require}. */
+    public List<User> allByIds(Collection<Long> ids) {
+        return ids.isEmpty() ? List.of() : users.findAllById(ids);
     }
 
     public boolean nicknameTaken(String nickname) {
@@ -76,7 +99,10 @@ public class UserService {
     public List<User> search(String query, Long excludeUserId, int limit) {
         String q = NicknamePolicy.normalise(query);
         if (q.isEmpty()) return List.of();
-        return users.searchByNicknamePrefix(q, PageRequest.of(0, limit)).stream()
+        // `%` and `_` are LIKE wildcards: unescaped, a search for "%" matched
+        // every player on the server.
+        String pattern = q.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        return users.searchByNicknamePrefix(pattern, PageRequest.of(0, Math.max(1, Math.min(limit, 50)))).stream()
                 .filter(u -> !u.getId().equals(excludeUserId))
                 .toList();
     }
@@ -88,10 +114,14 @@ public class UserService {
     /**
      * Daily streak bookkeeping: playing again the next calendar day extends it,
      * a gap resets it to one. Called once per finished match.
+     *
+     * <p>"Day" means a local calendar day. Counting in UTC would end a player's
+     * streak at 05:00 their time, which is neither what the screen promises nor
+     * what anyone would expect.
      */
     @Transactional
     public void touchStreak(User user, Instant playedAt) {
-        LocalDate today = playedAt.atZone(ZoneOffset.UTC).toLocalDate();
+        LocalDate today = playedAt.atZone(props.timeZone()).toLocalDate();
         LocalDate last = user.getLastPlayedOn();
         if (last == null || last.isBefore(today.minusDays(1))) {
             user.setStreakDays(1);

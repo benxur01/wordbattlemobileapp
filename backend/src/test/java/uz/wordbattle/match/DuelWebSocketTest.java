@@ -90,10 +90,10 @@ class DuelWebSocketTest {
         }
     }
 
-    private String login(long telegramId, String name) {
+    private String login(String name) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        String body = "{\"telegramId\":" + telegramId + ",\"displayName\":\"" + name + "\"}";
+        String body = "{\"displayName\":\"" + name + "\"}";
         String response = rest.postForObject(
                 "http://localhost:" + port + "/api/auth/dev", new HttpEntity<>(body, headers), String.class);
         try {
@@ -111,8 +111,8 @@ class DuelWebSocketTest {
 
     @Test
     void twoPlayersAreMatchedAndTheServerJudgesEveryWord() throws Exception {
-        alpha = new Client(login(9001, "Alpha"));
-        beta = new Client(login(9002, "Beta"));
+        alpha = new Client(login("Alpha"));
+        beta = new Client(login("Beta"));
 
         assertThat(alpha.await("hello", 5).path("rules").path("turnSeconds").asInt()).isEqualTo(15);
         beta.await("hello", 5);
@@ -185,7 +185,7 @@ class DuelWebSocketTest {
 
     @Test
     void aLoneSearchFallsBackToTheBotAndThatDuelIsUnrated() throws Exception {
-        alpha = new Client(login(9003, "Solo"));
+        alpha = new Client(login("Solo"));
         alpha.await("hello", 5);
 
         alpha.send("queue.join", Map.of());

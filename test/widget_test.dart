@@ -41,7 +41,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('WORD\nBATTLE'), findsOneWidget);
-    expect(find.text('Telegram orqali kirish'), findsOneWidget);
+    expect(find.text('Google orqali kirish'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     // The app owns a periodic ticker; unmount it so the test can finish.

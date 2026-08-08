@@ -12,8 +12,13 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "telegram_id", unique = true)
-    private Long telegramId;
+    /**
+     * Google's {@code sub} claim — the stable id the account signs in with.
+     * Null for the throwaway accounts {@code /api/auth/dev} hands out, which
+     * belong to no provider at all.
+     */
+    @Column(name = "google_subject", unique = true, length = 64)
+    private String googleSubject;
 
     /** Null until the player picks one on the second onboarding screen. */
     @Column(name = "nickname", length = 16)
@@ -60,11 +65,29 @@ public class User {
     @Column(name = "last_seen_at")
     private Instant lastSeenAt;
 
+    /**
+     * Set when the player deletes their account. The row stays because other
+     * players' match history points at it, but everything personal is cleared
+     * and nothing may sign in as it again.
+     */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     protected User() {}
 
-    public User(Long telegramId, String displayName) {
-        this.telegramId = telegramId;
+    private User(String displayName) {
         this.displayName = displayName;
+    }
+
+    public static User withGoogle(String googleSubject, String displayName) {
+        User user = new User(displayName);
+        user.googleSubject = googleSubject;
+        return user;
+    }
+
+    /** A dev-login account: playable, but with no sign-in provider behind it. */
+    public static User withoutProvider(String displayName) {
+        return new User(displayName);
     }
 
     /** The single letter the client draws in the avatar tile. */
@@ -78,7 +101,7 @@ public class User {
     }
 
     public Long getId() { return id; }
-    public Long getTelegramId() { return telegramId; }
+    public String getGoogleSubject() { return googleSubject; }
     public String getNickname() { return nickname; }
     public void setNickname(String nickname) { this.nickname = nickname; }
     public String getDisplayName() { return displayName; }
@@ -106,4 +129,21 @@ public class User {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getLastSeenAt() { return lastSeenAt; }
     public void setLastSeenAt(Instant lastSeenAt) { this.lastSeenAt = lastSeenAt; }
+    public Instant getDeletedAt() { return deletedAt; }
+    public boolean isDeleted() { return deletedAt != null; }
+
+    /**
+     * Strips the account of everything that identifies a person, keeping only
+     * the anonymous shell old match rows refer to. Clearing {@code
+     * googleSubject} also releases the Google identity, so the same person can
+     * start again from scratch later.
+     */
+    public void anonymise(Instant at) {
+        this.deletedAt = at;
+        this.googleSubject = null;
+        this.nickname = null;
+        this.displayName = null;
+        this.city = null;
+        this.lastSeenAt = at;
+    }
 }

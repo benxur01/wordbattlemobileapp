@@ -13,16 +13,22 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     private final GameSocketHandler handler;
     private final HandshakeAuthInterceptor authInterceptor;
+    private final AppProperties props;
 
-    public WebSocketConfig(GameSocketHandler handler, HandshakeAuthInterceptor authInterceptor) {
+    public WebSocketConfig(GameSocketHandler handler, HandshakeAuthInterceptor authInterceptor, AppProperties props) {
         this.handler = handler;
         this.authInterceptor = authInterceptor;
+        this.props = props;
     }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(handler, "/ws")
-                .addInterceptors(authInterceptor)
-                .setAllowedOriginPatterns("*");
+        var registration = registry.addHandler(handler, "/ws").addInterceptors(authInterceptor);
+        // A phone client sends no Origin header, and Spring lets those through
+        // whatever is configured here. Naming origins is therefore only about
+        // browsers — so the wildcard goes away unless a web build asks for it.
+        if (props.cors().enabled()) {
+            registration.setAllowedOriginPatterns(props.cors().allowedOrigins().toArray(String[]::new));
+        }
     }
 }

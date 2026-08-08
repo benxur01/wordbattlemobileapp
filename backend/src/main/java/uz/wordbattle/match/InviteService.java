@@ -52,6 +52,10 @@ public class InviteService {
             sockets.sendError(fromUserId, "not_friends", "Avval do'st bo'lish kerak");
             return;
         }
+        if (duels.isPlaying(fromUserId)) {
+            sockets.sendError(fromUserId, "already_in_duel", "Siz allaqachon jangdasiz");
+            return;
+        }
         if (duels.isPlaying(toUserId)) {
             sockets.sendError(fromUserId, "opponent_busy", "Raqib hozir jangda");
             return;
@@ -75,22 +79,45 @@ public class InviteService {
                 "expiresInSeconds", props.duel().inviteTimeoutSeconds()));
     }
 
+    /**
+     * Both sides are re-checked here, not just at {@link #send}: an invite sits
+     * around for its whole timeout, and either player can start a duel through
+     * matchmaking while it waits. Accepting without looking used to start a
+     * second duel for someone already playing — and when the first one ended it
+     * cleared the second one's registration, leaving that player on a duel
+     * screen whose every word came back "no active duel".
+     */
     public void accept(long userId, String inviteId) {
-        Invite invite = invites.remove(inviteId);
+        Invite invite = invites.get(inviteId);
         if (invite == null || invite.toUserId() != userId) {
+            invites.remove(inviteId);
             sockets.sendError(userId, "invite_gone", "Chaqiruv topilmadi yoki eskirgan");
             return;
         }
+        if (duels.isPlaying(userId)) {
+            sockets.sendError(userId, "already_in_duel", "Siz allaqachon jangdasiz");
+            return;
+        }
+        if (duels.isPlaying(invite.fromUserId())) {
+            invites.remove(inviteId);
+            sockets.sendError(userId, "opponent_busy", "Chaqiruvchi boshqa jangga kirib ketdi");
+            sockets.send(invite.fromUserId(), "invite.expired", Map.of("inviteId", inviteId));
+            return;
+        }
         if (!sockets.isConnected(invite.fromUserId())) {
+            invites.remove(inviteId);
             sockets.sendError(userId, "opponent_offline", "Chaqiruvchi oflayn");
             return;
         }
+        invites.remove(inviteId);
         duels.start(invite.fromUserId(), invite.toUserId());
     }
 
     public void decline(long userId, String inviteId) {
-        Invite invite = invites.remove(inviteId);
-        if (invite == null) return;
+        Invite invite = invites.get(inviteId);
+        // Only the two players in an invite may cancel it.
+        if (invite == null || (invite.fromUserId() != userId && invite.toUserId() != userId)) return;
+        invites.remove(inviteId);
         long other = invite.fromUserId() == userId ? invite.toUserId() : invite.fromUserId();
         sockets.send(other, "invite.declined", Map.of("inviteId", inviteId));
     }

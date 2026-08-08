@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface RatingHistoryRepository extends JpaRepository<RatingHistory, Long> {
 
     List<RatingHistory> findByUserIdAndRecordedAtAfterOrderByRecordedAtAsc(Long userId, Instant after);
+
+    void deleteByUserId(Long userId);
 }

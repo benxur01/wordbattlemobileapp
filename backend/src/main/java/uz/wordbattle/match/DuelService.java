@@ -13,6 +13,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -44,14 +45,47 @@ public class DuelService {
     private static final List<String> SEED_WORDS =
             List.of("battle", "silver", "planet", "candle", "forest", "market", "window", "garden");
 
+    /**
+     * How long a player may be off the socket before the duel is handed to
+     * their opponent. The app reconnects on its own after 1s, then 2s, 4s, 8s,
+     * 15s — so it is back by the 1s, 3s or 7s mark unless the network really is
+     * gone, and ten seconds covers all three of those attempts. A WiFi-to-
+     * cellular handoff, a lift or a locked screen therefore costs nothing,
+     * while somebody who actually walked away still loses in about the time the
+     * turn timer would have taken care of them anyway.
+     *
+     * <p>Package-private: the socket tests time themselves off it.
+     */
+    static final long DISCONNECT_GRACE_SECONDS = 10;
+
+    /**
+     * How long the result of a duel that ended while the player was away is
+     * kept for them: long enough for the reconnect backoff to run its course,
+     * short enough that somebody returning much later is not dragged onto the
+     * result screen of a duel they have long forgotten.
+     */
+    private static final Duration MISSED_FINISH_TTL = Duration.ofMinutes(2);
+
+    /** A finish frame its owner was offline to receive. */
+    private record MissedFinish(DuelMessages.Finished frame, Instant at) {}
+
     private final Map<String, DuelSession> duels = new ConcurrentHashMap<>();
     private final Map<Long, String> duelByPlayer = new ConcurrentHashMap<>();
+    private final Map<Long, ScheduledFuture<?>> pendingForfeits = new ConcurrentHashMap<>();
+    private final Map<Long, MissedFinish> missedFinishes = new ConcurrentHashMap<>();
 
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2, runnable -> {
-        Thread thread = new Thread(runnable, "duel-timer");
-        thread.setDaemon(true);
-        return thread;
-    });
+    /**
+     * Turn timers, bot moves and the settlement of finished duels all run here.
+     * Two threads used to serve every concurrent duel on the server, so one
+     * slow finish (a database transaction) delayed unrelated turn timers; the
+     * pool now scales with the machine and never drops below four.
+     */
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(
+            Math.max(4, Runtime.getRuntime().availableProcessors()), runnable -> {
+                Thread thread = new Thread(runnable, "duel-timer");
+                thread.setDaemon(true);
+                return thread;
+            });
     private final Random random = new Random();
 
     private final AppProperties props;
@@ -76,14 +110,32 @@ public class DuelService {
         this.results = results;
     }
 
+    /**
+     * A restart used to leave every live duel unfinished: no result was written
+     * and no player was told anything, so both sides sat on a duel screen until
+     * they gave up. Shutting down now ends them the only fair way — nobody
+     * wins, no rating moves — and lets the queued settlements drain before the
+     * pool closes.
+     */
     @PreDestroy
     void shutdown() {
-        scheduler.shutdownNow();
+        for (DuelSession session : List.copyOf(duels.values())) {
+            synchronized (session) {
+                if (!session.finished()) abort(session);
+            }
+        }
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) scheduler.shutdownNow();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            scheduler.shutdownNow();
+        }
     }
 
     // ---------------------------------------------------------------- start
 
-    /** Starts a human-vs-human duel and tells both sides. */
+    /** Starts a human-vs-human duel and tells both sides. Null if either is busy. */
     public DuelSession start(long playerOne, long playerTwo) {
         return start(playerOne, playerTwo, false);
     }
@@ -93,16 +145,30 @@ public class DuelService {
         return start(player, DuelSession.BOT_ID, true);
     }
 
+    /**
+     * Refuses rather than starting a second duel for someone already playing.
+     * Callers check first; this is the backstop for the race between an invite
+     * being accepted and the same player being paired by matchmaking. Two live
+     * duels for one player corrupts both, because a player maps to exactly one
+     * duel and whichever ends first would clear the other's registration.
+     */
     private DuelSession start(long playerOne, long playerTwo, boolean bot) {
+        if (isPlaying(playerOne) || (!bot && isPlaying(playerTwo))) {
+            log.warn("Refusing duel {} vs {}: already playing", playerOne, playerTwo);
+            return null;
+        }
         String seed = SEED_WORDS.get(random.nextInt(SEED_WORDS.size()));
         DuelSession session = new DuelSession(UUID.randomUUID().toString(), playerOne, playerTwo, bot, seed);
 
         duels.put(session.id(), session);
         duelByPlayer.put(playerOne, session.id());
         presence.battleStarted(playerOne);
+        // A new duel supersedes any result still waiting to be collected.
+        missedFinishes.remove(playerOne);
         if (!bot) {
             duelByPlayer.put(playerTwo, session.id());
             presence.battleStarted(playerTwo);
+            missedFinishes.remove(playerTwo);
         }
 
         announce(session, playerOne);
@@ -187,6 +253,9 @@ public class DuelService {
 
     private String validate(DuelSession session, String word) {
         if (word.isEmpty()) return "empty";
+        // Checked before the character scan so a client cannot make the server
+        // walk a megabyte of text per frame.
+        if (word.length() > props.limits().maxWordLength()) return "too_long";
         if (!word.chars().allMatch(c -> c >= 'a' && c <= 'z')) return "letters_only";
         if (word.length() < props.duel().minWordLength()) return "too_short";
         if (word.charAt(0) != session.requiredLetter()) return "wrong_letter";
@@ -198,6 +267,7 @@ public class DuelService {
     private String messageFor(String code, DuelSession session) {
         return switch (code) {
             case "letters_only" -> "Faqat ingliz harflari";
+            case "too_long" -> "Bunday uzun so'z yo'q";
             case "too_short" -> "Kamida " + props.duel().minWordLength() + " ta harf";
             case "wrong_letter" -> "«" + Character.toUpperCase(session.requiredLetter()) + "» harfi bilan boshlanishi kerak";
             case "already_used" -> "Bu so'z zanjirda bor";
@@ -209,6 +279,58 @@ public class DuelService {
 
     private void reject(long playerId, String code, String message) {
         sockets.send(playerId, "duel.rejected", new DuelMessages.Rejected(code, message));
+    }
+
+    // ---------------------------------------------------------- disconnects
+
+    /**
+     * The player's socket dropped. Losing the connection still hands the win to
+     * the opponent — otherwise pulling the plug would be a free escape — but a
+     * phone drops its socket for all sorts of innocent reasons, so the forfeit
+     * waits out {@link #DISCONNECT_GRACE_SECONDS} and only lands if the player
+     * has not come back by then.
+     */
+    public void connectionLost(long playerId) {
+        if (duelOf(playerId).isEmpty()) return;
+        ScheduledFuture<?> previous = pendingForfeits.put(
+                playerId,
+                scheduler.schedule(() -> forfeitIfStillAway(playerId), DISCONNECT_GRACE_SECONDS, TimeUnit.SECONDS));
+        if (previous != null) previous.cancel(false);
+    }
+
+    /** The player is back on a socket: call off any forfeit waiting on them. */
+    public void connectionRestored(long playerId) {
+        ScheduledFuture<?> pending = pendingForfeits.remove(playerId);
+        if (pending != null) pending.cancel(false);
+    }
+
+    private void forfeitIfStillAway(long playerId) {
+        // Always drop the entry, including for players who never come back:
+        // the task has run and nothing else will clean up after it.
+        pendingForfeits.remove(playerId);
+        // The window can run out a hair after the new socket turned up.
+        if (sockets.isConnected(playerId)) return;
+        log.info("Player {} stayed away for {}s, forfeiting", playerId, DISCONNECT_GRACE_SECONDS);
+        forfeit(playerId);
+    }
+
+    /**
+     * Hands a returning player the result of the duel that ended while they
+     * were disconnected. Without it they come back to a duel screen that will
+     * never move again, because the finish frame was written to a dead socket.
+     */
+    public void sendMissedFinish(long playerId) {
+        MissedFinish missed = missedFinishes.remove(playerId);
+        if (missed == null || missed.at().isBefore(Instant.now().minus(MISSED_FINISH_TTL))) return;
+        sockets.send(playerId, "duel.finished", missed.frame());
+    }
+
+    private void rememberMissedFinish(long playerId, DuelMessages.Finished frame) {
+        Instant now = Instant.now();
+        // Players who never return never collect theirs, so anything past its
+        // shelf life is swept here rather than left to pile up.
+        missedFinishes.values().removeIf(missed -> missed.at().isBefore(now.minus(MISSED_FINISH_TTL)));
+        missedFinishes.put(playerId, new MissedFinish(frame, now));
     }
 
     // --------------------------------------------------------------- timers
@@ -255,22 +377,58 @@ public class DuelService {
 
     private void finish(DuelSession session, long winnerId, EndReason reason) {
         if (!session.finish()) return;
+        deregister(session);
 
-        duels.remove(session.id());
-        duelByPlayer.remove(session.playerOne());
-        presence.battleEnded(session.playerOne());
-        if (!session.botOpponent()) {
-            duelByPlayer.remove(session.playerTwo());
+        // Recording a result is a database transaction, and every caller of
+        // finish() holds this duel's monitor. Settling on the pool instead
+        // keeps that monitor — and the timer thread that took it — free.
+        scheduler.execute(() -> settle(session, winnerId, reason));
+    }
+
+    private void settle(DuelSession session, long winnerId, EndReason reason) {
+        try {
+            MatchResultService.Outcome outcome = results.record(session, winnerId, reason);
+            notifyFinish(session, session.playerOne(), winnerId, reason, outcome);
+            if (!session.botOpponent()) {
+                notifyFinish(session, session.playerTwo(), winnerId, reason, outcome);
+            }
+            log.info("Duel {} finished: winner={} reason={}", session.id(), winnerId, reason);
+        } catch (RuntimeException e) {
+            log.error("Duel {} could not be settled", session.id(), e);
+        }
+    }
+
+    /**
+     * Ends a duel nobody won — used when the server itself is going away. No
+     * result is recorded and no rating moves; the players are simply told the
+     * duel is over so their screens can move on.
+     */
+    private void abort(DuelSession session) {
+        if (!session.finish()) return;
+        deregister(session);
+        for (long playerId : session.botOpponent()
+                ? new long[] {session.playerOne()}
+                : new long[] {session.playerOne(), session.playerTwo()}) {
+            sockets.send(playerId, "duel.aborted", Map.of(
+                    "duelId", session.id(),
+                    "message", "Server qayta ishga tushmoqda — jang bekor qilindi"));
+        }
+        log.info("Duel {} aborted (shutdown)", session.id());
+    }
+
+    /**
+     * Takes the duel out of the live registries. Both removals are conditional
+     * on the entry still belonging to <em>this</em> session: an unconditional
+     * remove would tear down whatever duel the player had moved on to.
+     */
+    private void deregister(DuelSession session) {
+        duels.remove(session.id(), session);
+        if (duelByPlayer.remove(session.playerOne(), session.id())) {
+            presence.battleEnded(session.playerOne());
+        }
+        if (!session.botOpponent() && duelByPlayer.remove(session.playerTwo(), session.id())) {
             presence.battleEnded(session.playerTwo());
         }
-
-        MatchResultService.Outcome outcome = results.record(session, winnerId, reason);
-
-        notifyFinish(session, session.playerOne(), winnerId, reason, outcome);
-        if (!session.botOpponent()) {
-            notifyFinish(session, session.playerTwo(), winnerId, reason, outcome);
-        }
-        log.info("Duel {} finished: winner={} reason={}", session.id(), winnerId, reason);
     }
 
     private void notifyFinish(
@@ -289,7 +447,7 @@ public class DuelService {
             hints = dictionary.hints(letter, session.used(), 3);
         }
 
-        sockets.send(playerId, "duel.finished", new DuelMessages.Finished(
+        DuelMessages.Finished frame = new DuelMessages.Finished(
                 session.id(),
                 won ? "win" : "lose",
                 reason.name().toLowerCase(),
@@ -303,7 +461,15 @@ public class DuelService {
                 result.newWords(),
                 result.streakDays(),
                 stuckLetter,
-                hints));
+                hints);
+
+        // A player who lost the socket — the usual way a duel ends this way —
+        // cannot be told now, so the result is kept for their reconnect.
+        if (sockets.isConnected(playerId)) {
+            sockets.send(playerId, "duel.finished", frame);
+        } else {
+            rememberMissedFinish(playerId, frame);
+        }
     }
 
     // ---------------------------------------------------------------- state
@@ -313,21 +479,30 @@ public class DuelService {
         if (!session.botOpponent()) sendState(session, session.playerTwo());
     }
 
+    /**
+     * Callable from any thread — a reconnect arrives on a socket thread while a
+     * bot move may be appending to the chain on a timer thread. Reading the
+     * session without its monitor could see that list mid-write.
+     */
     public void sendState(DuelSession session, long playerId) {
-        int elapsed = (int) Duration.between(session.turnStartedAt(), Instant.now()).toMillis();
-        int timeLeft = Math.max(0, props.duel().turnSeconds() * 1000 - elapsed);
-        long opponent = session.opponentOf(playerId);
+        DuelMessages.DuelState state;
+        synchronized (session) {
+            int elapsed = (int) Duration.between(session.turnStartedAt(), Instant.now()).toMillis();
+            int timeLeft = Math.max(0, props.duel().turnSeconds() * 1000 - elapsed);
+            long opponent = session.opponentOf(playerId);
 
-        sockets.send(playerId, "duel.update", new DuelMessages.DuelState(
-                session.id(),
-                chainFor(session, playerId),
-                session.turn() == playerId,
-                String.valueOf(session.requiredLetter()),
-                timeLeft,
-                props.duel().turnSeconds(),
-                session.wordsBy(playerId),
-                session.wordsBy(opponent),
-                session.turn() != playerId));
+            state = new DuelMessages.DuelState(
+                    session.id(),
+                    chainFor(session, playerId),
+                    session.turn() == playerId,
+                    String.valueOf(session.requiredLetter()),
+                    timeLeft,
+                    props.duel().turnSeconds(),
+                    session.wordsBy(playerId),
+                    session.wordsBy(opponent),
+                    session.turn() != playerId);
+        }
+        sockets.send(playerId, "duel.update", state);
     }
 
     private List<ChainEntry> chainFor(DuelSession session, long playerId) {

@@ -9,8 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.stereotype.Component;
 
 /**
  * Loads the practice-screen vocabulary from a bundled TSV on every start,
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
  * a migration means the practice screen works on a fresh database, an H2 test
  * run, or after new words are added — without a schema change.
  */
-@Component
+@Configuration
 public class PracticeWordSeeder {
 
     private static final Logger log = LoggerFactory.getLogger(PracticeWordSeeder.class);

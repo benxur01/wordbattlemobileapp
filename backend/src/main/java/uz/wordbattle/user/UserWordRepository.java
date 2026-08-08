@@ -12,4 +12,6 @@ public interface UserWordRepository extends JpaRepository<UserWord, UserWord.Key
     List<String> findKnown(@Param("userId") Long userId, @Param("words") Collection<String> words);
 
     long countByUserId(Long userId);
+
+    void deleteByUserId(Long userId);
 }

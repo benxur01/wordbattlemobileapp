@@ -1,9 +1,13 @@
 package uz.wordbattle.friend;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uz.wordbattle.common.ApiException;
@@ -31,9 +35,9 @@ public class FriendService {
         this.presence = presence;
     }
 
+    /** One query for every friend, not one query per friend. */
     public List<FriendDto> friendsOf(Long userId) {
-        return friendships.findByUserId(userId).stream()
-                .map(f -> users.require(f.getFriendId()))
+        return users.allByIds(friendIds(userId)).stream()
                 .map(friend -> new FriendDto(
                         UserDto.of(friend),
                         presence.isOnline(friend.getId()),
@@ -58,14 +62,32 @@ public class FriendService {
 
     public List<FriendRequestDto> incomingRequests(Long userId) {
         Set<Long> myFriends = friendIds(userId);
-        return requests.findByToUserIdAndStatus(userId, Status.PENDING).stream()
+        List<FriendRequestEntity> pending = requests.findByToUserIdAndStatus(userId, Status.PENDING);
+        if (pending.isEmpty()) return List.of();
+
+        // Two queries for the whole list: the senders, and every friendship
+        // edge leading out of them. The per-request lookups this replaces made
+        // a screen with ten requests thirty round trips.
+        Set<Long> senderIds = pending.stream()
+                .map(FriendRequestEntity::getFromUserId)
+                .collect(Collectors.toSet());
+        Map<Long, User> senders = users.allByIds(senderIds).stream()
+                .collect(Collectors.toMap(User::getId, user -> user));
+        Map<Long, Set<Long>> theirFriends = new HashMap<>();
+        for (Friendship edge : friendships.findByUserIdIn(senderIds)) {
+            theirFriends.computeIfAbsent(edge.getUserId(), id -> new HashSet<>()).add(edge.getFriendId());
+        }
+
+        return pending.stream()
                 .map(request -> {
-                    User from = users.require(request.getFromUserId());
-                    Set<Long> theirFriends = friendIds(from.getId());
-                    theirFriends.retainAll(myFriends);
+                    User from = senders.get(request.getFromUserId());
+                    if (from == null) return null;
+                    Set<Long> mutual = new HashSet<>(theirFriends.getOrDefault(from.getId(), Set.of()));
+                    mutual.retainAll(myFriends);
                     return new FriendRequestDto(
-                            request.getId(), UserDto.of(from), theirFriends.size(), request.getCreatedAt());
+                            request.getId(), UserDto.of(from), mutual.size(), request.getCreatedAt());
                 })
+                .filter(Objects::nonNull)
                 .toList();
     }
 
@@ -75,6 +97,9 @@ public class FriendService {
 
     @Transactional
     public FriendRequestEntity sendRequest(Long fromUserId, Long toUserId) {
+        if (toUserId == null) {
+            throw ApiException.badRequest("user_id_required", "Foydalanuvchi ko'rsatilmagan");
+        }
         if (fromUserId.equals(toUserId)) {
             throw ApiException.badRequest("self_request", "O'zingizga do'stlik so'rovi yubora olmaysiz");
         }

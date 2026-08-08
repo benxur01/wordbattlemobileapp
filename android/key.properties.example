@@ -1,0 +1,19 @@
+# Copy to android/key.properties and fill in. Never commit the real file or the
+# keystore itself: whoever holds them can publish updates as you.
+#
+# Create an upload keystore once:
+#
+#   keytool -genkey -v -keystore ~/wordbattle-upload.jks \
+#           -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+# Then register its SHA-1 with the Android OAuth client in Google Cloud Console
+# (Play App Signing adds a second certificate — take its SHA-1 from
+# Play Console -> Setup -> App signing and register that one too, or sign-in
+# will work in your own builds and fail for everyone who installs from Play):
+#
+#   keytool -list -v -keystore ~/wordbattle-upload.jks -alias upload
+
+storeFile=/home/you/wordbattle-upload.jks
+storePassword=
+keyAlias=upload
+keyPassword=

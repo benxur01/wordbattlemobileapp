@@ -65,15 +65,17 @@ class ApiClient {
 
   // ---------------------------------------------------------------- auth
 
-  /// Development login. Production builds use [loginWithTelegram].
-  Future<({String token, UserDto user, bool needsNickname})> loginDev(int telegramId, String displayName) async {
-    final json = await _post('/auth/dev', {'telegramId': telegramId, 'displayName': displayName})
-        as Map<String, dynamic>;
+  /// Production login. The idToken comes from `GoogleAuth`; the server checks
+  /// it against Google's public keys before issuing our own token.
+  Future<({String token, UserDto user, bool needsNickname})> loginWithGoogle(String idToken) async {
+    final json = await _post('/auth/google', {'idToken': idToken}) as Map<String, dynamic>;
     return _loginResult(json);
   }
 
-  Future<({String token, UserDto user, bool needsNickname})> loginWithTelegram(String initData) async {
-    final json = await _post('/auth/telegram', {'initData': initData}) as Map<String, dynamic>;
+  /// Throwaway account for development, served only while the backend runs
+  /// with `wordbattle.dev-login-enabled`. Every call creates a new player.
+  Future<({String token, UserDto user, bool needsNickname})> loginDev(String displayName) async {
+    final json = await _post('/auth/dev', {'displayName': displayName}) as Map<String, dynamic>;
     return _loginResult(json);
   }
 
@@ -94,6 +96,12 @@ class ApiClient {
       UserDto.fromJson(await _put('/users/me/nickname', {'nickname': nickname}) as Map<String, dynamic>);
 
   Future<ProfileDto> profile() async => ProfileDto.fromJson(await _get('/users/me/profile') as Map<String, dynamic>);
+
+  Future<UserDto> setCity(String city) async =>
+      UserDto.fromJson(await _put('/users/me/city', {'city': city}) as Map<String, dynamic>);
+
+  /// Deletes the account for good. The token is dead the moment this returns.
+  Future<void> deleteAccount() => _delete('/users/me');
 
   Future<List<UserDto>> searchUsers(String query) async {
     final list = await _get('/users/search', {'q': query}) as List;
@@ -119,6 +127,16 @@ class ApiClient {
   Future<void> declineFriendRequest(int id) => _post('/friends/requests/$id/decline');
 
   Future<void> removeFriend(int userId) => _delete('/friends/$userId');
+
+  // ------------------------------------------------------------- history
+
+  Future<List<MatchSummaryDto>> matchHistory({int limit = 20}) async {
+    final list = await _get('/matches', {'limit': limit}) as List;
+    return list.map((e) => MatchSummaryDto.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<MatchDetailDto> matchDetail(int id) async =>
+      MatchDetailDto.fromJson(await _get('/matches/$id') as Map<String, dynamic>);
 
   // --------------------------------------------------- leaderboard, extras
 

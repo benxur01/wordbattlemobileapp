@@ -21,10 +21,12 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final RestAuthEntryPoint authEntryPoint;
+    private final AppProperties props;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, RestAuthEntryPoint authEntryPoint) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, RestAuthEntryPoint authEntryPoint, AppProperties props) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.authEntryPoint = authEntryPoint;
+        this.props = props;
     }
 
     @Bean
@@ -33,7 +35,16 @@ public class SecurityConfig {
                 // Stateless JWT API consumed by a mobile app: no cookies, so CSRF
                 // protection has nothing to protect.
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configurationSource(corsSource()))
+                // Only when a browser origin is actually configured. Left off,
+                // the API answers no cross-origin preflight at all — which is
+                // what a phone-only backend wants.
+                .cors(cors -> {
+                    if (props.cors().enabled()) {
+                        cors.configurationSource(corsSource());
+                    } else {
+                        cors.disable();
+                    }
+                })
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/actuator/health/**", "/actuator/info").permitAll()
@@ -52,7 +63,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOriginPatterns(props.cors().allowedOrigins());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

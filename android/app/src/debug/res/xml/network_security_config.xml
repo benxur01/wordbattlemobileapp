@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug builds only. Android 9 blocks cleartext HTTP by default, which is
+  right, but development runs the server on a laptop over `adb reverse` or a
+  LAN address and neither has a certificate. Without this the documented
+  WB_API=http://192.168.1.10:8080 fails on the device with a bare connection
+  error.
+
+  The release manifest has no such config and sets usesCleartextTraffic=false,
+  so a shipped build refuses cleartext outright and the API has to be HTTPS.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <!-- So a local reverse proxy with a self-signed certificate can be
+                 trusted while developing, without weakening release builds. -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

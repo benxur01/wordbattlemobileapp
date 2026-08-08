@@ -38,7 +38,7 @@ public class LeaderboardController {
             @RequestParam(value = "limit", defaultValue = "50") int limit) {
 
         User me = userService.require(principal.userId());
-        List<User> top = users.topByRating(PageRequest.of(0, Math.min(limit, 100)));
+        List<User> top = users.topByRating(PageRequest.of(0, Math.max(1, Math.min(limit, 100))));
 
         List<Row> rows = new ArrayList<>();
         for (int i = 0; i < top.size(); i++) {
@@ -53,9 +53,10 @@ public class LeaderboardController {
     public Board friendsBoard(@CurrentUser AuthPrincipal principal) {
         User me = userService.require(principal.userId());
 
+        // One query for the whole friend list rather than one per friend.
         List<User> people = new ArrayList<>();
         people.add(me);
-        friends.friendIds(me.getId()).forEach(id -> people.add(userService.require(id)));
+        people.addAll(users.findAllById(friends.friendIds(me.getId())));
         people.sort(Comparator.comparingDouble(User::getRating).reversed());
 
         List<Row> rows = new ArrayList<>();

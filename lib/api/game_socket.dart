@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import 'api_config.dart';
+import 'socket_connect.dart';
 
 /// One frame from the server.
 class SocketEvent {
@@ -43,6 +43,10 @@ class GameSocket {
   Stream<SocketStatus> get status => _status.stream;
   bool get isConnected => _channel != null;
 
+  /// Reconnects tried since the last frame actually arrived. The app uses it to
+  /// tell "the network blipped" from "this token is no longer accepted".
+  int get failedAttempts => _attempt;
+
   void connect(String token) {
     _token = token;
     _closedByUs = false;
@@ -56,7 +60,7 @@ class GameSocket {
 
     _status.add(SocketStatus.connecting);
     try {
-      final channel = WebSocketChannel.connect(ApiConfig.socket(token));
+      final channel = openGameSocket(token);
       _channel = channel;
       _subscription = channel.stream.listen(
         _onFrame,
@@ -75,6 +79,12 @@ class GameSocket {
   }
 
   void _onFrame(dynamic raw) {
+    // A frame is the only proof the socket really came up — the handshake
+    // itself resolves before the server has accepted the token. Resetting the
+    // backoff here (rather than never, as it was) matters: without it the
+    // second drop of a session waited the full 15s, which is longer than the
+    // server's disconnect grace, and the player lost a duel they were winning.
+    _attempt = 0;
     if (raw is! String) return;
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;

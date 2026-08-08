@@ -35,8 +35,26 @@ public class SocketRegistry {
         }
     }
 
-    public void unregister(Long userId, WebSocketSession session) {
-        sessions.remove(userId, session);
+    /**
+     * Drops the session, but only if it is still the one registered for this
+     * player, and says whether it was. A reconnect swaps the entry before the
+     * old socket's close callback arrives, so {@code false} means "this close
+     * belongs to a socket that has already been replaced" — the caller must
+     * then leave the player's state alone.
+     */
+    public boolean unregister(Long userId, WebSocketSession session) {
+        return sessions.remove(userId, session);
+    }
+
+    /** Closes the player's socket, if they have one. */
+    public void disconnect(Long userId) {
+        WebSocketSession session = sessions.remove(userId);
+        if (session == null) return;
+        try {
+            session.close();
+        } catch (IOException ignored) {
+            // already gone
+        }
     }
 
     public boolean isConnected(Long userId) {

@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    Optional<User> findByTelegramId(Long telegramId);
+    Optional<User> findByGoogleSubject(String googleSubject);
 
     @Query("select u from User u where lower(u.nickname) = lower(:nickname)")
     Optional<User> findByNicknameIgnoreCase(@Param("nickname") String nickname);
@@ -17,10 +17,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("select count(u) > 0 from User u where lower(u.nickname) = lower(:nickname)")
     boolean nicknameTaken(@Param("nickname") String nickname);
 
+    /** {@code q} arrives already escaped for LIKE, with {@code !} as the escape. */
     @Query("""
             select u from User u
             where u.nickname is not null
-              and lower(u.nickname) like lower(concat(:q, '%'))
+              and lower(u.nickname) like lower(concat(:q, '%')) escape '!'
             order by u.rating desc
             """)
     List<User> searchByNicknamePrefix(@Param("q") String q, Pageable pageable);

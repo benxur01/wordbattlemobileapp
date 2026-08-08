@@ -1,9 +1,12 @@
 package uz.wordbattle.user;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import uz.wordbattle.auth.AuthPrincipal;
 import uz.wordbattle.auth.CurrentUser;
@@ -16,17 +19,21 @@ public class UserController {
 
     private final UserService users;
     private final RatingHistoryRepository ratingHistory;
+    private final AccountDeletionService deletion;
 
-    public UserController(UserService users, RatingHistoryRepository ratingHistory) {
+    public UserController(
+            UserService users, RatingHistoryRepository ratingHistory, AccountDeletionService deletion) {
         this.users = users;
         this.ratingHistory = ratingHistory;
+        this.deletion = deletion;
     }
 
     public record NicknameCheckResponse(boolean available, String reason, List<String> suggestions) {}
 
     public record NicknameRequest(@NotBlank String nickname) {}
 
-    public record CityRequest(String city) {}
+    /** Bounded to the column width, so an oversized value is a 400 and not a 500. */
+    public record CityRequest(@Size(max = 64, message = "Ko'pi bilan 64 ta belgi") String city) {}
 
     @GetMapping("/me")
     public UserDto me(@CurrentUser AuthPrincipal principal) {
@@ -47,13 +54,23 @@ public class UserController {
     }
 
     @PutMapping("/me/nickname")
-    public UserDto setNickname(@CurrentUser AuthPrincipal principal, @RequestBody NicknameRequest request) {
+    public UserDto setNickname(@CurrentUser AuthPrincipal principal, @Valid @RequestBody NicknameRequest request) {
         return UserDto.of(users.claimNickname(principal.userId(), request.nickname()));
     }
 
     @PutMapping("/me/city")
-    public UserDto setCity(@CurrentUser AuthPrincipal principal, @RequestBody CityRequest request) {
+    public UserDto setCity(@CurrentUser AuthPrincipal principal, @Valid @RequestBody CityRequest request) {
         return UserDto.of(users.updateCity(principal.userId(), request.city()));
+    }
+
+    /**
+     * Deletes the signed-in account. Reachable from the profile screen, which
+     * the store requires of any app that lets people create an account.
+     */
+    @DeleteMapping("/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMe(@CurrentUser AuthPrincipal principal) {
+        deletion.delete(principal.userId());
     }
 
     @GetMapping("/me/profile")
@@ -71,7 +88,9 @@ public class UserController {
             @CurrentUser AuthPrincipal principal,
             @RequestParam("q") String query,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
-        return users.search(query, principal.userId(), Math.min(limit, 50)).stream()
+        // The clamp lives in the service: a zero or negative page size reached
+        // PageRequest.of and came back as a 500.
+        return users.search(query, principal.userId(), limit).stream()
                 .map(UserDto::of)
                 .toList();
     }

@@ -27,10 +27,10 @@ class ApiIntegrationTest {
     @Autowired
     private ObjectMapper mapper;
 
-    private String login(long telegramId, String name) throws Exception {
+    private String login(String name) throws Exception {
         String body = mvc.perform(post("/api/auth/dev")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"telegramId\":" + telegramId + ",\"displayName\":\"" + name + "\"}"))
+                        .content("{\"displayName\":\"" + name + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
@@ -46,17 +46,27 @@ class ApiIntegrationTest {
 
     @Test
     void devLoginIssuesAWorkingToken() throws Exception {
-        String token = login(1001, "Jasur");
+        String token = login("Jasur");
 
         mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.displayName").value("Jasur"));
     }
 
+    /** No network needed: the token is refused before any key lookup happens. */
+    @Test
+    void googleLoginRefusesATokenItCannotVerify() throws Exception {
+        mvc.perform(post("/api/auth/google")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"idToken\":\"not-a-google-token\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("id_token_invalid"));
+    }
+
     @Test
     void aNicknameCanBeClaimedOnlyOnce() throws Exception {
-        String first = login(1002, "First");
-        String second = login(1003, "Second");
+        String first = login("First");
+        String second = login("Second");
 
         mvc.perform(get("/api/users/nickname/check").param("value", "otabek_z")
                         .header("Authorization", "Bearer " + first))
@@ -91,7 +101,7 @@ class ApiIntegrationTest {
 
     @Test
     void invalidNicknamesAreRefusedWithAReason() throws Exception {
-        String token = login(1004, "Third");
+        String token = login("Third");
 
         mvc.perform(get("/api/users/nickname/check").param("value", "ab")
                         .header("Authorization", "Bearer " + token))
@@ -108,8 +118,8 @@ class ApiIntegrationTest {
 
     @Test
     void friendRequestsFlowThroughToTheFriendList() throws Exception {
-        String a = login(2001, "Aziza");
-        String b = login(2002, "Bekzod");
+        String a = login("Aziza");
+        String b = login("Bekzod");
 
         claim(a, "aziza_m");
         claim(b, "bekzod_99");
@@ -140,7 +150,7 @@ class ApiIntegrationTest {
 
     @Test
     void leaderboardAndProfileAreServed() throws Exception {
-        String token = login(3001, "Diyor");
+        String token = login("Diyor");
         claim(token, "diyor_k");
 
         mvc.perform(get("/api/leaderboard/global").header("Authorization", "Bearer " + token))

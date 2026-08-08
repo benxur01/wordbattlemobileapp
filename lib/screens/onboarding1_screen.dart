@@ -5,9 +5,13 @@ import '../widgets/primary_button.dart';
 import '../widgets/spinner_ring.dart';
 
 class Onboarding1Screen extends StatelessWidget {
-  const Onboarding1Screen({super.key, required this.onNext, this.busy = false});
+  const Onboarding1Screen({super.key, required this.onGoogle, this.onDevLogin, this.busy = false});
 
-  final VoidCallback onNext;
+  final VoidCallback onGoogle;
+
+  /// Null in a properly configured build. Non-null only while the Google
+  /// client ID is still a placeholder, so the app can still be opened.
+  final VoidCallback? onDevLogin;
 
   /// True while the login request is in flight — the button must not fire twice.
   final bool busy;
@@ -71,7 +75,7 @@ class Onboarding1Screen extends StatelessWidget {
             Column(
               children: [
                 Pressable(
-                  onTap: busy ? null : onNext,
+                  onTap: busy ? null : onGoogle,
                   pressScale: .98,
                   child: Container(
                     height: 62,
@@ -91,6 +95,8 @@ class Onboarding1Screen extends StatelessWidget {
                             strokeWidth: 2.5,
                           )
                         else
+                          // The design draws an abstract disc rather than a
+                          // provider logo; the G keeps that shape language.
                           Container(
                             width: 22,
                             height: 22,
@@ -98,10 +104,13 @@ class Onboarding1Screen extends StatelessWidget {
                               color: WBColors.amberInk.withValues(alpha: .85),
                               shape: BoxShape.circle,
                             ),
+                            alignment: Alignment.center,
+                            child: Text('G',
+                                style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.amber)),
                           ),
                         const SizedBox(width: 10),
                         Text(
-                          busy ? 'Kirilmoqda…' : 'Telegram orqali kirish',
+                          busy ? 'Kirilmoqda…' : 'Google orqali kirish',
                           style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.amberInk),
                         ),
                       ],
@@ -111,6 +120,24 @@ class Onboarding1Screen extends StatelessWidget {
                 const SizedBox(height: 14),
                 Text("Parol yo'q. 30 soniyada birinchi jangingda.",
                     textAlign: TextAlign.center, style: WBText.grotesk(size: 12.5, color: WBColors.textA(.42))),
+                if (onDevLogin != null) ...[
+                  const SizedBox(height: 12),
+                  Pressable(
+                    onTap: busy ? null : onDevLogin,
+                    pressScale: .96,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      child: Text('Dev login',
+                          style: WBText.mono(
+                            size: 11,
+                            weight: FontWeight.w500,
+                            color: WBColors.textA(.38),
+                            letterSpacing: .12,
+                          )),
+                    ),
+                  ),
+                ],
               ],
             ),
           ],

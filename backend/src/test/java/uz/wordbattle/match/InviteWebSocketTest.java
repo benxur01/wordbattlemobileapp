@@ -19,6 +19,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.lang.NonNull;
 import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
@@ -78,10 +79,10 @@ class InviteWebSocketTest {
         }
     }
 
-    private String login(long telegramId, String name) {
+    private String login(String name) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        String body = "{\"telegramId\":" + telegramId + ",\"displayName\":\"" + name + "\"}";
+        String body = "{\"displayName\":\"" + name + "\"}";
         String response = rest.postForObject(
                 "http://localhost:" + port + "/api/auth/dev", new HttpEntity<>(body, headers), String.class);
         try {
@@ -123,8 +124,8 @@ class InviteWebSocketTest {
 
     @Test
     void aFriendChallengeStartsADuelWhenAccepted() throws Exception {
-        String hostToken = login(7101, "Otabek");
-        String guestToken = login(7102, "Malika");
+        String hostToken = login("Otabek");
+        String guestToken = login("Malika");
         call("PUT", "/api/users/me/nickname", hostToken, "{\"nickname\":\"otabek_z1\"}", String.class);
         call("PUT", "/api/users/me/nickname", guestToken, "{\"nickname\":\"malika_x1\"}", String.class);
         befriend(hostToken, guestToken);
@@ -157,8 +158,8 @@ class InviteWebSocketTest {
 
     @Test
     void decliningTellsTheChallengerAndStartsNothing() throws Exception {
-        String hostToken = login(7103, "Sardor");
-        String guestToken = login(7104, "Nodira");
+        String hostToken = login("Sardor");
+        String guestToken = login("Nodira");
         call("PUT", "/api/users/me/nickname", hostToken, "{\"nickname\":\"sardor_e1\"}", String.class);
         call("PUT", "/api/users/me/nickname", guestToken, "{\"nickname\":\"nodira_w1\"}", String.class);
         befriend(hostToken, guestToken);
@@ -176,10 +177,114 @@ class InviteWebSocketTest {
         assertThat(host.await("invite.declined", 5).path("inviteId").asText()).isEqualTo(inviteId);
     }
 
+    /**
+     * An invite outlives the moment it was sent, so the challenger can be
+     * pulled into a duel by matchmaking while it waits. Accepting used to start
+     * a second duel for them regardless — and because a player maps to exactly
+     * one duel, whichever finished first deregistered the other, leaving that
+     * player on a duel screen where every word came back "no active duel".
+     */
+    @Test
+    void anInviteCannotStartASecondDuelForAChallengerWhoIsAlreadyPlaying() throws Exception {
+        String hostToken = login("Jahongir");
+        String guestToken = login("Zilola");
+        String thirdToken = login("Kamola");
+        call("PUT", "/api/users/me/nickname", hostToken, "{\"nickname\":\"jahon_q1\"}", String.class);
+        call("PUT", "/api/users/me/nickname", guestToken, "{\"nickname\":\"zilola_q1\"}", String.class);
+        call("PUT", "/api/users/me/nickname", thirdToken, "{\"nickname\":\"kamola_q1\"}", String.class);
+        befriend(hostToken, guestToken);
+
+        host = new Client(hostToken);
+        guest = new Client(guestToken);
+        Client third = new Client(thirdToken);
+        try {
+            host.await("hello", 5);
+            guest.await("hello", 5);
+            third.await("hello", 5);
+
+            host.send("invite.send", Map.of("userId", userId(guestToken)));
+            String inviteId = guest.await("invite.incoming", 5).path("inviteId").asText();
+
+            // Both are fresh accounts on 1200, so the queue pairs them at once.
+            third.send("queue.join", Map.of());
+            host.send("queue.join", Map.of());
+            host.await("match.found", 10);
+
+            guest.send("invite.accept", Map.of("inviteId", inviteId));
+
+            assertThat(guest.await("error", 5).path("code").asText()).isEqualTo("opponent_busy");
+        } finally {
+            third.close();
+        }
+    }
+
+    /** A player mid-duel should not be able to open a second one either. */
+    @Test
+    void aPlayerAlreadyInADuelCannotSendAnInvite() throws Exception {
+        String hostToken = login("Ulugbek");
+        String guestToken = login("Sevara");
+        String thirdToken = login("Dilnoza");
+        call("PUT", "/api/users/me/nickname", hostToken, "{\"nickname\":\"ulugb_r1\"}", String.class);
+        call("PUT", "/api/users/me/nickname", guestToken, "{\"nickname\":\"sevara_r1\"}", String.class);
+        call("PUT", "/api/users/me/nickname", thirdToken, "{\"nickname\":\"dilnoz_r1\"}", String.class);
+        befriend(hostToken, guestToken);
+
+        host = new Client(hostToken);
+        guest = new Client(guestToken);
+        Client third = new Client(thirdToken);
+        try {
+            host.await("hello", 5);
+            guest.await("hello", 5);
+            third.await("hello", 5);
+
+            third.send("queue.join", Map.of());
+            host.send("queue.join", Map.of());
+            host.await("match.found", 10);
+
+            host.send("invite.send", Map.of("userId", userId(guestToken)));
+
+            assertThat(host.await("error", 5).path("code").asText()).isEqualTo("already_in_duel");
+        } finally {
+            third.close();
+        }
+    }
+
+    /**
+     * The app authenticates the socket with a header so the token stays out of
+     * proxy access logs; the query-string form remains for browsers.
+     */
+    @Test
+    void theHandshakeAcceptsTheTokenInAnAuthorizationHeader() throws Exception {
+        String token = login("Aziza");
+        BlockingQueue<JsonNode> frames = new LinkedBlockingQueue<>();
+        WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
+        headers.add("Authorization", "Bearer " + token);
+
+        WebSocketSession session = new StandardWebSocketClient()
+                .execute(
+                        new TextWebSocketHandler() {
+                            @Override
+                            protected void handleTextMessage(
+                                    @NonNull WebSocketSession session, @NonNull TextMessage message) throws Exception {
+                                frames.add(mapper.readTree(message.getPayload()));
+                            }
+                        },
+                        headers,
+                        java.net.URI.create("ws://localhost:" + port + "/ws"))
+                .get(5, TimeUnit.SECONDS);
+        try {
+            JsonNode frame = frames.poll(5, TimeUnit.SECONDS);
+            assertThat(frame).isNotNull();
+            assertThat(frame.path("type").asText()).isEqualTo("hello");
+        } finally {
+            session.close();
+        }
+    }
+
     @Test
     void strangersCannotBeChallenged() throws Exception {
-        String hostToken = login(7105, "Bekzod");
-        String strangerToken = login(7106, "Diyor");
+        String hostToken = login("Bekzod");
+        String strangerToken = login("Diyor");
 
         host = new Client(hostToken);
         guest = new Client(strangerToken);
