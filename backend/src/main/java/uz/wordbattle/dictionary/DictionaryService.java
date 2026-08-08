@@ -24,7 +24,13 @@ import org.springframework.stereotype.Service;
  * when the client decides validity, any modified build can play anything.
  *
  * <p>Two lists are loaded — a large one for accepting player words, and a
- * common-words subset the bot plays from so its moves stay natural.
+ * common-words subset the bot plays from so its moves stay natural. Both come
+ * from third-party sources that carry entries this game should not use, so two
+ * hand-curated exclusion lists are subtracted on top: {@code invalid-en.txt}
+ * (abbreviations and unit symbols that are not words at all) applies to
+ * everything, and {@code bot-excluded-en.txt} (proper nouns) applies only to the
+ * bot's pool — the bot answering "aberdeen" reads as a bug, whereas rejecting a
+ * player for it would only be pedantic.
  */
 @Service
 public class DictionaryService {
@@ -37,14 +43,29 @@ public class DictionaryService {
 
     @PostConstruct
     void load() throws IOException {
-        readLines("words/valid-en.txt", valid::add);
+        Set<String> notWords = new HashSet<>();
+        readLines("words/invalid-en.txt", notWords::add);
+        Set<String> offLimitsToBot = new HashSet<>(notWords);
+        readLines("words/bot-excluded-en.txt", offLimitsToBot::add);
 
-        List<String> common = new ArrayList<>();
-        readLines("words/common-en.txt", common::add);
-        for (String word : common) {
+        readLines("words/valid-en.txt", valid::add);
+        int loaded = valid.size();
+        valid.removeAll(notWords);
+
+        int common = 0;
+        List<String> pool = new ArrayList<>();
+        readLines("words/common-en.txt", pool::add);
+        for (String word : pool) {
+            if (offLimitsToBot.contains(word)) continue;
             commonByFirstLetter.computeIfAbsent(word.charAt(0), key -> new ArrayList<>()).add(word);
+            common++;
         }
-        log.info("Dictionary loaded: {} valid words, {} common words", valid.size(), common.size());
+        log.info(
+                "Dictionary loaded: {} valid words ({} excluded), {} bot words ({} excluded)",
+                valid.size(),
+                loaded - valid.size(),
+                common,
+                pool.size() - common);
     }
 
     private void readLines(String path, java.util.function.Consumer<String> consumer) throws IOException {
@@ -53,7 +74,9 @@ public class DictionaryService {
             String line;
             while ((line = reader.readLine()) != null) {
                 String word = line.trim().toLowerCase();
-                if (!word.isEmpty()) consumer.accept(word);
+                // '#' starts a comment: the exclusion lists carry a header
+                // explaining how they were derived.
+                if (!word.isEmpty() && word.charAt(0) != '#') consumer.accept(word);
             }
         }
     }
