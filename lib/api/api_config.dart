@@ -16,22 +16,24 @@ class ApiConfig {
   /// refuses cleartext outright (see the Android network security config).
   static bool get isCleartext => baseUrl.startsWith('http://');
 
-  /// TODO: paste the **Web** OAuth client ID here — Google Cloud Console →
-  /// APIs & Services → Credentials → the "Web application" entry, ending in
-  /// `.apps.googleusercontent.com`.
+  /// The **Web** OAuth client, which stands for the backend rather than for any
+  /// website — Google's name for "a client that runs on a server". Sign-In is
+  /// asked to mint the idToken for whoever is named here, and the backend
+  /// accepts only a token addressed to itself, so this value and the server's
+  /// `wordbattle.google.web-client-id` have to be the same string.
   ///
-  /// It must be the web client, not the Android one: Google mints the idToken
-  /// for whoever is named here, and the backend only accepts a token addressed
-  /// to itself. The Android client still has to exist (with the app's SHA-1
-  /// fingerprints registered) for the sign-in sheet to appear at all — it just
-  /// never appears in code.
+  /// Not the Android client id: that one exists so the sign-in sheet trusts the
+  /// app at all (it is matched by package name and signing SHA-1), and it never
+  /// appears in code. Putting it here instead yields a token whose `aud` names
+  /// the phone app, which the server refuses.
   ///
-  /// The same value goes into `wordbattle.google.web-client-id` on the server.
-  /// This is the only place the client keeps it; override at build time with
-  /// `--dart-define=WB_GOOGLE_CLIENT_ID=...` if you would rather not commit it.
+  /// Committed on purpose. A client id is not a secret — it ships inside every
+  /// build and is visible in the traffic — and keeping it here means a plain
+  /// `flutter run` works. `--dart-define=WB_GOOGLE_CLIENT_ID=...` still wins,
+  /// which is how a second Google project (staging, a fork) is pointed at.
   static const String googleServerClientId = String.fromEnvironment(
     'WB_GOOGLE_CLIENT_ID',
-    defaultValue: 'TODO-PASTE-WEB-CLIENT-ID.apps.googleusercontent.com',
+    defaultValue: '238943789457-tgpjf2jamd6r8m0ottqn0ik9ce76gpe2.apps.googleusercontent.com',
   );
 
   /// False while the placeholder above is still in place, so the app can say

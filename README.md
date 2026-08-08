@@ -71,10 +71,13 @@ Kirish faqat Google orqali. Google Cloud Console → APIs & Services →
 Credentials ichida **ikkita** OAuth client kerak (iOS ham quriladigan bo'lsa —
 uchta):
 
-1. **Web application** — uning ID sini ikki joyga qo'ying:
-   `ApiConfig.googleServerClientId` ([lib/api/api_config.dart](lib/api/api_config.dart), hozir `TODO` turibdi)
-   va serverda `GOOGLE_WEB_CLIENT_ID`. Aynan shu ID `idToken` ning `aud` iga
-   yoziladi, server esa shuni tekshiradi.
+1. **Web application** — nomi chalg'itadi: bu vebsayt emas, "serverda ishlaydigan
+   client" degani, ya'ni backendning o'zi. ID **allaqachon kodda**
+   ([lib/api/api_config.dart](lib/api/api_config.dart)) — client ID maxfiy emas,
+   u har bir build ichida ketadi. Serverga ham o'shanini bering:
+   `GOOGLE_WEB_CLIENT_ID`. Aynan shu ID `idToken` ning `aud` iga yoziladi,
+   server esa shuni tekshiradi. Boshqa Google loyihasiga o'tish kerak bo'lsa —
+   `--dart-define=WB_GOOGLE_CLIENT_ID=...` kodni bosib o'tadi.
 2. **Android** — package `com.wordbattle.word_battle`, va SHA-1 barmoq izlari:
    debug keystore, release keystore hamda Play App Signing (Play Console →
    Setup → App signing). Bu client kodda ishlatilmaydi, lekin usiz Google
@@ -82,9 +85,14 @@ uchta):
 3. **iOS** — faqat iOS build uchun. Bundle ID `com.wordbattle.wordBattle`,
    va Android'dan farqli o'laroq bu client ID kodda ishlatiladi — pastga qarang.
 
-ID qo'yilmaguncha onboarding ekranida kichik **Dev login** tugmasi turadi
-(server `DEV_LOGIN_ENABLED=true` bilan ishlashi kerak); haqiqiy ID qo'yilgach
-u o'zi yo'qoladi.
+Web client ID kodda turgani uchun onboarding'da **Google tugmasi** ko'rinadi.
+Dev login tugmasi faqat ID `TODO` bo'lganda paydo bo'ladi — ya'ni hozir yo'q.
+
+⚠️ **Test users.** Yangi OAuth client "Testing" holatida bo'ladi va faqat
+Cloud Console → **Audience → Test users** ro'yxatidagi akkauntlar kira oladi;
+qolganlari `access_denied` oladi. Hammaga ochish uchun **Audience → Publish
+app** — ilova faqat `openid`/`email`/`profile` so'ragani uchun Google
+tekshiruvi (verification) talab qilinmaydi.
 
 #### iOS
 
@@ -226,11 +234,11 @@ o'z litsenziyalari ostida: [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Hali yo'q
 
-- **Google Web client ID** — `ApiConfig.googleServerClientId` hali `TODO`.
-  Uni qo'ymaguncha ilovaga faqat dev login bilan kiriladi, prodda esa (dev login
-  o'chiq) kirishning yo'li yo'q. Yagona qadam sizdan: Cloud Console'dagi qiymat.
-- **Jang tarixi ekrani** — `GET /api/matches` va `ApiClient.matchHistory()`
-  tayyor, ularni ko'rsatadigan ekran hali chizilmagan.
+- **Google kirish qurilmada sinalmagan.** Web client ID kodda, Android client
+  ro'yxatdan o'tgan, server tokenni tekshirishni biladi va u test bilan
+  qoplangan — lekin hech kim haqiqiy Google akkaunti bilan kirib ko'rmagan.
+  Birinchi sinovdan oldin: Cloud Console → Audience → **Test users** ga o'z
+  akkauntingizni qo'shing (yuqoriga qarang).
 - **iOS'da Google Sign-In** — `Info.plist` kalitlari joyida, lekin ichida uchta
   `TODO-PASTE` turibdi va hech kim uni macOS'da qurib ko'rmagan. Kerak: Cloud
   Console'dan iOS client (bundle `com.wordbattle.wordBattle`) va Sign in with
