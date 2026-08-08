@@ -2,12 +2,16 @@ package uz.wordbattle.match;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class DuelSessionTest {
 
+    /** The shipped {@code wordbattle.duel.rare-letters}. */
+    private static final Set<Character> RARE = Set.of('x', 'z');
+
     private DuelSession session() {
-        return new DuelSession("duel-1", 10L, 20L, false, "battle");
+        return new DuelSession("duel-1", 10L, 20L, false, "battle", RARE);
     }
 
     @Test
@@ -29,10 +33,55 @@ class DuelSessionTest {
         session.addWord("tiger", 20L, 900);
         assertThat(session.requiredLetter()).isEqualTo('r');
 
+        // Ordinary endings are handed over untouched, and say so.
+        assertThat(session.substitutedFrom()).isNull();
+
         assertThat(session.chainLength()).isEqualTo(2);
         assertThat(session.wordsBy(10L)).isEqualTo(1);
         assertThat(session.alreadyUsed("east")).isTrue();
         assertThat(session.alreadyUsed("river")).isFalse();
+    }
+
+    @Test
+    void aChainEndingOnARareLetterMovesOnToTheOneBeforeIt() {
+        DuelSession session = session();
+
+        // Without the substitution "earwax" is a win on the spot: one common
+        // word starts with "x" and it ends in "x" as well.
+        session.addWord("earwax", 10L, 1200);
+
+        assertThat(session.requiredLetter()).isEqualTo('a');
+        assertThat(session.substitutedFrom()).isEqualTo('x');
+    }
+
+    @Test
+    void aRunOfRareLettersIsSteppedOverInOneGo() {
+        DuelSession session = session();
+        session.addWord("east", 10L, 1200);
+
+        session.addWord("topaz", 20L, 900);
+        assertThat(session.requiredLetter()).isEqualTo('a');
+        assertThat(session.substitutedFrom()).isEqualTo('z');
+
+        // Two rare letters back to back: handing over the second "z" would be
+        // the same dead end one letter along.
+        session.addWord("abuzz", 10L, 900);
+        assertThat(session.requiredLetter()).isEqualTo('u');
+        assertThat(session.substitutedFrom()).isEqualTo('z');
+    }
+
+    @Test
+    void theWalkBackwardsCannotRunOffTheFrontOfAWord() {
+        // Neither shape can reach the chain — words are validated against the
+        // dictionary and must be three letters long — but the walk must not
+        // depend on that to stay inside the string.
+        DuelSession allRare = new DuelSession("duel-2", 10L, 20L, false, "zzz", RARE);
+        assertThat(allRare.requiredLetter()).isEqualTo('z');
+        assertThat(allRare.substitutedFrom()).isNull();
+
+        DuelSession twoLetters = new DuelSession("duel-3", 10L, 20L, false, "ox", RARE);
+        assertThat(twoLetters.requiredLetter()).isEqualTo('o');
+        assertThat(twoLetters.substitutedFrom()).isEqualTo('x');
     }
 
     @Test

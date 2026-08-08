@@ -17,6 +17,7 @@ public final class DuelMessages {
             boolean yourTurn,
             String seedWord,
             String needLetter,
+            String substitutedFrom,
             int turnSeconds,
             List<ChainEntry> chain) {}
 
@@ -25,6 +26,13 @@ public final class DuelMessages {
             List<ChainEntry> chain,
             boolean yourTurn,
             String needLetter,
+            /**
+             * The rare letter {@code needLetter} was substituted for, or null
+             * on the turns nothing was substituted — and null fields are left
+             * out of the frame entirely, so the client sees the note appear and
+             * disappear with the chain rather than having to track it.
+             */
+            String substitutedFrom,
             int timeLeftMs,
             int turnSeconds,
             int yourWords,

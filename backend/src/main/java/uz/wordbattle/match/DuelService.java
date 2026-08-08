@@ -192,7 +192,8 @@ public class DuelService {
      */
     private DuelSession start(long playerOne, long playerTwo, boolean bot) {
         String seed = SEED_WORDS.get(random.nextInt(SEED_WORDS.size()));
-        DuelSession session = new DuelSession(UUID.randomUUID().toString(), playerOne, playerTwo, bot, seed);
+        DuelSession session = new DuelSession(
+                UUID.randomUUID().toString(), playerOne, playerTwo, bot, seed, props.duel().rareLetters());
 
         synchronized (startLock) {
             if (isPlaying(playerOne) || (!bot && isPlaying(playerTwo))) {
@@ -232,8 +233,15 @@ public class DuelService {
                 session.turn() == playerId,
                 session.chain().get(0).word(),
                 String.valueOf(session.requiredLetter()),
+                substitutedFrom(session),
                 props.duel().turnSeconds(),
                 chainFor(session, playerId)));
+    }
+
+    /** The skipped letter as the frames carry it, or null when there was none. */
+    private String substitutedFrom(DuelSession session) {
+        Character skipped = session.substitutedFrom();
+        return skipped == null ? null : String.valueOf(skipped);
     }
 
     private UserDto botProfile() {
@@ -550,7 +558,10 @@ public class DuelService {
         boolean won = winnerId == playerId;
 
         // The lose screen offers three words for the letter the player got
-        // stuck on, so the hint is only computed for the loser.
+        // stuck on, so the hint is only computed for the loser. That is the
+        // letter the rules handed over, substitution and all — which is also
+        // why there is always something to suggest: no chain ever ends on a
+        // letter the dictionary is thin on.
         String stuckLetter = null;
         List<String> hints = List.of();
         if (!won) {
@@ -608,6 +619,7 @@ public class DuelService {
                     chainFor(session, playerId),
                     session.turn() == playerId,
                     String.valueOf(session.requiredLetter()),
+                    substitutedFrom(session),
                     timeLeft,
                     props.duel().turnSeconds(),
                     session.wordsBy(playerId),

@@ -46,7 +46,7 @@ void main() {
   }
 
   // The three screens with a text field, with the keyboard covering 320dp.
-  for (final key in ['onb2-idle', 'onb2-taken', 'duel', 'duel-error', 'friends']) {
+  for (final key in ['onb2-idle', 'onb2-taken', 'duel', 'duel-error', 'duel-substituted', 'friends']) {
     testWidgets('$key lays out with the keyboard open', (tester) async {
       tester.view.physicalSize = const Size(1080, 2352);
       tester.view.devicePixelRatio = 3;

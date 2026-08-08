@@ -27,6 +27,7 @@ class DuelView {
     required this.chain,
     required this.yourTurn,
     required this.needLetter,
+    required this.substitutedFrom,
     required this.timeLeftMs,
     required this.turnSeconds,
     required this.yourWords,
@@ -43,6 +44,7 @@ class DuelView {
             .toList(),
         yourTurn: json['yourTurn'] as bool? ?? false,
         needLetter: (json['needLetter'] as String? ?? 'a').toUpperCase(),
+        substitutedFrom: (json['substitutedFrom'] as String?)?.toUpperCase(),
         timeLeftMs: ((json['turnSeconds'] as num?)?.toInt() ?? 15) * 1000,
         turnSeconds: (json['turnSeconds'] as num?)?.toInt() ?? 15,
         yourWords: 0,
@@ -56,6 +58,11 @@ class DuelView {
   final List<ChainWord> chain;
   final bool yourTurn;
   final String needLetter;
+
+  /// The rare letter the chain skipped past, when it did. Null the rest of the
+  /// time: the server leaves the field out entirely on the turns nothing was
+  /// substituted, which is exactly when the note has to come off the screen.
+  final String? substitutedFrom;
   final int timeLeftMs;
   final int turnSeconds;
   final int yourWords;
@@ -71,6 +78,9 @@ class DuelView {
             .toList(),
         yourTurn: json['yourTurn'] as bool? ?? false,
         needLetter: (json['needLetter'] as String? ?? needLetter).toUpperCase(),
+        // Deliberately without a fallback to the previous value: an absent
+        // field means this chain ends on an ordinary letter, so the note goes.
+        substitutedFrom: (json['substitutedFrom'] as String?)?.toUpperCase(),
         timeLeftMs: (json['timeLeftMs'] as num?)?.toInt() ?? timeLeftMs,
         turnSeconds: (json['turnSeconds'] as num?)?.toInt() ?? turnSeconds,
         yourWords: (json['yourWords'] as num?)?.toInt() ?? yourWords,
@@ -86,6 +96,7 @@ class DuelView {
         chain: chain,
         yourTurn: yourTurn,
         needLetter: needLetter,
+        substitutedFrom: substitutedFrom,
         timeLeftMs: timeLeftMs - elapsedMs < 0 ? 0 : timeLeftMs - elapsedMs,
         turnSeconds: turnSeconds,
         yourWords: yourWords,

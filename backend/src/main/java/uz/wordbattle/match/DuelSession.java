@@ -26,17 +26,25 @@ public class DuelSession {
     private final Instant startedAt = Instant.now();
     private final List<ChainWord> chain = new ArrayList<>();
     private final Set<String> used = new HashSet<>();
+    private final Set<Character> rareLetters;
 
     private long turn;
     private Instant turnStartedAt;
     private ScheduledFuture<?> turnTimer;
     private boolean finished;
 
-    public DuelSession(String id, long playerOne, long playerTwo, boolean botOpponent, String seedWord) {
+    public DuelSession(
+            String id,
+            long playerOne,
+            long playerTwo,
+            boolean botOpponent,
+            String seedWord,
+            Set<Character> rareLetters) {
         this.id = id;
         this.playerOne = playerOne;
         this.playerTwo = playerTwo;
         this.botOpponent = botOpponent;
+        this.rareLetters = rareLetters;
         // The seed word belongs to nobody: it only fixes the starting letter.
         this.chain.add(new ChainWord(seedWord, 0L, 0));
         this.used.add(seedWord);
@@ -63,10 +71,49 @@ public class DuelSession {
         return playerId == playerOne || playerId == playerTwo;
     }
 
-    /** Letter the next word must start with. */
+    /**
+     * Letter the next word must start with: the last letter of the last word,
+     * unless that letter is one nobody can answer.
+     *
+     * <p>English leaves a couple of dead ends. About a thousand words end in
+     * "x" while the bot knows exactly one that starts with it — "xerox", which
+     * ends in "x" again — so "wax" opens a two-move loop that either side can
+     * force and neither can leave; "z" is the same trap over about six turns. A
+     * bigger dictionary does not help, because the words it adds are
+     * "xanthidium" and its like, which no player would ever type. So a chain
+     * that lands on such a letter walks back to the last ordinary letter of the
+     * word and hands that over instead. Word-chain games settle this the same
+     * way — shiritori passes on the preceding kana — which is why players read
+     * it as a rule rather than as the judge losing its nerve.
+     *
+     * <p>Which letters count is {@code wordbattle.duel.rare-letters}.
+     */
     public char requiredLetter() {
-        String last = chain.get(chain.size() - 1).word();
+        String last = lastWord();
+        for (int i = last.length() - 1; i >= 0; i--) {
+            char letter = last.charAt(i);
+            if (!rareLetters.contains(letter)) return letter;
+        }
+        // "jazz" ends on two rare letters and the walk steps past both, but a
+        // word made of nothing else has no easier letter to offer: better the
+        // plain rule than no rule at all.
         return last.charAt(last.length() - 1);
+    }
+
+    /**
+     * The letter {@link #requiredLetter()} stepped over, or null when the chain
+     * ends on an ordinary one. The client mentions the substitution only on the
+     * turn it happens: a rule a player meets once in a few duels reads as a bug
+     * unless it explains itself in the moment it fires.
+     */
+    public Character substitutedFrom() {
+        String last = lastWord();
+        char ending = last.charAt(last.length() - 1);
+        return requiredLetter() == ending ? null : ending;
+    }
+
+    private String lastWord() {
+        return chain.get(chain.size() - 1).word();
     }
 
     public boolean alreadyUsed(String word) {

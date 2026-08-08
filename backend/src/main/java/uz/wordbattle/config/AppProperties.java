@@ -3,6 +3,8 @@ package uz.wordbattle.config;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
@@ -70,7 +72,27 @@ public record AppProperties(
             @DefaultValue("15") int turnSeconds,
             @DefaultValue("3") int minWordLength,
             @DefaultValue("9") int wordsToWin,
-            @DefaultValue("12") int inviteTimeoutSeconds) {}
+            @DefaultValue("12") int inviteTimeoutSeconds,
+            /**
+             * Letters no chain is ever left standing on: a word ending in one
+             * of these hands the next player the letter before it instead. See
+             * {@link uz.wordbattle.match.DuelSession#requiredLetter()} for the
+             * rule, and for why these two are the ones that need it.
+             */
+            @DefaultValue({"x", "z"}) Set<Character> rareLetters) {
+
+        /**
+         * Words are lowercased before anything in the game looks at them, so a
+         * configured {@code X} would match nothing and quietly put the trap
+         * back. Folding the case here means the setting cannot be written in a
+         * way that silently does nothing.
+         */
+        public Duel {
+            rareLetters = rareLetters.stream()
+                    .map(Character::toLowerCase)
+                    .collect(Collectors.toUnmodifiableSet());
+        }
+    }
 
     public record Matchmaking(
             @DefaultValue("75") int initialBand,

@@ -153,8 +153,8 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 |---|---|
 | `hello` | `user`, `rules{turnSeconds,minWordLength,wordsToWin,inviteTimeoutSeconds}`, `onlineCount`, `pendingFriendRequests` |
 | `queue.joined` / `queue.left` | — |
-| `match.found` | `duelId, opponent, rated, yourTurn, seedWord, needLetter, turnSeconds, chain[]` |
-| `duel.update` | `chain[{word,mine,spentMs}], yourTurn, needLetter, timeLeftMs, yourWords, opponentWords, opponentThinking` |
+| `match.found` | `duelId, opponent, rated, yourTurn, seedWord, needLetter, substitutedFrom?, turnSeconds, chain[]` |
+| `duel.update` | `chain[{word,mine,spentMs}], yourTurn, needLetter, substitutedFrom?, timeLeftMs, yourWords, opponentWords, opponentThinking` |
 | `duel.rejected` | `code, message` — **navbat yo'qolmaydi**, faqat xato ko'rsatiladi |
 | `duel.finished` | `result(win/lose), reason, rated, delta, ratingBefore, ratingAfter, chainLength, yourWords, averageMs, newWords, streakDays, stuckLetter, hints[]` |
 | `invite.sent` / `invite.incoming` / `invite.declined` / `invite.expired` | `inviteId`, `from`/`to`, `expiresInSeconds` |
@@ -184,6 +184,15 @@ statistika va o'rganilgan so'zlar esa hisobga olinadi (`rated: false`).
 bot esa ~7 350 keng tarqalgan so'zdan tanlaydi, shunda uning yurishlari tabiiy
 ko'rinadi. Ikkala ro'yxat ham yuklanish paytida filtrlanadi — qisqartmalar
 hammadan, atoqli otlar esa bot pulidan olib tashlanadi (`THIRD_PARTY.md`).
+
+**Nodir harflar.** Zanjir `x` yoki `z` ga tugasa, keyingi so'z oxirgi emas,
+undan oldingi harf bilan boshlanadi (`wax` → `a`). Sabab ingliz tilining
+o'zida: `x` ga mingga yaqin so'z tugaydi, bot pulida esa `x` bilan
+boshlanadigani bittagina — `xerox`, u ham `x` ga tugaydi. Oddiy qoida bilan bu
+ikki yurishlik tuzoq bo'lardi — arzon majburlanadi, chiqib bo'lmaydi, va odam
+raqib ham xuddi shunday qotib qoladi. Harflar ro'yxati sozlanadi
+(`wordbattle.duel.rare-letters`); almashtirish yuz berganda kadrda
+`substitutedFrom` keladi va ilova duel ekranida bir qatorlik izoh chiqaradi.
 
 **Reyting.** Glicko-2 (rating / deviation / volatility), har jang — bitta
 davr. Yangi o'yinchi tez, tajribalisi sekin harakatlanadi.

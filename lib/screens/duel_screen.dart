@@ -288,6 +288,10 @@ class _DuelScreenState extends State<DuelScreen> {
                   ),
                 ],
               ),
+              if (duel.substitutedFrom != null) ...[
+                const SizedBox(height: 7),
+                _SubstitutionNote(skipped: duel.substitutedFrom!, needLetter: duel.needLetter),
+              ],
               if (widget.error.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Container(
@@ -390,6 +394,40 @@ class _DuelScreenState extends State<DuelScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Why the required letter is not the last letter of the last word.
+///
+/// The rule fires perhaps once in a few duels, which is exactly why it needs
+/// saying: a player who meets it unannounced reads it as the server getting the
+/// letter wrong. It sits under the letter chip it explains, one muted line, and
+/// leaves with the turn — anything larger would be a banner about a detail.
+class _SubstitutionNote extends StatelessWidget {
+  const _SubstitutionNote({required this.skipped, required this.needLetter});
+
+  /// The rare letter the chain skipped, and the one handed over instead.
+  final String skipped;
+  final String needLetter;
+
+  @override
+  Widget build(BuildContext context) {
+    // Both letters are drawn like the amber chip above, so the eye connects
+    // the sentence to the letter it is talking about.
+    final letter = WBText.mono(size: 11.5, weight: FontWeight.w600, color: WBColors.amberA(.8));
+    return Text.rich(
+      TextSpan(
+        style: WBText.grotesk(size: 11.5, color: WBColors.textA(.45)),
+        children: [
+          TextSpan(text: '«$skipped»', style: letter),
+          const TextSpan(text: ' kam uchraydi — '),
+          TextSpan(text: '«$needLetter»', style: letter),
+          // "harfidan" rather than a case suffix hung off the quotes: it is
+          // how the rejection message already talks about a letter.
+          const TextSpan(text: ' harfidan davom et'),
+        ],
+      ),
     );
   }
 }

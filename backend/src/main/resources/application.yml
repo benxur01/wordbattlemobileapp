@@ -63,6 +63,10 @@ wordbattle:
     # A duel ends in a win once a player has contributed this many words.
     words-to-win: 9
     invite-timeout-seconds: 12
+    # Letters no chain is left standing on: a word ending in one of these hands
+    # over the letter before it instead. Only these two are true dead ends —
+    # see DuelSession.requiredLetter() for the counts behind the choice.
+    rare-letters: ${DUEL_RARE_LETTERS:x,z}
   matchmaking:
     # Rating window starts here and widens every step until max.
     initial-band: 75

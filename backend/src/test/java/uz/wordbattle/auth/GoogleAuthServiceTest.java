@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import uz.wordbattle.common.ApiException;
 import uz.wordbattle.config.AppProperties;
@@ -35,7 +36,7 @@ class GoogleAuthServiceTest {
         AppProperties props = new AppProperties(
                 new AppProperties.Jwt("x".repeat(32), Duration.ofDays(1), "test"),
                 new AppProperties.Google(webClientId),
-                new AppProperties.Duel(15, 3, 9, 12),
+                new AppProperties.Duel(15, 3, 9, 12, Set.of('x', 'z')),
                 new AppProperties.Matchmaking(75, 25, 400, 3, 12),
                 new AppProperties.Cors(List.of()),
                 new AppProperties.Limits(20, 40, 64),

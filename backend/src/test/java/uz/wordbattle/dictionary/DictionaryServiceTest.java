@@ -13,6 +13,12 @@ class DictionaryServiceTest {
 
     private static final int BOT_MIN_LENGTH = 4;
 
+    /** {@code wordbattle.duel.words-to-win}: the most answers one duel can ask for. */
+    private static final int WORDS_TO_WIN = 9;
+
+    /** The shipped {@code wordbattle.duel.rare-letters}. */
+    private static final Set<Character> RARE_LETTERS = Set.of('x', 'z');
+
     private static DictionaryService dictionary;
 
     @BeforeAll
@@ -73,13 +79,30 @@ class DictionaryServiceTest {
     }
 
     @Test
-    void everyLetterStillLeavesTheBotAMove() {
-        // A letter with an empty pool hands the human a free win, so the
-        // exclusion lists must never empty one out.
+    void everyLetterTheBotCanBeSentToLastsAWholeDuel() {
+        // One move was never the real bar. The trap is repetition: a player who
+        // can keep steering the chain back to a thin letter empties the pool
+        // and wins on NO_MOVES, and a duel is over after WORDS_TO_WIN words, so
+        // that many answers per letter is exactly enough to see one out.
+        // "x" and "z" are excused because the duel rules no longer send the bot
+        // there at all — see DuelSession.requiredLetter().
         for (char letter = 'a'; letter <= 'z'; letter++) {
-            assertThat(dictionary.botMove(letter, Set.of(), BOT_MIN_LENGTH))
-                    .as("bot move for '%s'", letter)
-                    .isNotNull();
+            if (RARE_LETTERS.contains(letter)) continue;
+            assertThat(botPoolFor(letter))
+                    .as("bot pool for '%s'", letter)
+                    .hasSizeGreaterThanOrEqualTo(WORDS_TO_WIN);
+        }
+    }
+
+    @Test
+    void theRareLettersAreExactlyTheOnesTheBotCannotLast() {
+        // The other end of the same claim, and the evidence for the shipped
+        // wordbattle.duel.rare-letters: these two are thin enough to run out
+        // inside a single duel, and nothing else in the alphabet is. If a
+        // dictionary change ever fixes one of them, this fails and the letter
+        // can come back into play.
+        for (char letter : RARE_LETTERS) {
+            assertThat(botPoolFor(letter)).as("bot pool for '%s'", letter).hasSizeLessThan(WORDS_TO_WIN);
         }
     }
 

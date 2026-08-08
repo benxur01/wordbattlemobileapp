@@ -89,12 +89,36 @@ DuelView _duel({bool yourTurn = true, int timeLeftMs = 12000, bool thinking = fa
       ],
       yourTurn: yourTurn,
       needLetter: 'W',
+      substitutedFrom: null,
       timeLeftMs: timeLeftMs,
       turnSeconds: 15,
       yourWords: 1,
       opponentWords: 1,
       opponentThinking: thinking,
     );
+
+/// The chain has run into a rare letter, so the server handed over the one
+/// before it and the screen has to say why. Paired with a rejection because
+/// that is the tallest the input bar ever gets: note and error at once.
+final _substitutedDuel = DuelView(
+  duelId: 'duel-1',
+  opponent: _opponent,
+  rated: true,
+  chain: const [
+    ChainWord(word: 'battle', mine: false, spentMs: 1800),
+    ChainWord(word: 'elephant', mine: true, spentMs: 2400),
+    ChainWord(word: 'tomorrow', mine: false, spentMs: 1900),
+    ChainWord(word: 'wax', mine: true, spentMs: 2100),
+  ],
+  yourTurn: false,
+  needLetter: 'A',
+  substitutedFrom: 'X',
+  timeLeftMs: 9000,
+  turnSeconds: 15,
+  yourWords: 2,
+  opponentWords: 1,
+  opponentThinking: true,
+);
 
 const _win = FinishedDuel(
   won: true,
@@ -323,6 +347,13 @@ Map<String, Widget> buildScreens() => {
         duel: _duel(yourTurn: false, timeLeftMs: 3000, thinking: true),
         me: _me,
         error: '«W» harfi bilan boshlanishi kerak',
+        scrollController: ScrollController(),
+        onSubmit: (_) {},
+      ),
+      'duel-substituted': DuelScreen(
+        duel: _substitutedDuel,
+        me: _me,
+        error: '«A» harfi bilan boshlanishi kerak',
         scrollController: ScrollController(),
         onSubmit: (_) {},
       ),
