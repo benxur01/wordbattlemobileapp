@@ -22,6 +22,7 @@ import 'screens/win_screen.dart';
 import 'screens/lose_screen.dart';
 import 'screens/board_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/history_screen.dart';
 import 'screens/practice_screen.dart';
 import 'screens/friends_screen.dart';
 import 'screens/invite_screen.dart';
@@ -76,6 +77,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   bool boardGlobal = true;
   LeaderboardDto? board;
   ProfileDto? profile;
+  List<MatchSummaryDto>? history;
   PracticeWordDto? practiceWord;
   List<String> practiceHints = const [];
 
@@ -270,6 +272,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       me = null;
       profile = null;
       board = null;
+      history = null;
       friends = const [];
       friendRequests = const [];
       searchResults = const [];
@@ -425,6 +428,18 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         profile = data;
         me = data.user;
       });
+    } on ApiException catch (e) {
+      _onApiError(e);
+    }
+  }
+
+  /// The list is left in place while it reloads, so returning to the screen
+  /// shows the battles it had rather than flashing the spinner again.
+  Future<void> _loadHistory() async {
+    try {
+      final data = await _api.matchHistory();
+      if (!mounted) return;
+      setState(() => history = data);
     } on ApiException catch (e) {
       _onApiError(e);
     }
@@ -719,6 +734,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         unawaited(_loadBoard());
       case WBScreen.profile:
         unawaited(_loadProfile());
+      case WBScreen.history:
+        unawaited(_loadHistory());
       case WBScreen.practice:
         unawaited(_loadPractice());
       case WBScreen.friends:
@@ -738,6 +755,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         SystemNavigator.pop();
       case WBScreen.onb2:
         go(WBScreen.onb1);
+      // Reached from the profile, so back belongs there and not on the lobby.
+      case WBScreen.history:
+        go(WBScreen.profile);
       case WBScreen.invite:
         cancelOutgoingInvite();
       case WBScreen.incoming:
@@ -885,10 +905,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onFriends: () => go(WBScreen.friends),
           onBoard: () => go(WBScreen.board),
           friendRequestCount: friendRequests.length,
+          onHistory: () => go(WBScreen.history),
           onLogout: logout,
           onDeleteAccount: deleteAccount,
           busy: busy,
           previousTab: previousNavTab,
+        ),
+      WBScreen.history => HistoryScreen(
+          matches: history,
+          onBack: () => go(WBScreen.profile),
         ),
       WBScreen.practice => PracticeScreen(
           word: practiceWord,

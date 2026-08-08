@@ -6,7 +6,9 @@ import '../api/models.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/dashed_border.dart';
 import '../widgets/flame_badge.dart';
+import '../widgets/primary_button.dart';
 import '../widgets/spinner_ring.dart';
+import '../widgets/stroke_glyph.dart';
 
 /// The player's own profile, entirely server-driven: stats, the 30-day rating
 /// chart and which badges are unlocked.
@@ -18,6 +20,7 @@ class ProfileScreen extends StatefulWidget {
     required this.onFriends,
     required this.onBoard,
     required this.friendRequestCount,
+    required this.onHistory,
     required this.onLogout,
     required this.onDeleteAccount,
     this.busy = false,
@@ -30,6 +33,10 @@ class ProfileScreen extends StatefulWidget {
   final VoidCallback onFriends;
   final VoidCallback onBoard;
   final int friendRequestCount;
+
+  /// Opens the finished-battles list. The numbers above it are totals; this is
+  /// where they come from.
+  final VoidCallback onHistory;
 
   /// Signs out on this device; the account itself stays.
   final VoidCallback onLogout;
@@ -252,6 +259,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              _historyRow(),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -290,6 +299,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onProfile: () {},
         ),
       ],
+    );
+  }
+
+  /// The way into the finished-battles list. It sits under the stat cards
+  /// because those are the totals it details, and above the badges, which are
+  /// about what is still ahead.
+  Widget _historyRow() {
+    return Pressable(
+      onTap: widget.onHistory,
+      hoverColor: WBColors.whiteA(.06),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: WBColors.whiteA(.045),
+          border: Border.all(color: WBColors.whiteA(.09)),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Janglar tarixi', style: WBText.grotesk(size: 13.5, weight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(
+                    "oxirgi janglar va reyting o'zgarishi",
+                    style: WBText.grotesk(size: 12, color: WBColors.textA(.5)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            StrokeGlyph.chevronRight(size: 9, thickness: 2, color: WBColors.textA(.4)),
+          ],
+        ),
+      ),
     );
   }
 

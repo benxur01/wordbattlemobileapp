@@ -7,6 +7,7 @@ import 'package:word_battle/theme.dart';
 import 'package:word_battle/screens/board_screen.dart';
 import 'package:word_battle/screens/duel_screen.dart';
 import 'package:word_battle/screens/friends_screen.dart';
+import 'package:word_battle/screens/history_screen.dart';
 import 'package:word_battle/screens/incoming_screen.dart';
 import 'package:word_battle/screens/invite_screen.dart';
 import 'package:word_battle/screens/loading_screen.dart';
@@ -181,6 +182,60 @@ final _requests = [
 
 final _invite = PendingInvite(inviteId: 'inv-1', user: _user(6, 'otabek_z', rating: 1188), secondsLeft: 12);
 
+/// Every history row shape at once: a win and a loss, all four end reasons, an
+/// unrated bot duel, the longest nickname the server accepts (16 characters)
+/// and a battle old enough to carry its year — the widest each line can get.
+final _history = [
+  MatchSummaryDto(
+    id: 1,
+    opponent: _opponent,
+    botOpponent: false,
+    won: true,
+    rated: true,
+    delta: 24,
+    ratingAfter: 1308,
+    chainLength: 12,
+    endReason: 'words_limit',
+    finishedAt: DateTime.now().subtract(const Duration(hours: 3)),
+  ),
+  MatchSummaryDto(
+    id: 2,
+    opponent: _user(3, 'sardor.eng', rating: 1740),
+    botOpponent: false,
+    won: false,
+    rated: true,
+    delta: -18,
+    ratingAfter: 1284,
+    chainLength: 7,
+    endReason: 'timeout',
+    finishedAt: DateTime.now().subtract(const Duration(days: 1)),
+  ),
+  MatchSummaryDto(
+    id: 3,
+    opponent: _user(-1, 'wordbot', rating: 1200),
+    botOpponent: true,
+    won: true,
+    rated: false,
+    delta: 0,
+    ratingAfter: 1284,
+    chainLength: 9,
+    endReason: 'forfeit',
+    finishedAt: DateTime.now().subtract(const Duration(days: 4)),
+  ),
+  MatchSummaryDto(
+    id: 4,
+    opponent: _user(12, 'shahzod_the_best', rating: 1455),
+    botOpponent: false,
+    won: false,
+    rated: true,
+    delta: -21,
+    ratingAfter: 1263,
+    chainLength: 14,
+    endReason: 'no_moves',
+    finishedAt: DateTime.utc(2025, 11, 23, 18, 40),
+  ),
+];
+
 Map<String, Widget> buildScreens() => {
       'loading': const LoadingScreen(),
       'offline': LoadingScreen(message: "Serverga ulanib bo'lmadi", onRetry: () {}),
@@ -274,6 +329,7 @@ Map<String, Widget> buildScreens() => {
         onFriends: () {},
         onBoard: () {},
         friendRequestCount: 2,
+        onHistory: () {},
         onLogout: () {},
         onDeleteAccount: () {},
       ),
@@ -283,9 +339,13 @@ Map<String, Widget> buildScreens() => {
         onFriends: () {},
         onBoard: () {},
         friendRequestCount: 0,
+        onHistory: () {},
         onLogout: () {},
         onDeleteAccount: () {},
       ),
+      'history': HistoryScreen(matches: _history, onBack: () {}),
+      'history-empty': HistoryScreen(matches: const [], onBack: () {}),
+      'history-loading': HistoryScreen(matches: null, onBack: () {}),
       'practice': PracticeScreen(
         word: const PracticeWordDto(
           word: 'harbour',

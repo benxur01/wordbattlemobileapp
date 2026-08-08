@@ -12,6 +12,8 @@ enum WBScreen {
   lose,
   board,
   profile,
+  /// Finished battles, reached from the profile.
+  history,
   practice,
   friends,
   invite,
