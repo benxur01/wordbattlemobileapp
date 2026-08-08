@@ -110,7 +110,14 @@ public class InviteService {
             return;
         }
         invites.remove(inviteId);
-        duels.start(invite.fromUserId(), invite.toUserId());
+        if (duels.start(invite.fromUserId(), invite.toUserId()) == null) {
+            // Refused because one of the two was registered into a duel in the
+            // instant between the checks above and the start. Either could be
+            // the busy one, so neither is blamed — but somebody has to be told,
+            // or whoever is still free waits out a duel that is not coming.
+            sockets.sendError(userId, "duel_unavailable", "Jang boshlanmadi, qaytadan urinib ko'ring");
+            sockets.send(invite.fromUserId(), "invite.expired", Map.of("inviteId", inviteId));
+        }
     }
 
     public void decline(long userId, String inviteId) {

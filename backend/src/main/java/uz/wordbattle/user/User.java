@@ -13,6 +13,22 @@ public class User {
     private Long id;
 
     /**
+     * Optimistic lock. Two duels that share a player can settle at the same
+     * moment, and each settlement reads this row, adds its rating and stats to
+     * what it read, and writes the whole thing back — so without a version the
+     * one that committed last silently threw the other away, and a player could
+     * win a duel for nothing. The second writer is now refused at commit and
+     * its settlement replayed over fresh values.
+     *
+     * <p>Primitive on purpose: Spring Data decides "new or detached" from the
+     * id when the version is one, which is the behaviour every {@code save}
+     * here already relies on.
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
+
+    /**
      * Google's {@code sub} claim — the stable id the account signs in with.
      * Null for the throwaway accounts {@code /api/auth/dev} hands out, which
      * belong to no provider at all.

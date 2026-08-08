@@ -140,6 +140,6 @@ public class UserService {
 
     @Transactional
     public void markSeen(Long userId) {
-        users.findById(userId).ifPresent(u -> u.setLastSeenAt(Instant.now()));
+        users.touchLastSeen(userId, Instant.now());
     }
 }

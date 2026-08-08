@@ -34,6 +34,17 @@ public class MatchResultService {
     public static class Outcome {
         private final Map<Long, PlayerResult> byPlayer = new HashMap<>();
 
+        private Outcome() {}
+
+        /**
+         * Nothing was written, so nothing moved: every player reads back zeros.
+         * The duel still has to be reported as over, and a rating change the
+         * database refused is one that did not happen.
+         */
+        static Outcome unrecorded() {
+            return new Outcome();
+        }
+
         void put(long playerId, PlayerResult result) {
             byPlayer.put(playerId, result);
         }
@@ -65,6 +76,13 @@ public class MatchResultService {
         this.ratingHistory = ratingHistory;
     }
 
+    /**
+     * One transaction per finished duel. Both players' rows are read, changed
+     * and written back inside it, so a settlement that overlaps another one for
+     * the same player is refused at commit by the version column on {@code
+     * User} — see {@code DuelService.recordResult}, which runs it again over
+     * fresh values rather than letting one of the two disappear.
+     */
     @Transactional
     public Outcome record(DuelSession session, long winnerId, EndReason reason) {
         Instant now = Instant.now();

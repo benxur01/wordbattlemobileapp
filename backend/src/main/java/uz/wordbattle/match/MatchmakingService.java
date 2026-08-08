@@ -113,9 +113,26 @@ public class MatchmakingService {
                 queue.remove(first.userId());
                 queue.remove(best.userId());
                 log.info("Paired {} and {} (rating gap {})", first.userId(), best.userId(), Math.round(bestGap));
-                duels.start(first.userId(), best.userId());
+                if (duels.start(first.userId(), best.userId()) == null) {
+                    // An invite was accepted for one of them between the check
+                    // above and the start. Dropped from the queue and given no
+                    // duel, the other would watch the search screen spin with
+                    // nothing left looking for them.
+                    requeue(first);
+                    requeue(best);
+                }
             }
         }
+    }
+
+    /**
+     * Back into the queue with the wait they had already served, so the rating
+     * window they had widened is not narrowed again. Whoever the refusal was
+     * about is playing, and belongs nowhere near the queue.
+     */
+    private void requeue(Waiting waiting) {
+        if (duels.isPlaying(waiting.userId()) || !sockets.isConnected(waiting.userId())) return;
+        queue.putIfAbsent(waiting.userId(), waiting);
     }
 
     private void botFallback() {
@@ -125,6 +142,8 @@ public class MatchmakingService {
             if (queue.remove(waiting.userId()) == null) continue;
             if (!sockets.isConnected(waiting.userId()) || duels.isPlaying(waiting.userId())) continue;
             log.info("No human for {} after {}s, starting a bot duel", waiting.userId(), limit);
+            // Nothing to do if this one is refused: the only reason is a duel
+            // that started underneath us, and their screen has moved on to it.
             duels.startAgainstBot(waiting.userId());
         }
     }

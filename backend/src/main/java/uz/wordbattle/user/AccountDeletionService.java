@@ -58,13 +58,16 @@ public class AccountDeletionService {
 
     @Transactional
     public void delete(Long userId) {
+        // Out of any duel and off the socket before the row is so much as read:
+        // a live session holding a now-anonymous account has nothing sensible
+        // to render, and ending a duel writes its result from another thread.
+        // Reading the player first would mean deleting rows that settlement was
+        // still creating, and writing back over a rating it had already moved.
+        sessionEnder.endSessionOf(userId);
+
         User user = users.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("user_not_found", "Foydalanuvchi topilmadi"));
         if (user.isDeleted()) return;
-
-        // Out of any duel and off the socket first: a live session holding a
-        // now-anonymous account has nothing sensible to render.
-        sessionEnder.endSessionOf(userId);
 
         friendships.deleteByUserId(userId);
         friendships.deleteByFriendId(userId);

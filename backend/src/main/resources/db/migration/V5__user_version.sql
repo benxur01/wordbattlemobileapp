@@ -1,0 +1,12 @@
+-- A finished duel is settled off the duel's own thread, so two settlements that
+-- share a player can be in flight at once -- one player finishing a duel and
+-- immediately forfeiting the next is enough. Each of them reads the row, adds
+-- its rating and statistics to what it read, and writes every column back, so
+-- whichever committed last quietly discarded the other's changes: a duel won
+-- for no rating at all.
+--
+-- Hibernate's optimistic lock closes that. The second writer is refused at
+-- commit and the settlement replayed over freshly read values, which also
+-- protects the row from anything else that edits a player while a duel of
+-- theirs is being written -- account deletion above all.
+alter table users add column version bigint not null default 0;

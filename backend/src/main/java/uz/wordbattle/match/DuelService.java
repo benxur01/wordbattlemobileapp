@@ -11,13 +11,17 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import uz.wordbattle.config.AppProperties;
 import uz.wordbattle.dictionary.DictionaryService;
@@ -69,10 +73,35 @@ public class DuelService {
     /** A finish frame its owner was offline to receive. */
     private record MissedFinish(DuelMessages.Finished frame, Instant at) {}
 
+    /**
+     * How many times a settlement the database refused is tried again. One that
+     * loses the race for a player's row is rolled back whole, so another attempt
+     * costs one more transaction and nothing else, and a player has at most a
+     * duel or two settling at any moment — running out of attempts means
+     * something other than ordinary contention is wrong, and is logged as such.
+     */
+    private static final int SETTLE_ATTEMPTS = 8;
+
+    /**
+     * How long {@link #forfeitAndAwaitSettlement} waits for the result to reach
+     * the database. Only account deletion waits at all, and it holds a request
+     * thread while it does, so the cap is short: past it the deletion goes
+     * ahead regardless, which is the same outcome as before the wait existed.
+     */
+    private static final long SETTLEMENT_WAIT_SECONDS = 5;
+
     private final Map<String, DuelSession> duels = new ConcurrentHashMap<>();
     private final Map<Long, String> duelByPlayer = new ConcurrentHashMap<>();
     private final Map<Long, ScheduledFuture<?>> pendingForfeits = new ConcurrentHashMap<>();
     private final Map<Long, MissedFinish> missedFinishes = new ConcurrentHashMap<>();
+
+    /**
+     * Guards the check-and-register in {@link #start} — see there for why the
+     * two halves cannot stand apart. Nothing else takes it: every other writer
+     * of the registries above only ever <em>frees</em> a player, and does so
+     * conditionally on the entry still being its own.
+     */
+    private final Object startLock = new Object();
 
     /**
      * Turn timers, bot moves and the settlement of finished duels all run here.
@@ -151,24 +180,35 @@ public class DuelService {
      * being accepted and the same player being paired by matchmaking. Two live
      * duels for one player corrupts both, because a player maps to exactly one
      * duel and whichever ends first would clear the other's registration.
+     *
+     * <p>Looking and registering are one indivisible step here, because apart
+     * they are no backstop at all: two friends accepting the same player's
+     * challenges in the same instant each looked, each saw nobody playing, and
+     * each started a duel. Only the last one registered was ever seen by the
+     * player they share — the other ran its turn timer out unwatched and
+     * charged them for losing a duel they were never shown. Duels start rarely,
+     * so a lock held across a handful of map writes costs nothing; the
+     * announcement, with the user lookup in it, stays outside.
      */
     private DuelSession start(long playerOne, long playerTwo, boolean bot) {
-        if (isPlaying(playerOne) || (!bot && isPlaying(playerTwo))) {
-            log.warn("Refusing duel {} vs {}: already playing", playerOne, playerTwo);
-            return null;
-        }
         String seed = SEED_WORDS.get(random.nextInt(SEED_WORDS.size()));
         DuelSession session = new DuelSession(UUID.randomUUID().toString(), playerOne, playerTwo, bot, seed);
 
-        duels.put(session.id(), session);
-        duelByPlayer.put(playerOne, session.id());
-        presence.battleStarted(playerOne);
-        // A new duel supersedes any result still waiting to be collected.
-        missedFinishes.remove(playerOne);
-        if (!bot) {
-            duelByPlayer.put(playerTwo, session.id());
-            presence.battleStarted(playerTwo);
-            missedFinishes.remove(playerTwo);
+        synchronized (startLock) {
+            if (isPlaying(playerOne) || (!bot && isPlaying(playerTwo))) {
+                log.warn("Refusing duel {} vs {}: already playing", playerOne, playerTwo);
+                return null;
+            }
+            duels.put(session.id(), session);
+            duelByPlayer.put(playerOne, session.id());
+            presence.battleStarted(playerOne);
+            // A new duel supersedes any result still waiting to be collected.
+            missedFinishes.remove(playerOne);
+            if (!bot) {
+                duelByPlayer.put(playerTwo, session.id());
+                presence.battleStarted(playerTwo);
+                missedFinishes.remove(playerTwo);
+            }
         }
 
         announce(session, playerOne);
@@ -243,12 +283,38 @@ public class DuelService {
 
     /** Quitting, backing out of the duel screen, or losing the connection. */
     public void forfeit(long playerId) {
-        duelOf(playerId).ifPresent(session -> {
-            synchronized (session) {
-                if (session.finished()) return;
-                finish(session, session.opponentOf(playerId), EndReason.FORFEIT);
-            }
-        });
+        forfeitFor(playerId);
+    }
+
+    /**
+     * Forfeits and waits for the result to reach the database. Deleting an
+     * account comes through here, and the transaction doing the deleting erases
+     * this player's rows moments later: a settlement still in flight would put
+     * a rating-history row and their learned words straight back in behind it.
+     * Waiting makes the order certain instead of leaving it to two threads.
+     */
+    public void forfeitAndAwaitSettlement(long playerId) {
+        Future<?> settlement = forfeitFor(playerId);
+        if (settlement == null) return;
+        try {
+            settlement.get(SETTLEMENT_WAIT_SECONDS, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException | TimeoutException e) {
+            // Whatever went wrong has been logged where it happened, and the
+            // player must not be blocked from deleting their account over it.
+            log.warn("Settlement for {} did not land within {}s", playerId, SETTLEMENT_WAIT_SECONDS);
+        }
+    }
+
+    /** @return the settlement now in flight, or null if there was no live duel. */
+    private Future<?> forfeitFor(long playerId) {
+        DuelSession session = duelOf(playerId).orElse(null);
+        if (session == null) return null;
+        synchronized (session) {
+            if (session.finished()) return null;
+            return finish(session, session.opponentOf(playerId), EndReason.FORFEIT);
+        }
     }
 
     private String validate(DuelSession session, String word) {
@@ -375,26 +441,72 @@ public class DuelService {
 
     // -------------------------------------------------------------- finish
 
-    private void finish(DuelSession session, long winnerId, EndReason reason) {
-        if (!session.finish()) return;
+    /** @return the settlement scheduled for it, or null if it had already ended. */
+    private Future<?> finish(DuelSession session, long winnerId, EndReason reason) {
+        if (!session.finish()) return null;
         deregister(session);
 
         // Recording a result is a database transaction, and every caller of
         // finish() holds this duel's monitor. Settling on the pool instead
         // keeps that monitor — and the timer thread that took it — free.
-        scheduler.execute(() -> settle(session, winnerId, reason));
+        return scheduler.submit(() -> settle(session, winnerId, reason));
     }
 
     private void settle(DuelSession session, long winnerId, EndReason reason) {
+        MatchResultService.Outcome outcome = recordResult(session, winnerId, reason);
         try {
-            MatchResultService.Outcome outcome = results.record(session, winnerId, reason);
             notifyFinish(session, session.playerOne(), winnerId, reason, outcome);
             if (!session.botOpponent()) {
                 notifyFinish(session, session.playerTwo(), winnerId, reason, outcome);
             }
-            log.info("Duel {} finished: winner={} reason={}", session.id(), winnerId, reason);
         } catch (RuntimeException e) {
-            log.error("Duel {} could not be settled", session.id(), e);
+            log.error("Duel {} could not be reported to its players", session.id(), e);
+        }
+        log.info("Duel {} finished: winner={} reason={}", session.id(), winnerId, reason);
+    }
+
+    /**
+     * Writes the result, trying again when the database turns it down. Two
+     * settlements sharing a player race for that player's row, and the one that
+     * loses is refused at commit and rolled back whole — not a row of it
+     * survives — so replaying it over freshly read values is both safe and all
+     * the recovery it needs. The retry belongs out here rather than inside the
+     * result service: only a call through the bean opens a fresh transaction.
+     *
+     * <p>Never throws, and that is the point. A result nobody could write is
+     * still a duel that ended, and both players have to be told: without the
+     * finish frame they sit on a duel screen that never moves again, and even
+     * the missed-finish backstop has nothing to hand them when they come back.
+     */
+    private MatchResultService.Outcome recordResult(DuelSession session, long winnerId, EndReason reason) {
+        for (int attempt = 1; attempt <= SETTLE_ATTEMPTS; attempt++) {
+            try {
+                return results.record(session, winnerId, reason);
+            } catch (OptimisticLockingFailureException e) {
+                log.warn("Duel {} settlement lost a race for a player's row (attempt {} of {})",
+                        session.id(), attempt, SETTLE_ATTEMPTS);
+                pauseBeforeRetry(attempt);
+            } catch (RuntimeException e) {
+                log.error("Duel {} could not be settled", session.id(), e);
+                return MatchResultService.Outcome.unrecorded();
+            }
+        }
+        log.error("Duel {} gave up settling after {} attempts", session.id(), SETTLE_ATTEMPTS);
+        return MatchResultService.Outcome.unrecorded();
+    }
+
+    /**
+     * A scattered moment before trying again, growing with each attempt so that
+     * settlements queued on one player's row spread out instead of colliding
+     * again in the same instant. Waiting on the pool is deliberate: whoever
+     * forfeited may be waiting for this result to be written, and handing the
+     * retry to another thread would tell them it had landed before it had.
+     */
+    private void pauseBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(attempt * (5L + random.nextInt(20)));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

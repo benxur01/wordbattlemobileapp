@@ -1,15 +1,27 @@
 package uz.wordbattle.user;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByGoogleSubject(String googleSubject);
+
+    /**
+     * Straight at the column rather than through the entity. A socket opening
+     * or closing is no reason to rewrite a player's rating and statistics, and
+     * doing so from a socket thread would undo a settlement committing
+     * underneath it — or, now that the row is versioned, fail outright.
+     */
+    @Modifying
+    @Query("update User u set u.lastSeenAt = :at where u.id = :id")
+    void touchLastSeen(@Param("id") Long id, @Param("at") Instant at);
 
     @Query("select u from User u where lower(u.nickname) = lower(:nickname)")
     Optional<User> findByNicknameIgnoreCase(@Param("nickname") String nickname);

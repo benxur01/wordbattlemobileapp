@@ -33,7 +33,10 @@ public class SocketSessionEnder implements AccountDeletionService.SessionEnder {
         invites.cancelAllFor(userId);
         // Walking out mid-duel is a forfeit, exactly as quitting is — the
         // opponent should not be left waiting on a player who no longer exists.
-        duels.forfeit(userId);
+        // The result is waited for rather than left in flight: the caller is
+        // about to erase this player's rows, and a settlement landing after it
+        // would write their learned words and rating history back in.
+        duels.forfeitAndAwaitSettlement(userId);
         sockets.disconnect(userId);
     }
 }
