@@ -22,8 +22,46 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<!-- Google Sign-In sends the result back to the app through this scheme.
+	     It is the iOS client id turned inside out: drop the trailing
+	     `.apps.googleusercontent.com` from GIDClientID below and put it in
+	     front instead — `com.googleusercontent.apps.<what is left>`. Cloud
+	     Console shows the finished value as "iOS URL scheme". -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.TODO-PASTE-IOS-CLIENT-ID</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Google Sign-In, iOS side. Both ids have to live here rather than in
+	     Dart: the plugin only hands Dart's ids to the SDK when a *client* id
+	     comes with them, and the app passes `serverClientId` alone
+	     (`lib/api/google_auth.dart`). So that call is dropped on iOS and
+	     GoogleSignIn configures itself from these two keys instead.
+	     Full walkthrough: README → "3. Google Sign-In" → "iOS". -->
+
+	<!-- TODO: the iOS OAuth client — Cloud Console → APIs & Services →
+	     Credentials → Create credentials → OAuth client ID → iOS, registered
+	     against bundle id com.wordbattle.wordBattle (note: not the Android
+	     package, which is com.wordbattle.word_battle). Unlike the Android
+	     client this one is used directly, so keep the scheme above in sync. -->
+	<key>GIDClientID</key>
+	<string>TODO-PASTE-IOS-CLIENT-ID.apps.googleusercontent.com</string>
+
+	<!-- TODO: the Web client — the very same string as
+	     ApiConfig.googleServerClientId and the server's GOOGLE_WEB_CLIENT_ID.
+	     It decides who the idToken is addressed to; leave it out and sign-in
+	     still succeeds on the phone, but the backend rejects every token
+	     because `aud` names the iOS app rather than the server. -->
+	<key>GIDServerClientID</key>
+	<string>TODO-PASTE-WEB-CLIENT-ID.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

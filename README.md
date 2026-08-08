@@ -68,7 +68,8 @@ kalit bilan imzolanadi).
 ### 3. Google Sign-In
 
 Kirish faqat Google orqali. Google Cloud Console → APIs & Services →
-Credentials ichida **ikkita** OAuth client kerak:
+Credentials ichida **ikkita** OAuth client kerak (iOS ham quriladigan bo'lsa —
+uchta):
 
 1. **Web application** — uning ID sini ikki joyga qo'ying:
    `ApiConfig.googleServerClientId` ([lib/api/api_config.dart](lib/api/api_config.dart), hozir `TODO` turibdi)
@@ -78,10 +79,63 @@ Credentials ichida **ikkita** OAuth client kerak:
    debug keystore, release keystore hamda Play App Signing (Play Console →
    Setup → App signing). Bu client kodda ishlatilmaydi, lekin usiz Google
    oynasi ochilmaydi.
+3. **iOS** — faqat iOS build uchun. Bundle ID `com.wordbattle.wordBattle`,
+   va Android'dan farqli o'laroq bu client ID kodda ishlatiladi — pastga qarang.
 
 ID qo'yilmaguncha onboarding ekranida kichik **Dev login** tugmasi turadi
 (server `DEV_LOGIN_ENABLED=true` bilan ishlashi kerak); haqiqiy ID qo'yilgach
 u o'zi yo'qoladi.
+
+#### iOS
+
+iOS client ID `--dart-define` bilan berilmaydi — u
+[`ios/Runner/Info.plist`](ios/Runner/Info.plist) ichida yashaydi. Faylda uchta
+`TODO-PASTE` joyi bor, hammasi izoh bilan belgilangan:
+
+| `Info.plist` kaliti | Qiymat |
+|---|---|
+| `GIDClientID` | **iOS** client ID |
+| `GIDServerClientID` | **Web** client ID — `ApiConfig.googleServerClientId` bilan aynan bir xil |
+| `CFBundleURLTypes` → `CFBundleURLSchemes` | iOS client ID ning teskarisi (reversed) |
+
+Reversed scheme — bu iOS client ID ning ikki bo'lagi joyini almashtirgani:
+
+```
+GIDClientID:  123456789012-abcdefgh.apps.googleusercontent.com
+URL scheme:   com.googleusercontent.apps.123456789012-abcdefgh
+```
+
+Cloud Console'da iOS client sahifasida u tayyor holda **"iOS URL scheme"** deb
+turadi — qo'lda yasagandan ko'ra shuni ko'chirgan ishonchli. Google kirish
+natijasini aynan shu scheme orqali ilovaga qaytaradi.
+
+Qadamlar:
+
+1. Cloud Console → Credentials → Create credentials → OAuth client ID → **iOS**,
+   Bundle ID: **`com.wordbattle.wordBattle`**. E'tibor bering, bu Android
+   package (`com.wordbattle.word_battle`) bilan bir xil **emas** — iOS'da
+   camelCase, Android'da pastki chiziq. Client aynan shu satr bo'yicha
+   ro'yxatdan o'tadi, bir harf farq qilsa kirish ishlamaydi.
+2. `Info.plist` dagi uchta joyni to'ldiring:
+   `grep -n TODO-PASTE ios/Runner/Info.plist`.
+3. `flutter build ipa` (macOS + Xcode kerak). `Podfile` repoda yo'q — birinchi
+   build'da Flutter uni o'zi yaratadi. Minimal iOS **13.0**: loyiha ham
+   (`IPHONEOS_DEPLOYMENT_TARGET`), plagin ham shuni so'raydi, ya'ni tegish shart
+   emas.
+
+**`GIDServerClientID` ni tashlab ketmang.** Usiz ham Google oynasi ochiladi va
+kirish qurilmada muvaffaqiyatli tugaydi, lekin token iOS client nomiga
+yoziladi va server uni rad etadi. Ilova `serverClientId` ni Dart tomondan ham
+uzatadi, biroq iOS plagini uni faqat client ID bilan birga qabul qiladi —
+shuning uchun iOS'da yagona manba shu `Info.plist`.
+
+Shu sababdan **Dev login** tugmasi iOS'da ishonchli belgi emas: u faqat Web
+client ID ga qarab yo'qoladi, `Info.plist` hali `TODO` bo'lsa ham. iOS'da
+ikkalasini birga to'ldiring.
+
+App Store'ga chiqarishdan oldin yana bittasi: Apple qoidalari uchinchi tomon
+kirishini taklif qiladigan ilovadan **Sign in with Apple** ni ham talab qiladi.
+Hozir ilovada u yo'q, ya'ni review shu sababdan qaytishi mumkin.
 
 ---
 
@@ -177,8 +231,10 @@ o'z litsenziyalari ostida: [THIRD_PARTY.md](THIRD_PARTY.md).
   o'chiq) kirishning yo'li yo'q. Yagona qadam sizdan: Cloud Console'dagi qiymat.
 - **Jang tarixi ekrani** — `GET /api/matches` va `ApiClient.matchHistory()`
   tayyor, ularni ko'rsatadigan ekran hali chizilmagan.
-- **iOS'da Google Sign-In** — Android tayyor; iOS uchun `Info.plist` ga iOS
-  client ID va uning reversed URL scheme'i qo'shilishi kerak.
+- **iOS'da Google Sign-In** — `Info.plist` kalitlari joyida, lekin ichida uchta
+  `TODO-PASTE` turibdi va hech kim uni macOS'da qurib ko'rmagan. Kerak: Cloud
+  Console'dan iOS client (bundle `com.wordbattle.wordBattle`) va Sign in with
+  Apple — README → "3. Google Sign-In" → "iOS".
 - **Push (FCM)** — oflayn do'stga chaqiruv bormaydi.
 - **Token bekor qilish (revocation)** — chiqish qurilmadagi tokenni o'chiradi,
   lekin server tomonda u muddati tugagunicha yaroqli qoladi.
