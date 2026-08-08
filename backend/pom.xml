@@ -94,6 +94,25 @@
       <artifactId>h2</artifactId>
       <scope>test</scope>
     </dependency>
+
+    <!--
+      Only the migration tests use these: everything else runs on H2, which is
+      fast but cannot run a Flyway migration or a partial index. Versions come
+      from the Spring Boot BOM, which imports testcontainers-bom.
+
+      Both need a Docker daemon. The tests that need one skip themselves when
+      there is none, so `./mvnw test` still passes on a machine without Docker.
+    -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>

@@ -39,6 +39,9 @@ Testlar (Postgres kerak emas — H2 da ishlaydi):
 ./mvnw test
 ```
 
+Migratsiya testlari haqiqiy PostgreSQL so'raydi va Docker bo'lmasa o'zini
+o'zi skip qiladi — pastdagi [Testlar](#testlar) bo'limiga qarang.
+
 ---
 
 ## Konfiguratsiya
@@ -239,3 +242,33 @@ Redis'ga ko'chirish kifoya — qolgan mantiq o'zgarmaydi.
 - `DuelWebSocketTest` — ikkita haqiqiy mijoz: juftlanish, noto'g'ri so'zlarning
   rad etilishi, zanjirning sinxronligi, taslim bo'lish va reyting hisobi;
   alohida test bot bilan jangni tekshiradi
+
+### Migratsiya testlari (Docker kerak)
+
+Yuqoridagilarning hammasi H2 da `ddl-auto: create-drop` bilan ishlaydi: sxemani
+entity'lardan Hibernate quradi, `db/migration` fayllari esa umuman ochilmaydi.
+Prodda teskarisi — sxemani Flyway quradi, Hibernate faqat `validate` qiladi.
+Ya'ni H2 suite'i migratsiyalar haqida hech narsa isbotlamaydi, ular esa
+birinchi marta prodda ishga tushadi va yiqilsa server umuman ko'tarilmaydi.
+
+Shu bo'shliqni ikkita test yopadi. Ikkalasi Testcontainers orqali bitta
+`postgres:16-alpine` (docker-compose'dagi image) ko'taradi va uni bo'lishadi:
+
+- `MigrationChainTest` — bo'sh sxemada V1→V5 zanjiri to'liq bajarilishi
+  (`baseline-on-migrate: true` V1 ni tashlab ketmasligi ham shu yerda),
+  qisman indekslar predikati bilan saqlanishi, qayta `migrate` bo'sh amal
+  bo'lishi. Ikkinchi test — **mavjud bazani yangilash**: V2 da ma'lumot
+  solinadi, so'ng V3 ustunni tashlaydi va V5 to'la jadvalga `not null` ustun
+  qo'shadi. Noldan yaratish bu yo'lni umuman tekshirmaydi.
+- `SchemaMatchesEntitiesTest` — server aynan proddagi juftlik bilan ko'tariladi:
+  Flyway migratsiya qiladi, Hibernate `validate` qiladi. Entity kutgan, lekin
+  migratsiya qo'shmagan ustun faqat shu yerda va prodda chiqadi.
+
+```bash
+# Docker demoni ishlab turishi shart
+./mvnw test -Dtest='MigrationChainTest,SchemaMatchesEntitiesTest'
+```
+
+Docker yo'q bo'lsa ikkalasi ham **skip** bo'ladi (`disabledWithoutDocker is true
+and Docker is not available`) — `./mvnw test` Docker'siz mashinada ham yashil
+qoladi, faqat migratsiyalar tekshirilmagan holda o'tadi.
