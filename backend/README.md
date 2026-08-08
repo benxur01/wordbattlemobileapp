@@ -177,9 +177,10 @@ topilmasa — bot bilan jang boshlanadi.
 reyting bersa, ladderni bot ustidan yig'ish juda oson bo'lardi. Streak,
 statistika va o'rganilgan so'zlar esa hisobga olinadi (`rated: false`).
 
-**So'z tekshiruvi.** ~358 000 so'zli ro'yxat serverda (`words/valid-en.txt`),
-bot esa ~8 000 keng tarqalgan so'zdan tanlaydi, shunda uning yurishlari tabiiy
-ko'rinadi.
+**So'z tekshiruvi.** ~357 700 so'zli ro'yxat serverda (`words/valid-en.txt`),
+bot esa ~7 350 keng tarqalgan so'zdan tanlaydi, shunda uning yurishlari tabiiy
+ko'rinadi. Ikkala ro'yxat ham yuklanish paytida filtrlanadi — qisqartmalar
+hammadan, atoqli otlar esa bot pulidan olib tashlanadi (`THIRD_PARTY.md`).
 
 **Reyting.** Glicko-2 (rating / deviation / volatility), har jang — bitta
 davr. Yangi o'yinchi tez, tajribalisi sekin harakatlanadi.
