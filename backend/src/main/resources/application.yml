@@ -52,11 +52,17 @@ wordbattle:
     socket-frames-per-second: ${WS_FRAMES_PER_SECOND:20}
     socket-frame-burst: ${WS_FRAME_BURST:40}
   google:
-    # TODO: the *Web* OAuth client id from Google Cloud Console → APIs &
-    # Services → Credentials (the "Web application" entry, NOT the Android
-    # one). The same value goes into ApiConfig.googleServerClientId on the
-    # client. Empty disables Google login, leaving only the dev login.
-    web-client-id: ${GOOGLE_WEB_CLIENT_ID:}
+    # The *Web* OAuth client id — "web" being Google's name for a client that
+    # runs on a server, which is what this is, rather than anything to do with
+    # a website. It has to match ApiConfig.googleServerClientId in the app: the
+    # app asks Google to address the token to this id and the server accepts no
+    # other audience.
+    #
+    # Defaulted rather than left empty, because empty disables Google login
+    # silently and the first sign-in attempt then fails for a reason nothing
+    # points at. A client id is not a secret — it ships inside every build.
+    # Override for a different Google project; empty still disables login.
+    web-client-id: ${GOOGLE_WEB_CLIENT_ID:238943789457-tgpjf2jamd6r8m0ottqn0ik9ce76gpe2.apps.googleusercontent.com}
   duel:
     turn-seconds: 15
     min-word-length: 3
