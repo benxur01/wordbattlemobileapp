@@ -62,6 +62,26 @@ QueueAction queueActionFor(AppLifecycleState state, WBScreen screen) {
   };
 }
 
+/// Whether a `duel.update` or `duel.finished` frame is about the duel the
+/// player is actually in.
+///
+/// Duel frames used to be taken at face value, and one of them could end a
+/// duel that had nothing to do with it: backing out of a battle forfeits it,
+/// and the result of that forfeit is written to the database before anyone is
+/// told, so a player who backs out and searches again is often already in their
+/// next duel by the time the old one's `duel.finished` comes down the same
+/// socket. Applied blindly it threw away the live board and dropped the player
+/// on a win or lose screen for a battle they had left — while their new
+/// opponent went on playing someone who had stopped answering.
+///
+/// [liveDuelId] null means there is no board to protect, which is the reconnect
+/// case: a player coming back after their duel ended is handed the result they
+/// missed, and must still be shown it. A frame without an id at all can only
+/// come from a server that predates the field, and is let through rather than
+/// leaving that app stuck on a duel screen forever.
+bool duelFrameApplies(String? liveDuelId, String? frameDuelId) =>
+    liveDuelId == null || frameDuelId == null || liveDuelId == frameDuelId;
+
 class AppRoot extends StatefulWidget {
   const AppRoot({super.key});
 
@@ -611,6 +631,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       case 'duel.update':
         final current = duel;
         if (current == null) return;
+        if (!duelFrameApplies(current.duelId, event.payload['duelId'] as String?)) return;
         setState(() {
           duel = current.applyUpdate(event.payload);
           duelError = '';
@@ -620,6 +641,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         setState(() => duelError = event.payload['message'] as String? ?? "So'z qabul qilinmadi");
       case 'duel.finished':
         final result = FinishedDuel.fromJson(event.payload);
+        if (!duelFrameApplies(duel?.duelId, result.duelId)) return;
         setState(() {
           finished = result;
           duel = null;

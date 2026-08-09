@@ -110,6 +110,7 @@ class DuelView {
 /// The `duel.finished` payload behind the win and lose screens.
 class FinishedDuel {
   const FinishedDuel({
+    required this.duelId,
     required this.won,
     required this.reason,
     required this.rated,
@@ -126,6 +127,7 @@ class FinishedDuel {
   });
 
   factory FinishedDuel.fromJson(Map<String, dynamic> json) => FinishedDuel(
+        duelId: json['duelId'] as String?,
         won: (json['result'] as String? ?? 'lose') == 'win',
         reason: json['reason'] as String? ?? '',
         rated: json['rated'] as bool? ?? false,
@@ -140,6 +142,12 @@ class FinishedDuel {
         stuckLetter: json['stuckLetter'] as String?,
         hints: ((json['hints'] as List?) ?? const []).map((e) => e as String).toList(),
       );
+
+  /// Which duel this is the result of — the one thing that tells a result
+  /// arriving for the duel just left behind from the result of the duel being
+  /// played right now. Nullable only for a server old enough not to send it,
+  /// which the app then treats as it always did; see `duelFrameApplies`.
+  final String? duelId;
 
   final bool won;
   final String reason;

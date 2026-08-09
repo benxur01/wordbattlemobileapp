@@ -215,7 +215,14 @@ public class DuelService {
         announce(session, playerOne);
         if (!bot) announce(session, playerTwo);
 
-        armTurnTimer(session);
+        // Under the session's monitor, like the other two places a timer is
+        // armed. The duel went into the registries above, so the first player's
+        // word can already be on its way in, and two threads writing that field
+        // between them could lose the live timer and leave the turn to run
+        // forever.
+        synchronized (session) {
+            armTurnTimer(session);
+        }
         log.info("Duel {} started: {} vs {}{}", session.id(), playerOne, playerTwo, bot ? " (bot)" : "");
         return session;
     }
@@ -409,14 +416,35 @@ public class DuelService {
 
     // --------------------------------------------------------------- timers
 
+    /** Callers hold the session's monitor: {@code turnTimer} is an ordinary field. */
     private void armTurnTimer(DuelSession session) {
         long millis = props.duel().turnSeconds() * 1000L;
-        session.setTurnTimer(scheduler.schedule(() -> onTurnExpired(session), millis, TimeUnit.MILLISECONDS));
+        long armedForTurn = session.turnNumber();
+        session.setTurnTimer(
+                scheduler.schedule(() -> onTurnExpired(session, armedForTurn), millis, TimeUnit.MILLISECONDS));
     }
 
-    private void onTurnExpired(DuelSession session) {
+    /**
+     * Times out whoever is sitting on the turn — but only if it is still the
+     * turn this timer was armed for.
+     *
+     * <p>That check is the whole point of the method taking a turn number.
+     * Cancelling a timer is {@code Future.cancel(false)}, which by contract
+     * cannot stop a task the scheduler has already picked up, and the task's
+     * first act is to wait on the session's monitor, which is not interruptible
+     * either. So a player answering with milliseconds to spare could win the
+     * monitor first, pass the turn on and arm a fresh timer, and the expiry for
+     * the turn they had just finished would then run and hand a rated TIMEOUT
+     * loss to the opponent — who had held the turn for about a millisecond. The
+     * turn number is the only thing that tells the two apart.
+     *
+     * <p>Package-private so the concurrency test can fire a stale expiry on cue
+     * rather than trying to hit the interleaving by sleeping.
+     */
+    void onTurnExpired(DuelSession session, long armedForTurn) {
         synchronized (session) {
             if (session.finished()) return;
+            if (session.turnNumber() != armedForTurn) return;
             long loser = session.turn();
             finish(session, session.opponentOf(loser), EndReason.TIMEOUT);
         }
@@ -553,6 +581,30 @@ public class DuelService {
 
     private void notifyFinish(
             DuelSession session, long playerId, long winnerId, EndReason reason, MatchResultService.Outcome outcome) {
+
+        // A duel the player has already left behind must not speak for the one
+        // they are in now. Settling happens on the pool after a database
+        // transaction, so by the time it gets here somebody who backed out and
+        // queued again can be several moves into a new duel — and the finish
+        // frame would go down that same live socket, where the app applied it to
+        // whatever duel it was holding: their board vanished onto a result
+        // screen and their new opponent was left playing someone who had gone
+        // silent. start() drops any waiting missed finish for exactly this
+        // reason; this is that same rule on the live path.
+        //
+        // Dropped rather than kept for later, deliberately. The result was
+        // written before this ran, so their rating, their stats and their match
+        // history all have it; what is given up is only the win or lose screen
+        // for a duel they chose to walk out of. Keeping the frame instead would
+        // hand them that stale screen on their next reconnect — the same
+        // supersession coming back through the other door. Only the player who
+        // moved on is skipped: their opponent is told through their own call.
+        DuelSession current = duelOf(playerId).orElse(null);
+        if (current != null && current != session) {
+            log.info("Duel {} result withheld from {}: they are already in duel {}",
+                    session.id(), playerId, current.id());
+            return;
+        }
 
         MatchResultService.PlayerResult result = outcome.forPlayer(playerId);
         boolean won = winnerId == playerId;

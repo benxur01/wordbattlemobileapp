@@ -121,6 +121,7 @@ final _substitutedDuel = DuelView(
 );
 
 const _win = FinishedDuel(
+  duelId: 'duel-1',
   won: true,
   reason: 'words_limit',
   rated: true,
@@ -137,6 +138,7 @@ const _win = FinishedDuel(
 );
 
 const _lose = FinishedDuel(
+  duelId: 'duel-1',
   won: false,
   reason: 'timeout',
   rated: true,

@@ -30,6 +30,22 @@ public class DuelSession {
 
     private long turn;
     private Instant turnStartedAt;
+
+    /**
+     * Which turn is being played, counting from one. It exists so that a turn
+     * timer going off can prove the turn it was armed for is still the one on
+     * the board: a task the scheduler has already begun cannot be cancelled, so
+     * a player answering in the last instant leaves an expiry running for a turn
+     * that is over — see {@code DuelService.onTurnExpired}.
+     *
+     * <p>A counter rather than {@link #turnStartedAt}, which changes on every
+     * pass and looks like it would do: two turns can carry the same instant when
+     * the clock is coarser than the gap between them, and a timestamp that
+     * happened to repeat would wave the stale timer through without a sound.
+     * Counting cannot collide.
+     */
+    private long turnNumber = 1;
+
     private ScheduledFuture<?> turnTimer;
     private boolean finished;
 
@@ -61,6 +77,7 @@ public class DuelSession {
     public Set<String> used() { return Set.copyOf(used); }
     public long turn() { return turn; }
     public Instant turnStartedAt() { return turnStartedAt; }
+    public long turnNumber() { return turnNumber; }
     public boolean finished() { return finished; }
 
     public long opponentOf(long playerId) {
@@ -137,6 +154,7 @@ public class DuelSession {
     public void passTurnTo(long playerId) {
         this.turn = playerId;
         this.turnStartedAt = Instant.now();
+        this.turnNumber++;
     }
 
     public void setTurnTimer(ScheduledFuture<?> future) {

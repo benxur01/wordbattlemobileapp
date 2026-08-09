@@ -105,6 +105,24 @@ class DuelSessionTest {
     }
 
     @Test
+    void everyPassOfTheTurnIsANewTurnNumber() {
+        DuelSession session = session();
+        long opening = session.turnNumber();
+
+        session.passTurnTo(20L);
+        long second = session.turnNumber();
+        session.passTurnTo(10L);
+
+        // What a turn timer is armed with, and the only reason the number
+        // exists: it has to move every single time the turn does, or an expiry
+        // left behind by a turn already played still looks current and times
+        // out whoever has just taken over. Two instants could repeat; a count
+        // cannot.
+        assertThat(second).isGreaterThan(opening);
+        assertThat(session.turnNumber()).isGreaterThan(second);
+    }
+
+    @Test
     void aDuelCanOnlyFinishOnce() {
         DuelSession session = session();
 

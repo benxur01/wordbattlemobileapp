@@ -1,6 +1,8 @@
 package uz.wordbattle.user;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -10,11 +12,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import uz.wordbattle.friend.FriendRequestEntity.Status;
 import uz.wordbattle.friend.FriendRequestRepository;
@@ -39,7 +44,8 @@ class AccountDeletionTest {
     @Autowired
     private ObjectMapper mapper;
 
-    @Autowired
+    /** Spied rather than injected so one write can be made to lose its race. */
+    @MockitoSpyBean
     private UserRepository users;
 
     @Autowired
@@ -150,6 +156,47 @@ class AccountDeletionTest {
         assertThat(ratingHistory.findByUserIdAndRecordedAtAfterOrderByRecordedAtAsc(leavingId, Instant.EPOCH))
                 .isEmpty();
         assertThat(users.findById(leavingId).orElseThrow().isDeleted()).isTrue();
+    }
+
+    /**
+     * The deletion losing the race for its own row. The {@code users} row is
+     * versioned, and a duel of this player's settling in the same instant is
+     * refused at commit — the wait before the erasing starts makes that rare
+     * rather than impossible, because it gives up after a few seconds and lets
+     * the deletion go ahead anyway. It used to come back to the player as a raw
+     * failure on the one screen the store insists must work; now the erasing is
+     * simply done again over fresh values.
+     */
+    @Test
+    void aDeletionTheDatabaseRefusesIsDoneAgainInsteadOfFailingOnThePlayer() throws Exception {
+        String leaving = login("Dilnoza");
+        claim(leaving, "dilnoza_race");
+        long leavingId = userId(leaving);
+        userWords.save(new UserWord(leavingId, "battle"));
+
+        // Refused exactly once, as a settlement committing in the gap would
+        // refuse it. The attempt that follows is passed on to save() because
+        // Mockito cannot hand an interface-backed repository its own method
+        // back: the same write, without the immediate flush.
+        AtomicBoolean firstWrite = new AtomicBoolean(true);
+        willAnswer(invocation -> {
+            if (firstWrite.getAndSet(false)) {
+                throw new ObjectOptimisticLockingFailureException(User.class, leavingId);
+            }
+            return users.save(invocation.<User>getArgument(0));
+        }).given(users).saveAndFlush(any(User.class));
+
+        mvc.perform(delete("/api/users/me").header("Authorization", "Bearer " + leaving))
+                .andExpect(status().isNoContent());
+
+        User shell = users.findById(leavingId).orElseThrow();
+        assertThat(shell.isDeleted()).isTrue();
+        assertThat(shell.getNickname()).isNull();
+        assertThat(shell.getGoogleSubject()).isNull();
+        // The refused attempt was rolled back whole, so the one that replaced
+        // it had to erase everything over again rather than carry on from the
+        // middle of the first.
+        assertThat(userWords.countByUserId(leavingId)).isZero();
     }
 
     // --------------------------------------------------------------- helpers
