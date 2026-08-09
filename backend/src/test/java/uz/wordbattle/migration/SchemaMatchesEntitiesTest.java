@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserRepository;
 
@@ -30,7 +29,6 @@ import uz.wordbattle.user.UserRepository;
  * not H2 wearing its name.
  */
 @SpringBootTest
-@Testcontainers(disabledWithoutDocker = true)
 class SchemaMatchesEntitiesTest {
 
     /**
@@ -41,9 +39,9 @@ class SchemaMatchesEntitiesTest {
      */
     @DynamicPropertySource
     static void useMigratedPostgres(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", MigrationDatabase.POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", MigrationDatabase.POSTGRES::getUsername);
-        registry.add("spring.datasource.password", MigrationDatabase.POSTGRES::getPassword);
+        registry.add("spring.datasource.url", MigrationDatabase::jdbcUrl);
+        registry.add("spring.datasource.username", MigrationDatabase::username);
+        registry.add("spring.datasource.password", MigrationDatabase::password);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
         // The pairing this test exists for, copied from the production

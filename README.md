@@ -177,6 +177,11 @@ sessiya tozalanadi, Google akkaunti unutiladi va onboarding ochiladi. Soket
 handshake'i 401 ni ayta olmagani uchun ikki marta uzilishdan keyin token REST
 orqali tekshiriladi.
 
+**Serverga umuman yetib bo'lmasa** token joyida qoladi va oflayn ekrani
+"Qayta urinish" bilan ochiladi. Faqat serverning rad javobi tokenni o'chiradi:
+tarmoq yo'qligi u haqida hech narsa aytmaydi. Ikkalasi bir xil ko'rilgan
+paytda internetsiz ochilgan ilova odamni jimgina tizimdan chiqarib yuborardi.
+
 **Profil ekranida** "Chiqish" va "Akkauntni o'chirish" bor. O'chirish qaytmaydi:
 do'stlar, so'rovlar, reyting tarixi va o'rganilgan so'zlar o'chadi, `users`
 qatori esa nomsiz qobiq bo'lib qoladi — raqiblaringizning jang tarixi shunga
@@ -206,11 +211,14 @@ Maket statik prototip edi; jonli ma'lumot bilan ba'zi joylar boshqacha:
 ## Testlar
 
 ```bash
-flutter test                 # 60 ta test
+flutter test                 # 79 ta test
 flutter analyze
 
-cd backend && ./mvnw test    # 44 ta test
+cd backend && ./mvnw test    # 69 ta test
 ```
+
+Ikkala to'plam ham hech narsa o'rnatishni talab qilmaydi va hech biri o'zini
+skip qilmaydi.
 
 - `test/layout_test.dart` — har bir ekran 360×784dp telefonda va klaviatura
   ochiq holatda toshib ketmasligi
@@ -219,9 +227,16 @@ cd backend && ./mvnw test    # 44 ta test
 - `test/nav_transition_test.dart` — pastki panel animatsiyasi
 - `test/api_client_test.dart` — server xatolari (401, `user_not_found`, tarmoq)
   ilova tushunadigan shaklga o'girilishi; tokenning URL'ga tushmasligi
+- `test/session_test.dart` — saqlangan token qachon unutilishi. Serverning rad
+  javobi (401, `user_not_found`) — ha; tarmoq yo'qligi yoki server xatosi —
+  yo'q. Ilgari ikkalasi bir xil edi, shuning uchun internetsiz ochilgan ilova
+  odamni butunlay tizimdan chiqarib yuborardi
+- `test/queue_lifecycle_test.dart` — ilova fonga ketganda navbatdan chiqish va,
+  eng muhimi, qaytganda unga qayta kirish
 - backend: Glicko-2, taxallus qoidalari, Google `idToken` tekshiruvi, JWT sir
   talabi, duel qoidalari, REST oqimi va ikkita haqiqiy mijoz bilan WebSocket
-  jangi (juftlanish, qayta ulanish, chaqiruv, ikki jang bo'lmasligi)
+  jangi (juftlanish, qayta ulanish, chaqiruv, ikki jang bo'lmasligi); Flyway
+  migratsiyalari haqiqiy PostgreSQL'da — [`backend/README.md`](backend/README.md#migratsiya-testlari)
 
 ---
 
@@ -246,9 +261,6 @@ o'z litsenziyalari ostida: [THIRD_PARTY.md](THIRD_PARTY.md).
 - **Push (FCM)** — oflayn do'stga chaqiruv bormaydi.
 - **Token bekor qilish (revocation)** — chiqish qurilmadagi tokenni o'chiradi,
   lekin server tomonda u muddati tugagunicha yaroqli qoladi.
-- **Migratsiyalarni test qilish** — testlar H2 da `ddl-auto: create-drop` bilan
-  ishlaydi, Flyway migratsiyalari esa faqat prodda birinchi marta bajariladi.
-  To'g'ri yechim — Testcontainers Postgres (Docker talab qiladi).
 - Bitta server instansiyasi uchun mo'ljallangan (navbat va onlayn holat
   xotirada). Ko'p nusxa kerak bo'lsa — Redis. Server o'chganda faol janglar
   `duel.aborted` bilan yopiladi, lekin qayta tiklanmaydi.

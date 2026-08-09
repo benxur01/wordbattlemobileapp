@@ -1,5 +1,6 @@
 package uz.wordbattle.auth;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.web.bind.annotation.*;
 import uz.wordbattle.common.ApiException;
@@ -35,7 +36,7 @@ public class AuthController {
      * Sign-In gave it, and the server checks it against Google's public keys.
      */
     @PostMapping("/google")
-    public LoginResponse googleLogin(@RequestBody GoogleLoginRequest request) {
+    public LoginResponse googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
         GoogleAuthService.GoogleUser googleUser = google.verify(request.idToken());
         User user = users.findOrCreateByGoogleSubject(googleUser.subject(), googleUser.displayName());
         return response(user);

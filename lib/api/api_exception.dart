@@ -14,6 +14,13 @@ class ApiException implements Exception {
 
   bool get isUnauthorized => statusCode == 401;
 
+  /// True when the failure means the session is over rather than that one call
+  /// went wrong. A 401 is the obvious case; `user_not_found` is the other one —
+  /// the account was deleted, so the token is signed correctly but names
+  /// nobody. Anything else — a timeout, a refused connection, a 500 — says
+  /// nothing about the token, and must never be treated as a logout.
+  bool get endsSession => isUnauthorized || code == 'user_not_found';
+
   @override
   String toString() => 'ApiException($code, $message)';
 }

@@ -36,6 +36,32 @@ import 'widgets/bottom_nav.dart';
 /// The screens stay pure — they take data and callbacks. Every rule that
 /// decides a duel now lives on the server; this class mirrors what it is told
 /// and sends the player's intent back.
+/// What a change of app lifecycle means for the player's place in the queue.
+enum QueueAction { none, leave, rejoin }
+
+/// Backgrounding the app mid-search should not leave a ghost in the queue —
+/// the server would pair a player who is not looking at the screen, and the
+/// duel would run its turn timer out unwatched.
+///
+/// Coming back has to undo that, and for a long time it did not: leaving
+/// without ever rejoining left the search screen turning its radar at a server
+/// that had already forgotten the player. No opponent was coming, the bot
+/// fallback only serves players actually queued, and the sole way out was the
+/// cancel button.
+///
+/// Only the search screen is affected. `inactive` is deliberately not a leave:
+/// on iOS it fires for a notification banner or the app switcher preview,
+/// which are not backgrounding, and dropping the queue for those would make
+/// the search restart constantly.
+QueueAction queueActionFor(AppLifecycleState state, WBScreen screen) {
+  if (screen != WBScreen.match) return QueueAction.none;
+  return switch (state) {
+    AppLifecycleState.paused || AppLifecycleState.detached || AppLifecycleState.hidden => QueueAction.leave,
+    AppLifecycleState.resumed => QueueAction.rejoin,
+    AppLifecycleState.inactive => QueueAction.none,
+  };
+}
+
 class AppRoot extends StatefulWidget {
   const AppRoot({super.key});
 
@@ -124,10 +150,22 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Backgrounding the app mid-search should not leave a ghost in the queue.
-    if (state == AppLifecycleState.paused && screen == WBScreen.match) {
-      _socket.send('queue.leave');
+    switch (queueActionFor(state, screen)) {
+      case QueueAction.leave:
+        _socket.send('queue.leave');
+      case QueueAction.rejoin:
+        _rejoinQueue();
+      case QueueAction.none:
+        break;
     }
+  }
+
+  /// Puts the player back in the queue they were taken out of. Safe to call
+  /// when they are already in it: the server keeps the wait they had served
+  /// rather than starting the rating window over.
+  void _rejoinQueue() {
+    if (screen != WBScreen.match) return;
+    _socket.send('queue.join');
   }
 
   // -------------------------------------------------------------- bootstrap
@@ -149,12 +187,22 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         setState(() => screen = WBScreen.onb1);
       }
     } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        screen = WBScreen.offline;
-        banner = e.message;
-      });
+      // The token survives this: the server could not be reached, which says
+      // nothing about whether it is still good. The offline screen retries.
+      _showOffline(e.message);
+    } catch (_) {
+      // A response we could not make sense of. Rare, but letting it escape
+      // leaves the app on the loading screen with no way forward.
+      _showOffline("Serverga ulanib bo'lmadi");
     }
+  }
+
+  void _showOffline(String message) {
+    if (!mounted) return;
+    setState(() {
+      screen = WBScreen.offline;
+      banner = message;
+    });
   }
 
   void _connectSocket() {
@@ -240,10 +288,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   // ------------------------------------------------------- session lifetime
 
   /// True when the failure means the session is over rather than that one call
-  /// went wrong. A 401 is the obvious case; `user_not_found` is the other one —
-  /// the account was deleted, so the token is signed correctly but names
-  /// nobody.
-  bool _isSessionOver(ApiException e) => e.isUnauthorized || e.code == 'user_not_found';
+  /// went wrong — see [ApiException.endsSession], which [Session.restore] holds
+  /// to the same rule.
+  bool _isSessionOver(ApiException e) => e.endsSession;
 
   /// The single place an API failure is turned into UI. Anything that ends the
   /// session drops it and returns to onboarding; everything else is a banner.
@@ -536,8 +583,18 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           if (user is Map<String, dynamic>) me = UserDto.fromJson(user);
           onlineCount = (event.payload['onlineCount'] as num?)?.toInt() ?? onlineCount;
         });
+        // A socket that dropped while the app was in the background took the
+        // player's place in the queue with it, and the rejoin on resume was
+        // written to a socket that was already gone. This is the one frame
+        // that proves the new socket is live, so the queue is claimed here.
+        _rejoinQueue();
       case 'queue.joined':
-        setState(() => queuedAt = DateTime.now());
+        // The server reports when the wait actually started, which is not now
+        // for anyone rejoining — using the local clock instead would reset the
+        // displayed timer on every reconnect.
+        setState(() => queuedAt = DateTime.tryParse(event.payload['since'] as String? ?? '')?.toLocal()
+            ?? queuedAt
+            ?? DateTime.now());
       case 'queue.left':
         setState(() => queuedAt = null);
       case 'match.found':

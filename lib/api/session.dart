@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_client.dart';
+import 'api_exception.dart';
 import 'models.dart';
 
 /// Remembers the login between launches. The token is the only thing stored;
@@ -15,6 +16,16 @@ class Session {
 
   bool get isLoggedIn => _api.token != null;
 
+  /// True when a stored token was accepted, false when there was none or the
+  /// server refused the one there was.
+  ///
+  /// Throws [ApiException] when the check could not be made at all. That
+  /// distinction is the whole point: this used to swallow every failure and
+  /// forget the token, so opening the app with no signal — a lift, a tunnel, a
+  /// server restart — logged the player out for good and dropped the Google
+  /// account link with it. Only a token the server actively rejects is worth
+  /// forgetting; a network that is merely down says nothing about it, and the
+  /// caller shows the offline screen and retries instead.
   Future<bool> restore() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
@@ -24,8 +35,9 @@ class Session {
     try {
       user = await _api.me();
       return true;
-    } catch (_) {
-      // Expired or revoked: drop it and start over at onboarding.
+    } on ApiException catch (e) {
+      if (!e.endsSession) rethrow;
+      // Expired, revoked, or the account is gone: start over at onboarding.
       await clear();
       return false;
     }

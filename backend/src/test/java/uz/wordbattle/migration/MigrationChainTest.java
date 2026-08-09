@@ -13,7 +13,6 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.flywaydb.core.api.output.MigrateResult;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Runs {@code db/migration} against a real PostgreSQL.
@@ -31,11 +30,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * column and {@code V5} adding a {@code not null} one only mean anything on the
  * second path.
  *
- * <p>Each test owns a schema of its own inside the shared container, so they
+ * <p>Each test owns a schema of its own inside the shared database, so they
  * neither see each other's tables nor the one {@link SchemaMatchesEntitiesTest}
  * boots the application against.
  */
-@Testcontainers(disabledWithoutDocker = true)
 class MigrationChainTest {
 
     /**
@@ -50,11 +48,18 @@ class MigrationChainTest {
         MigrateResult result = migrate("fresh", null);
 
         assertThat(result.migrationsExecuted).isEqualTo(5);
-        assertThat(query("fresh", "select version from flyway_schema_history order by installed_rank"))
+        assertThat(query(
+                        "fresh",
+                        "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
                 .containsExactly("1", "2", "3", "4", "5");
-        // A BASELINE row would mean a migration was marked applied without
-        // being run — the one way this can pass while the schema is wrong.
-        assertThat(query("fresh", "select type from flyway_schema_history")).containsOnly("SQL");
+        // Two row types are expected: the SQL migrations, and the rank-0 row
+        // Flyway writes to record that it created the schema itself. A BASELINE
+        // row is the one that must never appear — it marks a migration applied
+        // without being run, and is the only way this test passes while the
+        // schema is wrong.
+        assertThat(query("fresh", "select type from flyway_schema_history"))
+                .containsOnly("SCHEMA", "SQL")
+                .doesNotContain("BASELINE");
 
         assertThat(tables("fresh"))
                 .containsExactlyInAnyOrder(
@@ -133,9 +138,9 @@ class MigrationChainTest {
     private static MigrateResult migrate(String schema, String target) {
         FluentConfiguration flyway = Flyway.configure()
                 .dataSource(
-                        MigrationDatabase.POSTGRES.getJdbcUrl(),
-                        MigrationDatabase.POSTGRES.getUsername(),
-                        MigrationDatabase.POSTGRES.getPassword())
+                        MigrationDatabase.jdbcUrl(),
+                        MigrationDatabase.username(),
+                        MigrationDatabase.password())
                 // The real files, not a copy: a copy would drift.
                 .locations("classpath:db/migration")
                 .schemas(schema)
@@ -196,9 +201,9 @@ class MigrationChainTest {
      */
     private static Connection connect(String schema) throws SQLException {
         Connection connection = DriverManager.getConnection(
-                MigrationDatabase.POSTGRES.getJdbcUrl(),
-                MigrationDatabase.POSTGRES.getUsername(),
-                MigrationDatabase.POSTGRES.getPassword());
+                MigrationDatabase.jdbcUrl(),
+                MigrationDatabase.username(),
+                MigrationDatabase.password());
         try (Statement statement = connection.createStatement()) {
             statement.execute("set search_path to " + schema);
         }
