@@ -1,0 +1,16 @@
+-- Answering a friend request is read-check-write: is this row still pending,
+-- and if so mark it and write the friendship. Two calls do that at once more
+-- often than it sounds -- a double-tapped "Qabul qilish" is two requests on the
+-- wire, and so is accepting while the decline underneath the thumb is still in
+-- flight. Both read PENDING, both went on: one reached the friendship insert the
+-- other had already made and came back to the player as a 500 for pressing a
+-- button twice, and an accept racing a decline could leave the row DECLINED with
+-- the friendship the accept had created standing beside it.
+--
+-- The version column is where the two calls actually meet. The loser's update
+-- matches no row, Hibernate refuses it, and the whole transaction -- friendship
+-- edges and all -- is rolled back, so the answer is a conflict rather than a
+-- crash and never half of each. Same column, same reasoning and same default as
+-- V5 gave the users table; the default is what lets it land on a table that
+-- already holds rows.
+alter table friend_requests add column version bigint not null default 0;

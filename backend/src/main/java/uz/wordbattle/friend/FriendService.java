@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uz.wordbattle.common.ApiException;
@@ -141,14 +142,56 @@ public class FriendService {
     @Transactional
     public void accept(Long userId, Long requestId) {
         FriendRequestEntity request = requireOwnedRequest(userId, requestId);
-        request.resolve(Status.ACCEPTED);
-        link(request.getFromUserId(), request.getToUserId());
-        link(request.getToUserId(), request.getFromUserId());
+        // Settled before the friendship is written, deliberately: this is the
+        // step the two racing calls compete over, and losing it here means the
+        // edges below are never attempted at all rather than attempted and
+        // rolled back.
+        resolve(request, Status.ACCEPTED);
+        try {
+            link(request.getFromUserId(), request.getToUserId());
+            link(request.getToUserId(), request.getFromUserId());
+        } catch (DataIntegrityViolationException e) {
+            // The unique constraint on the pair, refusing an edge somebody else
+            // has just made. The version above rules out the same request being
+            // accepted twice, but not two requests that mean the same thing:
+            // two players who challenged each other in the same instant hold a
+            // pending row each — sendRequest only folds one into the other when
+            // it can already see it — and accepting both writes the same two
+            // edges. A conflict rather than the 500 this used to be, and this
+            // is the truthful one: they are friends, it simply was not this call
+            // that made them so.
+            throw ApiException.conflict("already_friends", "Siz allaqachon do'stsiz");
+        }
     }
 
     @Transactional
     public void decline(Long userId, Long requestId) {
-        requireOwnedRequest(userId, requestId).resolve(Status.DECLINED);
+        resolve(requireOwnedRequest(userId, requestId), Status.DECLINED);
+    }
+
+    /**
+     * Marks the request answered, and writes it now rather than at commit.
+     *
+     * <p>The flush is the whole point. Left to the transaction, the version
+     * column's refusal arrives after this method has returned and after the
+     * controller has, so it surfaces from the commit as a raw
+     * {@link OptimisticLockingFailureException} and reaches the player as a 500
+     * — the same failure this was meant to fix, moved one layer out. Flushed
+     * here it is caught while there is still a call frame to answer in, and the
+     * answer is the one {@link #requireOwnedRequest} already gives to a request
+     * somebody has dealt with: it has been, a moment ago, by the other tap.
+     *
+     * <p>The transaction is finished either way — a refused flush marks it
+     * rollback-only — so nothing this call had written survives, which is
+     * exactly what an accept that lost to a decline must not leave behind.
+     */
+    private void resolve(FriendRequestEntity request, Status status) {
+        request.resolve(status);
+        try {
+            requests.saveAndFlush(request);
+        } catch (OptimisticLockingFailureException e) {
+            throw ApiException.conflict("request_resolved", "So'rov allaqachon hal qilingan");
+        }
     }
 
     @Transactional
@@ -157,9 +200,15 @@ public class FriendService {
         friendships.deleteByUserIdAndFriendId(friendId, userId);
     }
 
+    /**
+     * One direction of a friendship. Written on the spot rather than at commit,
+     * so that a constraint refusing it is caught by {@link #accept} instead of
+     * escaping the transaction as a 500 — the check above is a courtesy, and the
+     * unique index over the pair is what actually decides.
+     */
     private void link(Long userId, Long friendId) {
         if (!friendships.existsByUserIdAndFriendId(userId, friendId)) {
-            friendships.save(new Friendship(userId, friendId));
+            friendships.saveAndFlush(new Friendship(userId, friendId));
         }
     }
 

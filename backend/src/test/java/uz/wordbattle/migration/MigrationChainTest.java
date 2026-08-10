@@ -47,11 +47,11 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(7);
+        assertThat(result.migrationsExecuted).isEqualTo(8);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -80,6 +80,10 @@ class MigrationChainTest {
         assertThat(columnsOf("fresh", "users"))
                 .contains("google_subject", "deleted_at", "version", "token_generation", "rating_period_at")
                 .doesNotContain("telegram_id");
+
+        // V8 put the same optimistic lock on the other table two calls can
+        // settle at once — a friend request answered by a double tap.
+        assertThat(columnsOf("fresh", "friend_requests")).contains("version");
 
         // Partial indexes are the reason this test needs PostgreSQL at all:
         // H2 accepts neither of these, so the H2 suite proves nothing about
@@ -119,8 +123,18 @@ class MigrationChainTest {
                 insert into rating_history (user_id, rating, recorded_at)
                 select id, 1420, timestamptz '2026-01-02 03:04:05+00' from users where nickname = 'aziza_m'
                 """);
+        // An unanswered request caught by the upgrade, so that V8's not-null
+        // column has a row to fall over on if its default ever goes missing.
+        execute(
+                "upgrade",
+                """
+                insert into friend_requests (from_user_id, to_user_id, status)
+                select a.id, b.id, 'PENDING'
+                from users a, users b
+                where a.nickname = 'aziza_m' and b.nickname = 'bekzod_99'
+                """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(5);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(6);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -167,6 +181,12 @@ class MigrationChainTest {
                                 + " where nickname = 'bekzod_99' and rating_period_at = created_at"))
                 .as("a player who has never settled a rated duel falls back to when he signed up")
                 .containsExactly("1");
+
+        // V8 is V5's shape again, on the other row two calls can settle at once.
+        // The request that was already pending has to read back as 0 for the
+        // same reason: the entity maps this to a primitive long, and the first
+        // answer to that request would break on a null.
+        assertThat(query("upgrade", "select version from friend_requests")).containsExactly("0");
     }
 
     // --------------------------------------------------------------- helpers
