@@ -1,5 +1,6 @@
 package uz.wordbattle.match;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -8,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import uz.wordbattle.config.AppProperties;
 import uz.wordbattle.match.MatchEntity.EndReason;
 import uz.wordbattle.rating.Glicko2;
 import uz.wordbattle.rating.RatingHistory;
@@ -54,6 +56,7 @@ public class MatchResultService {
         }
     }
 
+    private final AppProperties props;
     private final UserRepository users;
     private final UserService userService;
     private final UserWordRepository userWords;
@@ -62,12 +65,14 @@ public class MatchResultService {
     private final RatingHistoryRepository ratingHistory;
 
     public MatchResultService(
+            AppProperties props,
             UserRepository users,
             UserService userService,
             UserWordRepository userWords,
             MatchRepository matches,
             MatchWordRepository matchWords,
             RatingHistoryRepository ratingHistory) {
+        this.props = props;
         this.users = users;
         this.userService = userService;
         this.userWords = userWords;
@@ -97,10 +102,19 @@ public class MatchResultService {
 
         // ---- ratings (human duels only) ----
         if (two != null) {
-            Glicko2.Rating oneRating =
-                    new Glicko2.Rating(one.getRating(), one.getRatingDeviation(), one.getVolatility());
-            Glicko2.Rating twoRating =
-                    new Glicko2.Rating(two.getRating(), two.getRatingDeviation(), two.getVolatility());
+            // Both deviations are aged forward to today before the duel is
+            // rated. Nothing else in the system ever grows one: a player who
+            // stops for a season would otherwise come back exactly as well
+            // known as the day they left, move barely at all themselves, and
+            // hold down every opponent they meet on the way back in.
+            Duration period = props.rating().periodDuration();
+            double oneDeviation = Glicko2.inflateForInactivity(
+                    one.getRatingDeviation(), one.getVolatility(), periodsSince(one.getRatingPeriodAt(), now, period));
+            double twoDeviation = Glicko2.inflateForInactivity(
+                    two.getRatingDeviation(), two.getVolatility(), periodsSince(two.getRatingPeriodAt(), now, period));
+
+            Glicko2.Rating oneRating = new Glicko2.Rating(one.getRating(), oneDeviation, one.getVolatility());
+            Glicko2.Rating twoRating = new Glicko2.Rating(two.getRating(), twoDeviation, two.getVolatility());
 
             boolean oneWon = winnerId == one.getId();
             Glicko2.Rating oneAfter = Glicko2.update(
@@ -110,6 +124,11 @@ public class MatchResultService {
 
             apply(one, oneAfter);
             apply(two, twoAfter);
+            // Only here, inside the human branch: this is the clock the
+            // inflation above reads, and a bot duel — which settles no rating
+            // whatsoever — has proved nothing that should reset it.
+            one.setRatingPeriodAt(now);
+            two.setRatingPeriodAt(now);
             ratingHistory.save(new RatingHistory(one.getId(), one.getRating()));
             ratingHistory.save(new RatingHistory(two.getId(), two.getRating()));
         }
@@ -136,6 +155,18 @@ public class MatchResultService {
 
         persist(session, winnerId, reason, one, two, oneBefore, twoBefore, now);
         return outcome;
+    }
+
+    /**
+     * Rating periods served since {@code lastUpdate}, fractional. Never
+     * negative: a clock that has stepped backwards, or a settlement replayed
+     * over a row that has already been stamped, must age nobody backwards into
+     * a certainty they never earned.
+     */
+    private double periodsSince(Instant lastUpdate, Instant now, Duration period) {
+        long periodMillis = period.toMillis();
+        if (periodMillis <= 0) return 0;
+        return Math.max(0, Duration.between(lastUpdate, now).toMillis() / (double) periodMillis);
     }
 
     private void apply(User user, Glicko2.Rating rating) {

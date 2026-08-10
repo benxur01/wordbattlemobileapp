@@ -47,11 +47,11 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(6);
+        assertThat(result.migrationsExecuted).isEqualTo(7);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
-                .containsExactly("1", "2", "3", "4", "5", "6");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -76,9 +76,9 @@ class MigrationChainTest {
         // Where the chain leaves the table everything else edits: V3 traded the
         // Telegram identity for Google's, V4 added the deletion marker, V5 the
         // optimistic lock, V6 the counter a signed-out token is measured
-        // against.
+        // against, V7 the clock Glicko-2's inactivity growth counts from.
         assertThat(columnsOf("fresh", "users"))
-                .contains("google_subject", "deleted_at", "version", "token_generation")
+                .contains("google_subject", "deleted_at", "version", "token_generation", "rating_period_at")
                 .doesNotContain("telegram_id");
 
         // Partial indexes are the reason this test needs PostgreSQL at all:
@@ -110,8 +110,17 @@ class MigrationChainTest {
                     (1001, 'aziza_m', 'Aziza', 1420),
                     (1002, 'bekzod_99', 'Bekzod', 1180)
                 """);
+        // One of the two has a rated game behind her and the other has none,
+        // which is the fork V7's backfill has to get right — see the assertions
+        // on rating_period_at below.
+        execute(
+                "upgrade",
+                """
+                insert into rating_history (user_id, rating, recorded_at)
+                select id, 1420, timestamptz '2026-01-02 03:04:05+00' from users where nickname = 'aziza_m'
+                """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(4);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(5);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -139,6 +148,25 @@ class MigrationChainTest {
         // token their very next sign-in produces would be stamped with a number
         // the column disagrees with and be dead on arrival.
         assertThat(query("upgrade", "select token_generation from users")).containsExactly("0", "0");
+
+        // V7 is a not-null column with no default at all, so the backfill in the
+        // middle of it is the whole migration. Defaulting it to now() would have
+        // been the easy way and the wrong one: every existing player would be
+        // recorded as having just played, and the idle time they had actually
+        // served — the only thing the column exists to measure — would be
+        // written off on the day it shipped.
+        assertThat(query(
+                        "upgrade",
+                        "select to_char(rating_period_at at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS')"
+                                + " from users where nickname = 'aziza_m'"))
+                .as("a player with rated history is dated from her newest rating_history row")
+                .containsExactly("2026-01-02 03:04:05");
+        assertThat(query(
+                        "upgrade",
+                        "select count(*) from users"
+                                + " where nickname = 'bekzod_99' and rating_period_at = created_at"))
+                .as("a player who has never settled a rated duel falls back to when he signed up")
+                .containsExactly("1");
     }
 
     // --------------------------------------------------------------- helpers

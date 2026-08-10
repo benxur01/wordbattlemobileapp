@@ -115,4 +115,35 @@ class Glicko2Test {
 
         assertThat(winner.rating() - 1200).isCloseTo(1200 - loser.rating(), within(0.000001));
     }
+
+    /**
+     * Step 6, pinned the same way as the two above: φ* = √(φ² + σ²t) on the
+     * internal scale, worked from the published formula rather than read back
+     * out of this implementation. At σ = 0.06 the growth is deliberately slow —
+     * ten periods away add barely three points to a deviation of 200 — because
+     * the volatility is what says how erratic a player is, and a steady one
+     * does not become a stranger over a fortnight.
+     */
+    @Test
+    void sittingOutGrowsTheDeviationByTheHandCalculatedAmount() {
+        assertThat(Glicko2.inflateForInactivity(200, 0.06, 10)).isCloseTo(202.6978131735176, within(0.0001));
+        assertThat(Glicko2.inflateForInactivity(60, 0.06, 30)).isCloseTo(82.82035013194958, within(0.0001));
+    }
+
+    /** A player who never left is exactly as well known as their last game left them. */
+    @Test
+    void noTimeAwayLeavesTheDeviationAlone() {
+        assertThat(Glicko2.inflateForInactivity(200, 0.06, 0)).isEqualTo(200);
+    }
+
+    /**
+     * However long someone is gone, they come back no less known than an
+     * account that has never played at all — the same ceiling {@link
+     * Glicko2#update} holds every result to. Without it a long enough absence
+     * would hand a returning player a bigger swing than a brand-new one gets.
+     */
+    @Test
+    void noAbsenceIsWorseThanNeverHavingPlayed() {
+        assertThat(Glicko2.inflateForInactivity(340, 0.06, 1000)).isEqualTo(350);
+    }
 }

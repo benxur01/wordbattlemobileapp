@@ -58,6 +58,28 @@ public final class Glicko2 {
         return new Rating(newRating, newDeviation, sigmaPrime);
     }
 
+    /**
+     * Step 6 of the paper: the deviation a player who has not settled a rated
+     * duel in a while should be carrying. Certainty decays — someone who left
+     * on 60 is not still that well known a season later, and treating them as
+     * if they were means both they and everyone they meet barely move.
+     *
+     * <p>{@code periodsElapsed} is fractional on purpose. The paper inflates
+     * once per whole rating period because it settles a batch of games at a
+     * time; duels here settle one at a time, at whatever moment they end, and
+     * rounding that to whole periods would make the growth depend on when the
+     * game happened to finish rather than on how long the player was away.
+     *
+     * <p>Clamped to the same 350 ceiling {@link #update} enforces, so no amount
+     * of absence leaves a player less known than a brand-new account.
+     */
+    public static double inflateForInactivity(double deviation, double volatility, double periodsElapsed) {
+        if (periodsElapsed <= 0) return deviation;
+        double phi = deviation / SCALE;
+        double phiStar = Math.sqrt(phi * phi + volatility * volatility * periodsElapsed);
+        return Math.min(350, SCALE * phiStar);
+    }
+
     private static double g(double phi) {
         return 1.0 / Math.sqrt(1 + 3 * phi * phi / (Math.PI * Math.PI));
     }

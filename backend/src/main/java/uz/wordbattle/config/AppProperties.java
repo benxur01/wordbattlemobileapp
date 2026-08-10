@@ -39,6 +39,7 @@ public record AppProperties(
         @DefaultValue Google google,
         @DefaultValue Duel duel,
         @DefaultValue Matchmaking matchmaking,
+        @DefaultValue Rating rating,
         @DefaultValue Cors cors,
         @DefaultValue Limits limits,
         /**
@@ -127,4 +128,18 @@ public record AppProperties(
             @DefaultValue("500") int maxBand,
             @DefaultValue("3") int stepSeconds,
             @DefaultValue("35") int botFallbackSeconds) {}
+
+    /**
+     * How long one Glicko-2 rating period lasts, which is the unit the
+     * inactivity growth in {@link uz.wordbattle.rating.Glicko2#inflateForInactivity}
+     * counts in: a player away for one of these comes back one period's worth
+     * less certain.
+     *
+     * <p>A day rather than the paper's usual week or month. Those windows are
+     * sized for correspondence chess; a duel here is over in a couple of
+     * minutes and the app is already built around a daily rhythm — the streak,
+     * the practice word — so a day is far closer to "a typical player's worth
+     * of games" than a longer one would be.
+     */
+    public record Rating(@DefaultValue("PT24H") Duration periodDuration) {}
 }

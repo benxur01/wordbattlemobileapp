@@ -79,6 +79,20 @@ public class User {
     @Column(name = "volatility", nullable = false)
     private double volatility = 0.06;
 
+    /**
+     * When a settled duel last moved this player's rating. Read against {@code
+     * wordbattle.rating.period-duration} to grow {@link #ratingDeviation} back
+     * out for every period spent away — Glicko-2's step 6, without which a
+     * player who stops for a year comes back as certain as the day they left
+     * and barely moves whoever they meet.
+     *
+     * <p>Only human duels move it. Bot duels settle no rating at all, so
+     * beating one proves nothing about where this player stands against the
+     * ladder and must not restart this clock either.
+     */
+    @Column(name = "rating_period_at", nullable = false)
+    private Instant ratingPeriodAt = Instant.now();
+
     // ---- stats shown on the profile screen ----
     @Column(name = "streak_days", nullable = false)
     private int streakDays = 0;
@@ -154,6 +168,8 @@ public class User {
     public void setRatingDeviation(double ratingDeviation) { this.ratingDeviation = ratingDeviation; }
     public double getVolatility() { return volatility; }
     public void setVolatility(double volatility) { this.volatility = volatility; }
+    public Instant getRatingPeriodAt() { return ratingPeriodAt; }
+    public void setRatingPeriodAt(Instant ratingPeriodAt) { this.ratingPeriodAt = ratingPeriodAt; }
     public int getStreakDays() { return streakDays; }
     public void setStreakDays(int streakDays) { this.streakDays = streakDays; }
     public LocalDate getLastPlayedOn() { return lastPlayedOn; }

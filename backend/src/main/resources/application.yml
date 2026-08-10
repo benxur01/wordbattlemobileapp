@@ -97,6 +97,11 @@ wordbattle:
     # No human opponent within this many seconds -> play a bot. Never shorter
     # than the time the window needs to reach max-band.
     bot-fallback-seconds: 35
+  rating:
+    # Glicko-2 step 6: a player who has not settled a rated duel for this long
+    # grows one period's worth of uncertainty back, up to the 350 a new account
+    # carries. See AppProperties.Rating for why a day and not the paper's week.
+    period-duration: PT24H
   dev-login-enabled: ${DEV_LOGIN_ENABLED:false}
 
 logging:

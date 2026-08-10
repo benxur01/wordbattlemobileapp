@@ -31,6 +31,7 @@ class JwtServiceTest {
                 new AppProperties.Google(""),
                 new AppProperties.Duel(15, 3, 9, 12, Set.of('x', 'z')),
                 new AppProperties.Matchmaking(75, 25, 400, 3, 12),
+                new AppProperties.Rating(Duration.ofHours(24)),
                 new AppProperties.Cors(List.of()),
                 new AppProperties.Limits(20, 40, 64),
                 ZoneId.of("Asia/Tashkent"),

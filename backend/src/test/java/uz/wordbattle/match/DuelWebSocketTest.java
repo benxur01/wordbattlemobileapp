@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -131,6 +133,21 @@ class DuelWebSocketTest {
         return id;
     }
 
+    /**
+     * An account the ladder already knows — a deviation of 60 rather than a new
+     * player's 350 — whose last rated duel was {@code idlePeriods} rating
+     * periods ago. A fresh account is capped at 350 and could not be inflated
+     * at all, so a settled one is the only way to see the growth happen.
+     */
+    private long settled(String token, double deviation, int idlePeriods) throws Exception {
+        long id = userId(token);
+        User user = users.findById(id).orElseThrow();
+        user.setRatingDeviation(deviation);
+        user.setRatingPeriodAt(Instant.now().minus(Duration.ofHours(24 * idlePeriods)));
+        users.save(user);
+        return id;
+    }
+
     @AfterEach
     void tearDown() throws Exception {
         if (alpha != null) alpha.close();
@@ -249,6 +266,59 @@ class DuelWebSocketTest {
         assertThat(leaderMatch.path("rated").asBoolean()).isTrue();
         assertThat(leaderMatch.path("opponent").path("id").asLong()).isEqualTo(chaserId);
         assertThat(chaserMatch.path("opponent").path("id").asLong()).isEqualTo(leaderId);
+    }
+
+    /**
+     * Glicko-2's step 6 down the real settlement path — the column, the clock
+     * and the duel that reads them — rather than the arithmetic on its own,
+     * which {@code Glicko2Test} already pins.
+     *
+     * <p>Two players on 1200 that the ladder knows equally well, except that
+     * one of them has not settled a rated duel in two hundred rating periods.
+     * That used to make no difference whatsoever: they met on a deviation of 60
+     * each and moved ten points in opposite directions, however long one had
+     * been gone. The absent one's deviation is now aged to 159 before the game
+     * is rated, and the same result moves them several times as far as it moves
+     * the opponent who never left. That asymmetry is the whole point — a rating
+     * nobody has tested in half a year is a guess, and the first game back
+     * should say far more about the player who has been away than about the one
+     * who has been here all along.
+     */
+    @Test
+    void aPlayerBackFromALongAbsenceMovesFurtherThanTheOpponentWhoNeverLeft() throws Exception {
+        String idleToken = login("Qaytgan");
+        String regularToken = login("Doimiy");
+        long idleId = settled(idleToken, 60, 200);
+        long regularId = settled(regularToken, 60, 0);
+
+        alpha = new Client(idleToken);
+        beta = new Client(regularToken);
+        alpha.await("hello", 5);
+        beta.await("hello", 5);
+
+        alpha.send("queue.join", Map.of());
+        beta.send("queue.join", Map.of());
+
+        JsonNode idleMatch = alpha.await("match.found", 30);
+        beta.await("match.found", 30);
+        // Each other and nobody else: a bot duel settles no rating at all and
+        // would leave both deltas at zero, which passes nothing here honestly.
+        assertThat(idleMatch.path("opponent").path("id").asLong()).isEqualTo(regularId);
+        assertThat(idleMatch.path("rated").asBoolean()).isTrue();
+
+        // Who wins does not matter, only how far each is moved by it.
+        alpha.send("duel.forfeit", Map.of());
+
+        int idleDelta = alpha.await("duel.finished", 5).path("delta").asInt();
+        int regularDelta = beta.await("duel.finished", 5).path("delta").asInt();
+
+        assertThat(Math.abs(idleDelta)).isGreaterThan(Math.abs(regularDelta));
+
+        // And the clock is restarted for both, so the absence just paid for is
+        // not charged again to the next duel either of them plays.
+        Instant justNow = Instant.now().minus(Duration.ofMinutes(1));
+        assertThat(users.findById(idleId).orElseThrow().getRatingPeriodAt()).isAfter(justNow);
+        assertThat(users.findById(regularId).orElseThrow().getRatingPeriodAt()).isAfter(justNow);
     }
 
     @Test

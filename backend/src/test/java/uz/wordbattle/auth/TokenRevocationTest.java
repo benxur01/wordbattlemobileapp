@@ -260,6 +260,7 @@ class TokenRevocationTest {
                 props.google(),
                 props.duel(),
                 props.matchmaking(),
+                props.rating(),
                 props.cors(),
                 props.limits(),
                 props.timeZone(),
