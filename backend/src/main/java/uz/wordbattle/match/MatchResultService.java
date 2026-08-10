@@ -93,8 +93,28 @@ public class MatchResultService {
         Instant now = Instant.now();
         Outcome outcome = new Outcome();
 
-        User one = users.findById(session.playerOne()).orElse(null);
-        User two = session.botOpponent() ? null : users.findById(session.playerTwo()).orElse(null);
+        User one = playerBehind(session.playerOne());
+        User two = session.botOpponent() ? null : playerBehind(session.playerTwo());
+
+        // Whichever side is still there takes the first slot. Everything below
+        // is anchored on it — the match row's player_one_id is the one column
+        // of the pair that cannot be null — so leaving the slots as the duel
+        // dealt them and bailing out on the first alone made the outcome depend
+        // on which chair a player had sat in: an opponent whose rival deleted
+        // their account kept their battle, their streak and their learned words
+        // when they happened to be paired second, and lost all three along with
+        // the match row itself when they were paired first. Nor is that a coin
+        // toss — player one is whoever had waited longer in the queue, or the
+        // one who sent the challenge — so it was every second race.
+        if (one == null) {
+            one = two;
+            two = null;
+        }
+        // Nobody left on either side: a bot duel whose only human is gone, or a
+        // row that has vanished from under both. There is nothing to anchor a
+        // match on and nobody to record it for, which is what this guard was
+        // always for — and it is still the only thing standing between the
+        // lines below and a null.
         if (one == null) return outcome;
 
         double oneBefore = one.getRating();
@@ -155,6 +175,58 @@ public class MatchResultService {
 
         persist(session, winnerId, reason, one, two, oneBefore, twoBefore, now);
         return outcome;
+    }
+
+    /**
+     * The player this row still belongs to, or null when there is nobody left
+     * behind it.
+     *
+     * <p>A deleted account keeps its row — other players' match history points
+     * at it — but everything personal has been stripped off it, and {@code
+     * AccountDeletionService} states as a store requirement that nothing
+     * personal survives the deletion. A duel that began inside the deletion
+     * window and ended after it broke exactly that: this method's plain {@code
+     * findById} handed back the anonymous shell, and the settlement wrote a
+     * rating, a battle, a win, a streak, a fresh {@code rating_history} point
+     * and a list of learned words straight back onto it. The deletion had
+     * already run and nothing was ever going to sweep them up.
+     *
+     * <p>So a deleted player counts as one who is not there, which is a state
+     * {@link #record} already handles: nothing is read from them, nothing is
+     * written to them, and the duel settles unrated for whoever is left — the
+     * same treatment a bot duel gets, and for the same reason, since there is
+     * no opponent left whose rating could have been at stake. Which of the two
+     * slots they were in makes no difference to that, but only because {@link
+     * #record} moves the surviving side into the first one before it writes
+     * anything; the promise in this paragraph was false for half of all races
+     * until it did.
+     *
+     * <p>What the survivor loses with them is the opponent's name: the match
+     * row is written with no second player, so their history renders it as the
+     * bot duel it now resembles rather than as the deleted account it was.
+     *
+     * <p>Only half resembles, and the half that does not is worth knowing
+     * before reaching for a bug report. {@code persist} writes {@code
+     * bot_opponent} from the session, where it is false — this was a duel
+     * between two people — while {@code MatchController.summarise} reads the
+     * opponent from the empty second slot and calls it "Word Bot", and derives
+     * {@code rated} from that same false flag. The card therefore comes out as
+     * a <em>rated</em> win or loss against the bot, with a delta of zero: a
+     * combination nothing else here can produce, because real bot duels are
+     * unrated by design — see this class's own opening. It is one symptom of
+     * the paragraph above rather than a second fault, and it goes when that
+     * one does.
+     *
+     * <p>The alternative is to keep pointing the row at the shell, which {@code
+     * MatchController.summarise} is already written for — worth doing if this
+     * ever stops being a race nobody sees, and not worth a second set of
+     * read-only-versus-writable player objects through this method before then.
+     *
+     * <p>The window itself is closed on the other side, in {@code
+     * SocketSessionEnder}; this is what holds if a duel ever gets in regardless.
+     */
+    private User playerBehind(long playerId) {
+        return users.findById(playerId).filter(user -> !user.isDeleted()).orElse(null);
     }
 
     /**

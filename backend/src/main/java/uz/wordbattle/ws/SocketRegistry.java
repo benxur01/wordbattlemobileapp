@@ -62,8 +62,10 @@ public class SocketRegistry implements PresenceService.ConnectedPlayers {
      * it reads its own close as a replaced socket and returns early — meaning
      * whoever calls this owns the teardown that callback would have done.
      * {@code SocketSessionEnder} does: matchmaking, invites and the duel, all
-     * before this point. It did not own presence, and could not have known it
-     * had to, which is why presence is read from here instead.
+     * of which it runs after this rather than before, so that nothing new can
+     * be started for a player who can no longer be reached — see there. It did
+     * not own presence, and could not have known it had to, which is why
+     * presence is read from here instead.
      */
     public void disconnect(Long userId) {
         WebSocketSession session = sessions.remove(userId);
