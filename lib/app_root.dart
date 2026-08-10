@@ -178,6 +178,31 @@ int? inviteSecondsLeftAt(DateTime? startedAt, int secondsLeft, DateTime now) {
   return left <= 0 ? null : left;
 }
 
+/// The frame leaving [from] for [next] owes the server, or null when the move
+/// commits the player to nothing.
+///
+/// Two screens are a standing claim on the server's side: the duel screen says
+/// this player is playing, the search screen says they are waiting to be
+/// paired. Walking off either has to be said out loud — and the saying was the
+/// part taken on trust. `go` wrote the frame and changed the screen whether or
+/// not the write reached anybody, so a socket that happened to be reconnecting
+/// swallowed the forfeit whole: the app went to the lobby, the server kept the
+/// duel, and the next `duel.update` for it dropped the player back onto a board
+/// they had walked out of, since there was no board left in memory to weigh it
+/// against.
+///
+/// Naming the frame here rather than inline in `go` is what lets that be
+/// checked at all — the answer to "was it delivered" needs something to ask
+/// about.
+String? exitFrameFor(WBScreen from, WBScreen next) {
+  if (from == next) return null;
+  return switch (from) {
+    WBScreen.duel => 'duel.forfeit',
+    WBScreen.match => 'queue.leave',
+    _ => null,
+  };
+}
+
 class AppRoot extends StatefulWidget {
   const AppRoot({super.key});
 
@@ -292,8 +317,14 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
   // -------------------------------------------------------------- bootstrap
 
+  /// Guarded like every other action on this class, and for a reason the others
+  /// do not have: the offline screen's retry lands here, and two taps on it
+  /// used to start two restores that both reached [_connectSocket] — see
+  /// [GameSocket.connect] for what a second dial did to the first socket.
   Future<void> _bootstrap() async {
+    if (busy) return;
     setState(() {
+      busy = true;
       screen = WBScreen.loading;
       banner = null;
     });
@@ -303,10 +334,16 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       if (restored) {
         me = _session.user;
         _connectSocket();
-        setState(() => screen = me?.nickname == null ? WBScreen.onb2 : WBScreen.lobby);
+        setState(() {
+          busy = false;
+          screen = me?.nickname == null ? WBScreen.onb2 : WBScreen.lobby;
+        });
         unawaited(_refreshSocial());
       } else {
-        setState(() => screen = WBScreen.onb1);
+        setState(() {
+          busy = false;
+          screen = WBScreen.onb1;
+        });
       }
     } on ApiException catch (e) {
       // The token survives this: the server could not be reached, which says
@@ -322,6 +359,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   void _showOffline(String message) {
     if (!mounted) return;
     setState(() {
+      busy = false;
       screen = WBScreen.offline;
       banner = message;
     });
@@ -1031,12 +1069,23 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     previousNavTab = from != null && to != null && from != to ? from : null;
 
     // Walking out of a duel is a forfeit — the server decides the rest.
-    if (screen == WBScreen.duel && next != WBScreen.duel) _socket.send('duel.forfeit');
-    if (screen == WBScreen.match && next != WBScreen.match) _socket.send('queue.leave');
+    final exit = exitFrameFor(screen, next);
+    final delivered = exit == null || _socket.send(exit);
 
     setState(() {
       screen = next;
-      banner = null;
+      // A forfeit that never left the phone is not nothing to report. The
+      // player is off the duel screen and the server still has them on it, and
+      // the app has no honest way to close that gap itself: `duel.forfeit`
+      // names no duel, so replaying it when the socket returns would forfeit
+      // whatever duel the server has *then* — including a fresh one the player
+      // has since been paired into. Queueing it would trade a duel the player
+      // meant to leave for one they meant to play.
+      //
+      // What closes it instead is the server's own disconnect grace: a socket
+      // this far down is about to be counted as gone, and the duel ends there.
+      // So the app says what happened and lets that run.
+      banner = delivered ? null : "Aloqa yo'q — server bundan xabarsiz";
       duelError = '';
     });
 
@@ -1133,6 +1182,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     final user = me;
     return switch (screen) {
       WBScreen.loading => const LoadingScreen(),
+      // The retry needs no `busy` gate of its own: [_bootstrap] leaves this
+      // screen for the spinner in the same `setState` that raises the flag, so
+      // there is no repaint in which a disabled button could be drawn — and a
+      // second tap inside that one frame still holds the callback this build
+      // handed it. The guard inside [_bootstrap] is the one that can see it.
       WBScreen.offline => LoadingScreen(
           message: banner ?? "Serverga ulanib bo'lmadi",
           onRetry: _bootstrap,
