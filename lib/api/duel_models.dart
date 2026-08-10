@@ -35,22 +35,43 @@ class DuelView {
     required this.opponentThinking,
   });
 
-  factory DuelView.fromMatchFound(Map<String, dynamic> json) => DuelView(
-        duelId: json['duelId'] as String,
-        opponent: UserDto.fromJson(json['opponent'] as Map<String, dynamic>),
-        rated: json['rated'] as bool? ?? true,
-        chain: ((json['chain'] as List?) ?? const [])
-            .map((e) => ChainWord.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        yourTurn: json['yourTurn'] as bool? ?? false,
-        needLetter: (json['needLetter'] as String? ?? 'a').toUpperCase(),
-        substitutedFrom: (json['substitutedFrom'] as String?)?.toUpperCase(),
-        timeLeftMs: ((json['turnSeconds'] as num?)?.toInt() ?? 15) * 1000,
-        turnSeconds: (json['turnSeconds'] as num?)?.toInt() ?? 15,
-        yourWords: 0,
-        opponentWords: 0,
-        opponentThinking: !(json['yourTurn'] as bool? ?? false),
-      );
+  /// The board a `match.found` raises, or null when the frame cannot carry one.
+  ///
+  /// Read the same defensive way [fromDuelUpdate] is, and for more: this frame
+  /// is the only thing that puts a player on the duel screen at the start of a
+  /// battle. It used to be taken at face value, so a payload whose `opponent`
+  /// was missing or shaped differently — a rolling deploy serving two server
+  /// versions, a matchmaking race — threw from inside the `setState` that was
+  /// meant to raise the screen. Nothing caught it: `duel` was never assigned
+  /// and the screen never changed, so the player watched the search screen
+  /// turn while the server ran their turn timer down and their opponent played
+  /// somebody who had stopped answering.
+  ///
+  /// The two fields checked here are the two that cannot be defaulted — a
+  /// board with nobody on the other side of it, or one that cannot be named
+  /// afterwards by [duelFrameApplies], is worse than no board at all.
+  static DuelView? fromMatchFound(Map<String, dynamic> json) {
+    final duelId = json['duelId'];
+    final opponent = json['opponent'];
+    if (duelId is! String || opponent is! Map<String, dynamic>) return null;
+
+    return DuelView(
+      duelId: duelId,
+      opponent: UserDto.fromJson(opponent),
+      rated: json['rated'] as bool? ?? true,
+      chain: ((json['chain'] as List?) ?? const [])
+          .map((e) => ChainWord.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      yourTurn: json['yourTurn'] as bool? ?? false,
+      needLetter: (json['needLetter'] as String? ?? 'a').toUpperCase(),
+      substitutedFrom: (json['substitutedFrom'] as String?)?.toUpperCase(),
+      timeLeftMs: ((json['turnSeconds'] as num?)?.toInt() ?? 15) * 1000,
+      turnSeconds: (json['turnSeconds'] as num?)?.toInt() ?? 15,
+      yourWords: 0,
+      opponentWords: 0,
+      opponentThinking: !(json['yourTurn'] as bool? ?? false),
+    );
+  }
 
   /// The board rebuilt from a `duel.update` on its own, or null when the frame
   /// cannot carry one.
