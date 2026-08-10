@@ -371,7 +371,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
     _socketEvents?.cancel();
     _socketStatus?.cancel();
-    _socketEvents = _socket.events.listen(_onSocketEvent);
+    // The handler has its own boundary — see [_onSocketEvent] — which covers a
+    // frame it cannot read. This covers the other half: an error put on the
+    // stream itself, which no `try` inside the handler can see and which would
+    // otherwise leave the app with a dead subscription and no notice.
+    _socketEvents = _socket.events.listen(_onSocketEvent, onError: (Object _) => _onBadFrame());
     _socketStatus = _socket.status.listen((status) {
       if (!mounted) return;
       if (status == SocketStatus.disconnected) {
@@ -736,8 +740,39 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
   // --------------------------------------------------------------- realtime
 
+  /// Every frame the server sends, with the one thing that used to be missing
+  /// between it and the UI: a boundary.
+  ///
+  /// Every REST call in this class is wrapped in a `try`; the socket was the
+  /// one input that was not, and it is the one that arrives without a button
+  /// press behind it, on the duel path, with no caller left to fail back to. A
+  /// frame the app could not read threw out of the handler and off the end of
+  /// the world — whatever it was in the middle of doing stayed half done, and
+  /// the player was left on a screen that had quietly stopped agreeing with the
+  /// server about what they were doing.
+  ///
+  /// Dropping the frame is safe in a way that letting it escape is not: a duel
+  /// states its whole board on every move, so the next frame carries everything
+  /// this one did, and a socket that is genuinely broken reconnects and is
+  /// handed the state over again.
   void _onSocketEvent(SocketEvent event) {
     if (!mounted) return;
+    try {
+      _applySocketEvent(event);
+    } catch (_) {
+      _onBadFrame();
+    }
+  }
+
+  /// What a frame the app could not make sense of is worth: a line on the
+  /// screen. The alternative — the old behaviour — is a player watching a
+  /// screen that has stopped matching the server with nothing telling them so.
+  void _onBadFrame() {
+    if (!mounted) return;
+    setState(() => banner = "Serverdan noto'g'ri xabar keldi");
+  }
+
+  void _applySocketEvent(SocketEvent event) {
     switch (event.type) {
       case 'hello':
         final user = event.payload['user'];
@@ -760,8 +795,34 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       case 'queue.left':
         setState(() => queuedAt = null);
       case 'match.found':
+        final found = DuelView.fromMatchFound(event.payload);
+        if (found == null) {
+          // Half a frame is not a board that can be drawn — see
+          // [DuelView.fromMatchFound] — so it is dropped rather than guessed
+          // at. What happens next depends on which side of the duel this is,
+          // and neither outcome is good; the point is only that neither is
+          // worse than the crash this replaces.
+          //
+          // The server sends `match.found` to both players and then waits: a
+          // duel broadcasts no state of its own until somebody submits a word,
+          // and it opens with the first player on turn unconditionally. So the
+          // player who moves second is rescued by the first one's move — that
+          // `duel.update` arrives with no board in memory and raises one
+          // through [_resumeDuel], the same path a relaunch takes. The player
+          // who moves *first* has nothing to wait for: they cannot act, so no
+          // update is ever generated, and their turn timer runs out. What ends
+          // it for them is `duel.finished`, which lands because
+          // [duelFrameApplies] lets a result through when there is no board to
+          // protect — a forfeit they did not choose, on the win/lose screen
+          // rather than on a screen frozen forever.
+          //
+          // Closing that second case needs the server to re-send or to state
+          // the duel once at the start, which is not this class's to do.
+          _onBadFrame();
+          return;
+        }
         setState(() {
-          duel = DuelView.fromMatchFound(event.payload);
+          duel = found;
           duelError = '';
           finished = null;
           queuedAt = null;
@@ -912,7 +973,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   /// disconnect grace, where the battle was forfeited while they were away.
   void _resumeDuel(Map<String, dynamic> payload) {
     final resumed = DuelView.fromDuelUpdate(payload);
-    if (resumed == null) return;
+    if (resumed == null) {
+      // Said out loud, for the same reason `match.found` says it — and with
+      // less to fall back on. This is already the recovery path: the player is
+      // sitting on the lobby with a duel running somewhere they cannot see, and
+      // returning in silence is exactly the thing this method exists to stop.
+      // A banner is all that is honest here, but it beats nothing at all.
+      _onBadFrame();
+      return;
+    }
     setState(() {
       duel = resumed;
       duelError = '';
