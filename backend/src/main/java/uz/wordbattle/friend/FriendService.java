@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uz.wordbattle.common.ApiException;
@@ -113,8 +114,28 @@ public class FriendService {
             accept(fromUserId, reverse.get().getId());
             return reverse.get();
         }
-        return requests.findByFromUserIdAndToUserIdAndStatus(fromUserId, toUserId, Status.PENDING)
-                .orElseGet(() -> requests.save(new FriendRequestEntity(fromUserId, toUserId)));
+        var existing = requests.findByFromUserIdAndToUserIdAndStatus(fromUserId, toUserId, Status.PENDING);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        // The partial index over pending pairs is the real arbiter — a player
+        // tapping "add" twice sends two calls that both find nothing pending
+        // above and both go on to insert, and the loser used to come back as a
+        // 500 "Kutilmagan xatolik" for pressing a button twice.
+        //
+        // The loser is answered with a conflict rather than handed the winner's
+        // row, because by the time the index refuses the write this transaction
+        // is already lost: the failed flush marks it rollback-only and the
+        // connection will not accept another statement, so reading the request
+        // back here would only trade the 500 for a different one at commit. A
+        // conflict is what this method already says when the pair is past the
+        // request stage, and it is true — the request the player wanted does
+        // now exist, it simply was not this call that made it.
+        try {
+            return requests.saveAndFlush(new FriendRequestEntity(fromUserId, toUserId));
+        } catch (DataIntegrityViolationException e) {
+            throw ApiException.conflict("request_already_sent", "So'rov allaqachon yuborilgan");
+        }
     }
 
     @Transactional

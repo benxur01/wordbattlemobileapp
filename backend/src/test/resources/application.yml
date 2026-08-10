@@ -1,3 +1,18 @@
+# This file REPLACES src/main/resources/application.yml — it does not merge with
+# it. Being first on the test classpath, it is the only application.yml Spring
+# finds, so anything the shipped file says and this one does not is simply not
+# there: every wordbattle.* value left out below is bound from the @DefaultValue
+# annotations in AppProperties instead. The suite therefore plays the game those
+# annotations describe, not the one the server ships.
+#
+# That was not obvious until someone put turn-seconds: 99 in the shipped file and
+# the test asserting 15 kept passing. ShippedConfigurationTest now fails the build
+# if the annotations and the shipped yml ever say different things, which is what
+# makes the arrangement below safe rather than merely quiet.
+#
+# So keep this file to what a test genuinely has to change — a database that
+# exists, a secret the signing code will accept, a login route with no Google
+# behind it. Putting a game rule here would hide it from that check.
 spring:
   datasource:
     url: jdbc:h2:mem:wordbattle;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1

@@ -91,9 +91,14 @@ class AccountDeletionTest {
                 .andExpect(status().isNoContent());
 
         // The token outlives the account, and must stop working all the same.
+        // It is refused at the door rather than by the endpoint behind it: the
+        // generation an account's tokens are measured against is read only for
+        // a row that is not marked deleted, so an erased account has none and
+        // nothing it ever issued authenticates anybody. That also covers the
+        // socket, which has no endpoint to notice the shell for it.
         mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + leaving))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("user_not_found"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("unauthorized"));
 
         // Gone from the friend's side too, not just their own.
         mvc.perform(get("/api/friends").header("Authorization", "Bearer " + friend))

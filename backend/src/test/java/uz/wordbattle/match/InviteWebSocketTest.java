@@ -47,6 +47,13 @@ class InviteWebSocketTest {
         private final String token;
         private WebSocketSession session;
 
+        /**
+         * Refuses every challenge from inside the frame callback, before the
+         * queue above is even read. Nothing a player does is this quick, but a
+         * scripted client is, and that is what caught the ordering below.
+         */
+        private volatile boolean declineOnSight;
+
         Client(String token) throws Exception {
             this.token = token;
             session = new StandardWebSocketClient()
@@ -57,7 +64,11 @@ class InviteWebSocketTest {
         @Override
         protected void handleTextMessage(@NonNull WebSocketSession session, @NonNull TextMessage message)
                 throws Exception {
-            frames.add(mapper.readTree(message.getPayload()));
+            JsonNode frame = mapper.readTree(message.getPayload());
+            frames.add(frame);
+            if (declineOnSight && "invite.incoming".equals(frame.path("type").asText())) {
+                send("invite.decline", Map.of("inviteId", frame.path("payload").path("inviteId").asText()));
+            }
         }
 
         void send(String type, Map<String, Object> payload) throws Exception {
@@ -72,6 +83,22 @@ class InviteWebSocketTest {
                 if (type.equals(frame.path("type").asText())) return frame.path("payload");
             }
             throw new AssertionError("No '" + type + "' frame arrived within " + seconds + "s");
+        }
+
+        /**
+         * The next whole frame of a family, type included and in the order it
+         * came off the wire. {@link #await} throws its way past everything it
+         * was not asked for, which is the wrong instrument when the order of
+         * two frames is the thing under test.
+         */
+        JsonNode awaitFrameOfFamily(String prefix, int seconds) throws Exception {
+            long deadline = System.currentTimeMillis() + seconds * 1000L;
+            while (System.currentTimeMillis() < deadline) {
+                JsonNode frame = frames.poll(deadline - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+                if (frame == null) break;
+                if (frame.path("type").asText().startsWith(prefix)) return frame;
+            }
+            throw new AssertionError("No '" + prefix + "' frame arrived within " + seconds + "s");
         }
 
         void close() throws Exception {
@@ -175,6 +202,57 @@ class InviteWebSocketTest {
         guest.send("invite.decline", Map.of("inviteId", inviteId));
 
         assertThat(host.await("invite.declined", 5).path("inviteId").asText()).isEqualTo(inviteId);
+    }
+
+    /**
+     * The challenger has to hear that the invite went out before it hears the
+     * answer to it. Live, it did not: a scripted client that refused the moment
+     * the challenge landed got its {@code invite.declined} home first, and the
+     * challenger was told about a refusal to an invite it had never been told
+     * it had sent. The server was notifying the receiver first and then loading
+     * the receiver's profile for the sender's frame, and the refusal came back
+     * through that gap — two different sockets, so nothing ordered them.
+     *
+     * <p>It matters because the app opens its "waiting for X" screen on
+     * {@code invite.sent}: arriving second, that frame either never opened the
+     * screen at all or opened it after the one thing that would have closed it
+     * had already been handled, leaving it up with nothing left to dismiss it.
+     *
+     * <p>Twenty rounds because it is a race and one round proves nothing —
+     * written the wrong way round the loser turns up within a few. Written the
+     * right way round it cannot happen at all: the receiver cannot answer a
+     * frame that has not been written yet, and the two frames share the
+     * challenger's socket, which keeps the order they were written in.
+     */
+    @Test
+    void theChallengerHearsTheInviteWentOutBeforeItHearsTheRefusal() throws Exception {
+        String hostToken = login("Rustam");
+        String guestToken = login("Gulnora");
+        call("PUT", "/api/users/me/nickname", hostToken, "{\"nickname\":\"rustam_t1\"}", String.class);
+        call("PUT", "/api/users/me/nickname", guestToken, "{\"nickname\":\"gulnor_t1\"}", String.class);
+        befriend(hostToken, guestToken);
+        long guestId = userId(guestToken);
+
+        host = new Client(hostToken);
+        guest = new Client(guestToken);
+        host.await("hello", 5);
+        guest.await("hello", 5);
+        guest.declineOnSight = true;
+
+        for (int round = 1; round <= 20; round++) {
+            host.send("invite.send", Map.of("userId", guestId));
+
+            JsonNode first = host.awaitFrameOfFamily("invite.", 5);
+            JsonNode second = host.awaitFrameOfFamily("invite.", 5);
+
+            assertThat(first.path("type").asText()).as("round %d, first frame", round).isEqualTo("invite.sent");
+            assertThat(second.path("type").asText()).as("round %d, second frame", round).isEqualTo("invite.declined");
+            // The same invite throughout: a refusal for a different one would
+            // satisfy the order above and mean nothing.
+            assertThat(second.path("payload").path("inviteId").asText())
+                    .as("round %d", round)
+                    .isEqualTo(first.path("payload").path("inviteId").asText());
+        }
     }
 
     /**

@@ -52,6 +52,51 @@ class DuelView {
         opponentThinking: !(json['yourTurn'] as bool? ?? false),
       );
 
+  /// The board rebuilt from a `duel.update` on its own, or null when the frame
+  /// cannot carry one.
+  ///
+  /// A live duel used to be reachable only through `match.found`, which meant
+  /// only a process that had been running since the duel began could show one.
+  /// Kill the app mid-battle — Android does it for memory, players do it by
+  /// habit — and the relaunched process reconnected, was handed the duel state
+  /// exactly as it should be, and dropped the frame because it had no board to
+  /// apply it to. The player sat on the lobby while their turn timer ran out
+  /// and charged them a rated loss they never saw, and their opponent was left
+  /// playing someone who had gone silent.
+  ///
+  /// The server now names the opponent and says whether the duel is rated on
+  /// every state frame, those being the only two things a `duel.update` did not
+  /// already carry. Null means it did not — a server older than the fields —
+  /// and the app then behaves as it always did rather than raising a board with
+  /// nobody on the other side of it.
+  ///
+  /// Everything past those two is read by [applyUpdate]: one frame shape, one
+  /// place that knows how to read it, so a field added to the frame cannot be
+  /// picked up on the live path and forgotten on this one. The values handed to
+  /// the constructor below are placeholders that [applyUpdate] overwrites — a
+  /// `duel.update` carries all of them — and exist only because [DuelView]
+  /// holds its fields final.
+  static DuelView? fromDuelUpdate(Map<String, dynamic> json) {
+    final duelId = json['duelId'];
+    final opponent = json['opponent'];
+    if (duelId is! String || opponent is! Map<String, dynamic>) return null;
+
+    return DuelView(
+      duelId: duelId,
+      opponent: UserDto.fromJson(opponent),
+      rated: json['rated'] as bool? ?? true,
+      chain: const [],
+      yourTurn: false,
+      needLetter: 'A',
+      substitutedFrom: null,
+      timeLeftMs: 0,
+      turnSeconds: 15,
+      yourWords: 0,
+      opponentWords: 0,
+      opponentThinking: false,
+    ).applyUpdate(json);
+  }
+
   final String duelId;
   final UserDto opponent;
   final bool rated;

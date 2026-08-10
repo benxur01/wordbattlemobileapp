@@ -142,4 +142,14 @@ public class UserService {
     public void markSeen(Long userId) {
         users.touchLastSeen(userId, Instant.now());
     }
+
+    /**
+     * Signs the account out everywhere: every token already issued for it
+     * carries the old generation and authenticates nobody from the moment this
+     * commits. Backs {@code /api/auth/logout}.
+     */
+    @Transactional
+    public void revokeTokens(Long userId) {
+        users.revokeTokensOf(userId);
+    }
 }

@@ -36,6 +36,29 @@ public class User {
     @Column(name = "google_subject", unique = true, length = 64)
     private String googleSubject;
 
+    /**
+     * How many times this account has thrown its tokens away. Every token
+     * carries the value this held when it was minted, and the auth path refuses
+     * one whose value has since moved on — which is what makes signing out
+     * something the server does rather than only the phone. Without it a token
+     * that had been copied anywhere kept the account for the rest of its 30-day
+     * life, however many times the player pressed "Chiqish".
+     *
+     * <p>Deliberately not the {@code version} column above: that one moves on
+     * every ordinary write — every duel this player settles — and tokens tied
+     * to it would put everybody back on the sign-in screen several times an
+     * hour.
+     *
+     * <p>Not updatable through the entity, on purpose. It is moved by an
+     * {@code update} aimed at this column alone, and every other write to the
+     * row has to leave it exactly as it found it: a duel settling in the moment
+     * the player signs out reads the row first and writes every column back
+     * after, so a mapped update would carry the old generation over the new one
+     * and quietly bring the token the player had just killed back to life.
+     */
+    @Column(name = "token_generation", nullable = false, updatable = false)
+    private long tokenGeneration;
+
     /** Null until the player picks one on the second onboarding screen. */
     @Column(name = "nickname", length = 16)
     private String nickname;
@@ -118,6 +141,7 @@ public class User {
 
     public Long getId() { return id; }
     public String getGoogleSubject() { return googleSubject; }
+    public long getTokenGeneration() { return tokenGeneration; }
     public String getNickname() { return nickname; }
     public void setNickname(String nickname) { this.nickname = nickname; }
     public String getDisplayName() { return displayName; }

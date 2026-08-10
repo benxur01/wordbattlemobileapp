@@ -37,11 +37,59 @@ class DuelScreen extends StatefulWidget {
 }
 
 class _DuelScreenState extends State<DuelScreen> {
-  // Typing is the whole game loop, so the field takes focus as the duel opens
-  // and takes it straight back after each word — otherwise Android closes the
-  // keyboard every turn while the clock runs.
+  // Typing is the whole game loop, so the field holds focus for the entire
+  // duel — including the seconds the opponent is answering in.
+  //
+  // It used to carry `enabled: duel.yourTurn`, which read well and cost the
+  // player a second of every fifteen. A field that may no longer request focus
+  // is unfocused by the framework the moment it is disabled, and Android takes
+  // the keyboard down with the focus: every word sent closed the keyboard, and
+  // the next one could not be typed until the field had been tapped again.
+  // Swapping in `readOnly` does not help — that closes the input connection
+  // too, so the keyboard flaps shut and open on every turn instead.
+  //
+  // So the field is simply never disabled while a duel is live. Whose turn it
+  // is is said in words and colour — the turn pill, the hint, the border and
+  // the dimmed send button — and [_submit] is what enforces it.
   final _focus = FocusNode();
   final _controller = TextEditingController();
+
+  /// How much of the screen the keyboard covered at the last layout, so one
+  /// coming back up can be told from one going away. See [didChangeDependencies].
+  double _keyboardInset = 0;
+
+  /// Keeps the newest word in view when the keyboard eats the chain.
+  ///
+  /// A keyboard sliding up takes about 380 design-pixels — six chain bubbles —
+  /// out of the chain, because the canvas is laid out over the window minus its
+  /// insets. Nothing re-anchors a `ListView` when its viewport shrinks: the
+  /// offset stays exactly where it was and the newest words slide out of sight
+  /// below the fold. That is how the opponent's answer went missing and had to
+  /// be scrolled back to by hand — the auto-scroll in `AppRoot` had put it at
+  /// the bottom correctly, and then the bottom moved.
+  ///
+  /// Only a player already at the newest word is followed down; one who has
+  /// scrolled up to read the chain is left where they put themselves.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final rising = inset > _keyboardInset;
+    _keyboardInset = inset;
+    if (!rising) return;
+
+    // This runs before the frame that applies the new size, so the position
+    // still describes the viewport the player was looking at.
+    final chain = widget.scrollController;
+    if (!chain.hasClients || chain.position.extentAfter > 1) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !chain.hasClients) return;
+      // Jumped rather than animated: the keyboard resizes the viewport frame by
+      // frame, and an animation aimed at one of those frames lands on a bottom
+      // that has moved by the time it arrives.
+      chain.jumpTo(chain.position.maxScrollExtent);
+    });
+  }
 
   @override
   void dispose() {
@@ -51,10 +99,16 @@ class _DuelScreenState extends State<DuelScreen> {
   }
 
   void _submit() {
+    // Refusing the turn here, instead of by disabling the field, is what keeps
+    // the keyboard up (see the note on [_focus]). The server refuses
+    // out-of-turn words too; this stops the app from asking in the first place.
+    if (widget.duel?.yourTurn != true) return;
     final word = _controller.text.trim();
     if (word.isEmpty) return;
     widget.onSubmit(word);
     _controller.clear();
+    // Insurance for the one way focus can still be lost: the player dismissed
+    // the keyboard themselves and then reached for the send button.
     _focus.requestFocus();
   }
 
@@ -317,7 +371,6 @@ class _DuelScreenState extends State<DuelScreen> {
                         controller: _controller,
                         focusNode: _focus,
                         autofocus: true,
-                        enabled: duel.yourTurn,
                         onSubmitted: (_) => _submit(),
                         // The chain only accepts [a-z]; Android's auto-capitalisation
                         // and autocorrect would otherwise turn nearly every word into
@@ -346,13 +399,16 @@ class _DuelScreenState extends State<DuelScreen> {
                             borderRadius: BorderRadius.circular(19),
                             borderSide: BorderSide(color: WBColors.whiteA(.13)),
                           ),
-                          disabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(19),
-                            borderSide: BorderSide(color: WBColors.whiteA(.08)),
-                          ),
+                          // The field is focused all duel long, so the amber
+                          // ring can no longer mean "focused" — it means the
+                          // turn is yours, which is the job `enabled:` used to
+                          // do. There is no disabled border any more because
+                          // there is no disabled state to draw.
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(19),
-                            borderSide: BorderSide(color: WBColors.amberA(.6)),
+                            borderSide: BorderSide(
+                              color: duel.yourTurn ? WBColors.amberA(.6) : WBColors.whiteA(.13),
+                            ),
                           ),
                         ),
                       ),

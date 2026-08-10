@@ -18,6 +18,7 @@ public class JwtService {
 
     private final SecretKey key;
     private final AppProperties props;
+    private final TokenGenerations generations;
 
     /**
      * Secrets that once shipped as a default here or in the sample config.
@@ -27,8 +28,16 @@ public class JwtService {
     private static final Set<String> KNOWN_PLACEHOLDERS =
             Set.of("change-me-in-production-please-32-bytes-minimum!!", "changeme", "secret");
 
-    public JwtService(AppProperties props) {
+    /**
+     * The account's token generation at the moment the token was minted. A
+     * token whose value no longer matches the account's is one the player has
+     * signed out of — see {@code User.tokenGeneration}.
+     */
+    private static final String GENERATION = "gen";
+
+    public JwtService(AppProperties props, TokenGenerations generations) {
         this.props = props;
+        this.generations = generations;
         String configured = props.jwt().secret();
         if (configured == null || configured.isBlank()) {
             throw new IllegalStateException(
@@ -46,10 +55,17 @@ public class JwtService {
         this.key = Keys.hmacShaKeyFor(secret);
     }
 
-    public String issue(Long userId) {
+    /**
+     * @param tokenGeneration the account's current {@code tokenGeneration},
+     *     taken from the row the caller has just loaded. Stamped into the token
+     *     so that signing out can kill it later; a token minted with a stale
+     *     number is simply dead on arrival, which is the harmless way round.
+     */
+    public String issue(Long userId, long tokenGeneration) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .claim(GENERATION, tokenGeneration)
                 .issuer(props.jwt().issuer())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(props.jwt().ttl())))
@@ -57,7 +73,29 @@ public class JwtService {
                 .compact();
     }
 
-    /** Empty when the token is missing, malformed, expired or signed by someone else. */
+    /**
+     * Empty when the token is missing, malformed, expired, signed by someone
+     * else — or revoked, meaning the player has signed out since it was issued
+     * or the account behind it has been deleted.
+     *
+     * <p>The revocation check belongs here and not at the call sites because
+     * there are two of them and the second is easy to forget: the REST filter
+     * and the WebSocket handshake. A revoked token that could still open a
+     * socket would be no revocation at all — the duel, the queue, the invites
+     * and the friend list all live on that socket, not on the REST API. Asking
+     * this question is now the only way to turn a token into a player, so
+     * whatever authenticates next gets the check without knowing it exists.
+     *
+     * <p>It costs one indexed read per authenticated request, which the request
+     * did not make before. Every endpoint behind it already loads the same row
+     * in full, and the socket pays it once per handshake rather than per frame,
+     * so the duel loop is untouched.
+     *
+     * <p>A token carrying no generation at all is refused rather than trusted:
+     * those are the ones minted before the server could revoke anything, and
+     * trusting them would leave exactly the hole this closes. The cost is one
+     * forced sign-in on upgrade.
+     */
     public Optional<Long> userIdFrom(String token) {
         if (token == null || token.isBlank()) return Optional.empty();
         try {
@@ -67,7 +105,13 @@ public class JwtService {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-            return Optional.of(Long.valueOf(claims.getSubject()));
+            Long userId = Long.valueOf(claims.getSubject());
+            // Read as a plain Number: the claim comes back from JSON as
+            // whichever integer type fits it, and only the value matters.
+            if (!(claims.get(GENERATION) instanceof Number stamped)) return Optional.empty();
+            Long current = generations.currentFor(userId).orElse(null);
+            if (current == null || current.longValue() != stamped.longValue()) return Optional.empty();
+            return Optional.of(userId);
         } catch (JwtException | NumberFormatException e) {
             return Optional.empty();
         }

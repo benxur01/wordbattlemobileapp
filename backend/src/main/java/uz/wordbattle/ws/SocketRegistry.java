@@ -9,10 +9,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import uz.wordbattle.friend.PresenceService;
 
-/** Keeps one live socket per player and serialises outbound frames. */
+/**
+ * Keeps one live socket per player and serialises outbound frames.
+ *
+ * <p>Also the answer to who is online: this map is the only place that knows,
+ * so {@link PresenceService} asks it rather than keeping a list beside it —
+ * see there for the count that once climbed and never came down.
+ */
 @Component
-public class SocketRegistry {
+public class SocketRegistry implements PresenceService.ConnectedPlayers {
 
     private static final Logger log = LoggerFactory.getLogger(SocketRegistry.class);
 
@@ -46,7 +53,18 @@ public class SocketRegistry {
         return sessions.remove(userId, session);
     }
 
-    /** Closes the player's socket, if they have one. */
+    /**
+     * Closes the player's socket, if they have one.
+     *
+     * <p>The entry goes now rather than when the close callback runs, because
+     * the caller is account deletion and nothing more may be sent to a player
+     * being erased. That leaves the callback with no session to recognise, so
+     * it reads its own close as a replaced socket and returns early — meaning
+     * whoever calls this owns the teardown that callback would have done.
+     * {@code SocketSessionEnder} does: matchmaking, invites and the duel, all
+     * before this point. It did not own presence, and could not have known it
+     * had to, which is why presence is read from here instead.
+     */
     public void disconnect(Long userId) {
         WebSocketSession session = sessions.remove(userId);
         if (session == null) return;
@@ -57,9 +75,22 @@ public class SocketRegistry {
         }
     }
 
+    @Override
     public boolean isConnected(Long userId) {
         WebSocketSession session = sessions.get(userId);
         return session != null && session.isOpen();
+    }
+
+    /**
+     * How many players are reachable. A walk over the sessions rather than
+     * {@code size()}, so that it answers the same question {@link #isConnected}
+     * does — a socket already reported closed is nobody's presence. The map
+     * holds one entry per connected player, and this is asked twice per
+     * connection, so the cost is not worth a counter to go wrong.
+     */
+    @Override
+    public int connectedCount() {
+        return (int) sessions.values().stream().filter(WebSocketSession::isOpen).count();
     }
 
     public void send(Long userId, String type, Object payload) {

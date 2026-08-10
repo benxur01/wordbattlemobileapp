@@ -82,6 +82,102 @@ QueueAction queueActionFor(AppLifecycleState state, WBScreen screen) {
 bool duelFrameApplies(String? liveDuelId, String? frameDuelId) =>
     liveDuelId == null || frameDuelId == null || liveDuelId == frameDuelId;
 
+/// Whether an `invite.declined` or `invite.expired` is about the invite held in
+/// one of the app's two slots — the challenge sent, or the one received.
+///
+/// An invite has no single owner on the wire the way a duel does. The server
+/// sends `invite.declined` to whichever of the two players did not press the
+/// button, so the identical frame means "the friend you challenged said no" on
+/// one socket and "the challenge you were offered has been taken back" on the
+/// other. The app read it as the first of those always, which is why an inviter
+/// cancelling left the receiver's sheet standing over an invite that no longer
+/// existed: tapping accept on it answered `invite_gone`. Read against both
+/// slots, the id is the only thing that tells the two apart.
+///
+/// [pendingInviteId] null is deliberately *not* the free pass [duelFrameApplies]
+/// gives an absent duel. A duel result with no board to protect still has to be
+/// shown to the player; an invite reply with no invite to clear must not tear
+/// down a screen it cannot be about — it is the race described on
+/// [inviteSentActionFor], and it is remembered rather than acted on. A frame
+/// naming no invite at all can only come from a server predating the field and
+/// clears whatever is waiting, as it always did.
+bool inviteFrameApplies(String? pendingInviteId, String? frameInviteId) =>
+    pendingInviteId != null && (frameInviteId == null || frameInviteId == pendingInviteId);
+
+/// What to do with an `invite.sent` by the time it actually lands.
+enum InviteSentAction {
+  /// Raise the "waiting for an answer" screen — the ordinary case.
+  open,
+
+  /// Take the challenge back. The player has moved on to something the invite
+  /// must not interrupt, and a friend accepting it would start a duel nobody is
+  /// watching.
+  withdraw,
+
+  /// The invite is already dead: its refusal overtook its confirmation. Nothing
+  /// to show, and nothing left to withdraw.
+  drop,
+}
+
+/// Decides that, from the screen the player is on and what the app already
+/// knows about the invite being confirmed.
+///
+/// The two frames an invite produces leave on two different sockets — the
+/// player being challenged is told first, the player who challenged second — so
+/// the app cannot assume its own confirmation arrives before the answer to it.
+/// A scripted client run against the live server declined instantly and what
+/// came down the inviter's socket was `invite.declined`, with `invite.sent`
+/// never arriving at all. Turned around, the same race hands the app the
+/// confirmation of an invite that is already refused, and the app opened a
+/// "waiting for X" screen on it. Nothing was ever coming to close that screen:
+/// the server expires invites out of its own map and had already dropped this
+/// one, so the countdown ran to 0:00 and stopped there with the cancel button
+/// as the only way off. Hence [drop], and hence the app remembering the id of a
+/// reply it could not place.
+///
+/// [withdraw] is the other half — what the player did while the confirmation
+/// was in flight. The frame used to set the screen unconditionally, so a
+/// confirmation delayed past a `match.found` (tap Jang, give up, search, get
+/// paired) pulled the player off a live board with their turn timer still
+/// running on it, and sent no forfeit either, because the screen was changed by
+/// a frame rather than by `go`. A search and a result just delivered are the
+/// same story with less at stake. Everywhere else the screen is raised: it is
+/// the only place a live challenge can be seen and cancelled, so wandering to
+/// the lobby or the leaderboard in the moment before the server answers must
+/// not lose the player their only handle on it.
+InviteSentAction inviteSentActionFor({
+  required WBScreen screen,
+  required String inviteId,
+  required String? settledInviteId,
+}) {
+  if (inviteId == settledInviteId) return InviteSentAction.drop;
+  return switch (screen) {
+    WBScreen.duel || WBScreen.match || WBScreen.win || WBScreen.lose => InviteSentAction.withdraw,
+    _ => InviteSentAction.open,
+  };
+}
+
+/// The seconds an invite has left, or null once the wait is over.
+///
+/// Null is the whole point. The countdown used to be a display and nothing
+/// more: it reached zero and the screen sat on 0:00, waiting for an
+/// `invite.expired` that could not come, because the server sweeps its own map
+/// and an invite already refused, withdrawn, or lost with a dropped socket is
+/// no longer in it. The clock running out is the app's own evidence that the
+/// wait is over and is now acted on.
+///
+/// A missing [startedAt] counts as over for the same reason: an invite screen
+/// with no clock behind it has nothing left to wait for, and the screens draw a
+/// vanished invite as an empty rectangle with only the system back button off
+/// it. One clock serves both directions, so it can also be left over from the
+/// other one — always from further in the past, which can only end a wait early
+/// and never extend one past its window.
+int? inviteSecondsLeftAt(DateTime? startedAt, int secondsLeft, DateTime now) {
+  if (startedAt == null) return null;
+  final left = secondsLeft - now.difference(startedAt).inSeconds;
+  return left <= 0 ? null : left;
+}
+
 class AppRoot extends StatefulWidget {
   const AppRoot({super.key});
 
@@ -136,6 +232,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   DateTime? queuedAt;
   DateTime? _inviteStartedAt;
   int _inviteSecondsLeft = 0;
+
+  /// An invite the app was told about only by its ending. It is always one we
+  /// sent — see [_settleInvite] — and holding its id is what lets the
+  /// confirmation still in flight for it be dropped instead of opening a screen
+  /// on a challenge that is already over.
+  String? _settledInviteId;
 
   WBTab? previousNavTab;
 
@@ -349,6 +451,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       finished = null;
       outgoingInvite = null;
       incomingInvite = null;
+      _settledInviteId = null;
+      _inviteStartedAt = null;
       queuedAt = null;
       nickname = '';
       nickState = NickState.idle;
@@ -630,7 +734,14 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         _scrollChainToBottom();
       case 'duel.update':
         final current = duel;
-        if (current == null) return;
+        // No board in memory is not "nothing to do" — it is the relaunch: the
+        // app was killed mid-duel and this frame is the server handing the
+        // battle back. It used to be dropped here, and the player watched the
+        // lobby while their turn timer ran out. See [_resumeDuel].
+        if (current == null) {
+          _resumeDuel(event.payload);
+          return;
+        }
         if (!duelFrameApplies(current.duelId, event.payload['duelId'] as String?)) return;
         setState(() {
           duel = current.applyUpdate(event.payload);
@@ -649,16 +760,34 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         });
         unawaited(_refreshSocial());
       case 'invite.sent':
-        setState(() {
-          outgoingInvite = PendingInvite(
-            inviteId: event.payload['inviteId'] as String,
-            user: UserDto.fromJson(event.payload['to'] as Map<String, dynamic>),
-            secondsLeft: (event.payload['expiresInSeconds'] as num?)?.toInt() ?? 12,
-          );
-          _inviteStartedAt = DateTime.now();
-          _inviteSecondsLeft = outgoingInvite!.secondsLeft;
-          screen = WBScreen.invite;
-        });
+        final sentId = event.payload['inviteId'] as String;
+        switch (inviteSentActionFor(
+          screen: screen,
+          inviteId: sentId,
+          settledInviteId: _settledInviteId,
+        )) {
+          case InviteSentAction.drop:
+            // The race is over; the id has done its job.
+            _settledInviteId = null;
+          case InviteSentAction.withdraw:
+            // Quietly. The player is in a duel, a search or a result they chose
+            // over this challenge, and a banner across a live board costs more
+            // than the news is worth — but the friend must not be left holding
+            // an invite that would drop this player into a second duel.
+            _socket.send('invite.decline', {'inviteId': sentId});
+          case InviteSentAction.open:
+            setState(() {
+              final invite = PendingInvite(
+                inviteId: sentId,
+                user: UserDto.fromJson(event.payload['to'] as Map<String, dynamic>),
+                secondsLeft: (event.payload['expiresInSeconds'] as num?)?.toInt() ?? 12,
+              );
+              outgoingInvite = invite;
+              _inviteStartedAt = DateTime.now();
+              _inviteSecondsLeft = invite.secondsLeft;
+              screen = WBScreen.invite;
+            });
+        }
       case 'invite.incoming':
         setState(() {
           incomingInvite = PendingInvite(
@@ -672,18 +801,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           if (screen != WBScreen.duel) screen = WBScreen.incoming;
         });
       case 'invite.declined':
-        setState(() {
-          outgoingInvite = null;
-          banner = 'Chaqiruv rad etildi';
-          if (screen == WBScreen.invite) screen = WBScreen.friends;
-        });
+        _settleInvite(event.payload['inviteId'] as String?, refused: true);
       case 'invite.expired':
-        setState(() {
-          outgoingInvite = null;
-          incomingInvite = null;
-          if (screen == WBScreen.invite) screen = WBScreen.friends;
-          if (screen == WBScreen.incoming) screen = WBScreen.lobby;
-        });
+        _settleInvite(event.payload['inviteId'] as String?, refused: false);
       case 'duel.aborted':
         // The server is going away mid-duel. Nobody won; say so plainly rather
         // than leaving the duel screen frozen on a turn that will never end.
@@ -696,6 +816,77 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       case 'error':
         setState(() => banner = event.payload['message'] as String? ?? 'Xatolik');
     }
+  }
+
+  /// Applies an `invite.declined` or `invite.expired` to whichever of the two
+  /// invites it names, and remembers the ones it cannot place.
+  ///
+  /// [refused] separates a person pressing a button from a clock running out.
+  /// Only the first is worth saying, and what it says depends on which side of
+  /// the invite the player is on: their challenge was turned down, or the one
+  /// they were deciding about has been taken back out from under them.
+  ///
+  /// A frame that names neither invite is the race. It cannot be about a
+  /// challenge received — those and every reply to them travel on this player's
+  /// own socket, in order, so an incoming invite is always known before it can
+  /// be taken back. It can only be one we sent, whose `invite.sent` is still in
+  /// flight on the other side of the server; a scripted opponent declining
+  /// instantly is fast enough to produce exactly that. Keeping the id is what
+  /// stops the confirmation, when it lands, from opening a wait on a challenge
+  /// that is already over.
+  void _settleInvite(String? inviteId, {required bool refused}) {
+    final settlesOutgoing = inviteFrameApplies(outgoingInvite?.inviteId, inviteId);
+    final settlesIncoming = inviteFrameApplies(incomingInvite?.inviteId, inviteId);
+
+    setState(() {
+      if (settlesOutgoing) {
+        outgoingInvite = null;
+        if (screen == WBScreen.invite) screen = WBScreen.friends;
+      }
+      if (settlesIncoming) {
+        incomingInvite = null;
+        if (screen == WBScreen.incoming) screen = WBScreen.lobby;
+      }
+      if (!settlesOutgoing && !settlesIncoming) _settledInviteId = inviteId;
+      if (refused) {
+        banner = settlesIncoming && !settlesOutgoing ? 'Chaqiruv bekor qilindi' : 'Chaqiruv rad etildi';
+      }
+      // Nothing left to count. Leaving the start time behind would hand it to
+      // the next invite's countdown, which would then open part-spent.
+      if (outgoingInvite == null && incomingInvite == null) _inviteStartedAt = null;
+    });
+  }
+
+  /// Puts a player back on the board after the app process itself went away.
+  ///
+  /// Everything else survives a relaunch through the stored token: the session
+  /// is restored, the profile refetched, the socket dialled again. A live duel
+  /// did not, because the only thing that ever raised the duel screen was
+  /// `match.found`, and a process that started after the duel did will never
+  /// see one. The server already hands the state back the moment the new socket
+  /// connects; this is where that frame becomes a battle again, setting what
+  /// `match.found` sets from the fields the state frame now carries.
+  ///
+  /// It cannot bring a dead duel back: the server sends no state for a duel
+  /// that has ended, and a player returning to one is handed its result
+  /// instead, which lands them on the win or lose screen through
+  /// `duel.finished`. That covers the relaunch that took longer than the
+  /// disconnect grace, where the battle was forfeited while they were away.
+  void _resumeDuel(Map<String, dynamic> payload) {
+    final resumed = DuelView.fromDuelUpdate(payload);
+    if (resumed == null) return;
+    setState(() {
+      duel = resumed;
+      duelError = '';
+      // The same clean slate `match.found` makes: whatever the player was doing
+      // before, the server says they are in a duel, so nothing else is.
+      finished = null;
+      queuedAt = null;
+      outgoingInvite = null;
+      incomingInvite = null;
+      screen = WBScreen.duel;
+    });
+    _scrollChainToBottom();
   }
 
   void _onTick() {
@@ -714,14 +905,51 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     }
   }
 
+  /// Moves the clock under whichever invite screen is up, and — the part that
+  /// was missing — ends the wait when it runs out.
+  ///
+  /// The countdown used to be display only, so an invite screen the server
+  /// never closed stayed up forever showing 0:00. See [inviteSecondsLeftAt] for
+  /// when that happens and why nothing else was going to close it.
   void _tickInvite() {
-    final started = _inviteStartedAt;
     final invite = screen == WBScreen.invite ? outgoingInvite : incomingInvite;
-    if (started == null || invite == null) return;
-    final left = invite.secondsLeft - DateTime.now().difference(started).inSeconds;
-    setState(() => _inviteSecondsLeft = left < 0 ? 0 : left);
+    final left = invite == null
+        ? null
+        : inviteSecondsLeftAt(_inviteStartedAt, invite.secondsLeft, DateTime.now());
+    if (left == null) {
+      _giveUpOnInvite();
+      return;
+    }
+    setState(() => _inviteSecondsLeft = left);
   }
 
+  /// Ends the wait the current screen is showing and leaves that screen, the
+  /// same way the server's own `invite.expired` would have.
+  ///
+  /// The invite is not withdrawn on the way out. The countdown starts from the
+  /// server's `expiresInSeconds` at the moment its frame reached the phone, so
+  /// the app's zero is never earlier than the server's, and the sweep that
+  /// expires it there runs every second regardless.
+  void _giveUpOnInvite() {
+    setState(() {
+      _inviteSecondsLeft = 0;
+      if (screen == WBScreen.invite) {
+        outgoingInvite = null;
+        screen = WBScreen.friends;
+      } else if (screen == WBScreen.incoming) {
+        incomingInvite = null;
+        screen = WBScreen.lobby;
+      }
+      if (outgoingInvite == null && incomingInvite == null) _inviteStartedAt = null;
+    });
+  }
+
+  /// Brings a word that has just joined the chain into view.
+  ///
+  /// Runs after the frame that added the row, so the extent it aims at counts
+  /// the new bubble. This half only answers to words arriving; the chain can
+  /// also lose its place when the keyboard resizes the viewport under it, and
+  /// `DuelScreen.didChangeDependencies` is the half that handles that.
   void _scrollChainToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!chainScrollController.hasClients) return;
@@ -737,6 +965,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   /// screen's "skip to matchmaking": the friend could then accept a challenge
   /// from someone already in another duel, which put one player in two duels at
   /// once and broke both. The invite is withdrawn first now.
+  ///
+  /// One it cannot withdraw is an invite whose `invite.sent` has not arrived
+  /// yet: there is no id here to name it by. That one is taken back when its
+  /// confirmation lands on the search screen — see [inviteSentActionFor].
   void startMatchmaking() {
     final pending = outgoingInvite;
     if (pending != null) _socket.send('invite.decline', {'inviteId': pending.inviteId});

@@ -150,9 +150,24 @@ public class MatchmakingService {
 
     /** Rating window in points, widening the longer someone waits. */
     private double bandFor(Waiting waiting) {
-        long seconds = Duration.between(waiting.since(), Instant.now()).toSeconds();
-        long steps = seconds / Math.max(1, props.matchmaking().stepSeconds());
-        double band = props.matchmaking().initialBand() + steps * props.matchmaking().bandStep();
-        return Math.min(band, props.matchmaking().maxBand());
+        return bandAfter(props.matchmaking(), Duration.between(waiting.since(), Instant.now()).toSeconds());
+    }
+
+    /**
+     * The window a player who has waited {@code seconds} is searching with.
+     *
+     * <p>Pulled out of {@link #bandFor} and left reachable from the test
+     * because the widening only means anything next to the moment the bot takes
+     * over, and the two were once configured a schedule apart: a ceiling of 400
+     * that took 39 seconds to reach, and a bot that arrived at 12. Two players
+     * 325 apart were each given a bot rather than each other, and since bot
+     * duels are unrated they had no way to close the gap that separated them.
+     * {@code MatchmakingBandTest} walks this against the shipped configuration
+     * so the pair cannot drift apart again unnoticed.
+     */
+    static double bandAfter(AppProperties.Matchmaking config, long seconds) {
+        long steps = seconds / Math.max(1, config.stepSeconds());
+        double band = config.initialBand() + steps * config.bandStep();
+        return Math.min(band, config.maxBand());
     }
 }

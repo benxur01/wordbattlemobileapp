@@ -47,11 +47,11 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(5);
+        assertThat(result.migrationsExecuted).isEqualTo(6);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
-                .containsExactly("1", "2", "3", "4", "5");
+                .containsExactly("1", "2", "3", "4", "5", "6");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -75,9 +75,10 @@ class MigrationChainTest {
 
         // Where the chain leaves the table everything else edits: V3 traded the
         // Telegram identity for Google's, V4 added the deletion marker, V5 the
-        // optimistic lock.
+        // optimistic lock, V6 the counter a signed-out token is measured
+        // against.
         assertThat(columnsOf("fresh", "users"))
-                .contains("google_subject", "deleted_at", "version")
+                .contains("google_subject", "deleted_at", "version", "token_generation")
                 .doesNotContain("telegram_id");
 
         // Partial indexes are the reason this test needs PostgreSQL at all:
@@ -110,7 +111,7 @@ class MigrationChainTest {
                     (1002, 'bekzod_99', 'Bekzod', 1180)
                 """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(3);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(4);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -130,6 +131,14 @@ class MigrationChainTest {
         // already there have to read back as 0, because the entity maps this to
         // a primitive long and a null would break the first duel they settle.
         assertThat(query("upgrade", "select version from users")).containsExactly("0", "0");
+
+        // V6 is the same shape and the same trap, and the value matters twice
+        // over here: every token these two players are holding predates the
+        // counter and carries none, so all of them are refused whatever this
+        // says — but the accounts have to come back on generation zero, or the
+        // token their very next sign-in produces would be stamped with a number
+        // the column disagrees with and be dead on arrival.
+        assertThat(query("upgrade", "select token_generation from users")).containsExactly("0", "0");
     }
 
     // --------------------------------------------------------------- helpers

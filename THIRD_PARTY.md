@@ -45,6 +45,31 @@ uchun ishlatilgan (ularning o'zi repozitoriyga qo'shilmagan):
 | SOWPODS / Collins Scrabble Words | — |
 | [hunspell en_US](https://github.com/wooorm/dictionaries) (SCOWL asosida) | MIT / SCOWL litsenziyasi |
 
+## Google logotipi — savdo belgisi, litsenziya emas
+
+| Nima | Qayerda | Holati |
+|---|---|---|
+| Google'ning to'rt rangli «G» belgisi | `lib/widgets/google_logo.dart` | Google LLC savdo belgisi |
+
+Yuqoridagi barcha yozuvlardan farqli o'laroq, bu **litsenziya ostida berilgan
+material emas**. Belgi Google'niki bo'lib qolaveradi; bizga hech qanday huquq
+o'tmaydi. U bu yerda faqat bitta ish uchun turibdi — Google orqali kirish
+tugmasida (`lib/screens/onboarding1_screen.dart`) kirish usulini ko'rsatish
+uchun, Google'ning o'z brend qoidalari doirasida.
+
+Shu qoidalardan kelib chiqadigan, kodni o'zgartirganda buzilishi mumkin bo'lgan
+ikkita cheklov:
+
+- Belgi qayta chizilmaydi, ranglari almashtirilmaydi, cho'zilmaydi. Shuning
+  uchun yo'l ma'lumoti Google'ning «Sign in with Google» aktividagi 48×48
+  viewBox'dan o'zgartirilmasdan olingan.
+- Belgi rangli fonga qo'yilmaydi. Tugma aynan shu sababli oq — ilovaning sariq
+  gradienti bu yerga to'g'ri kelmaydi.
+
+Rasm fayli sifatida emas, SVG yo'llari sifatida saqlanadi: repozitoriyda
+`assets:` bo'limi yo'q va bir dona 20dp belgi uchun har bir zichlikka rasm
+qo'shish yoki SVG kutubxonasi ulash ortiqcha bo'lardi.
+
 ## Kutubxonalar
 
 Flutter tomonda `pubspec.yaml`, server tomonda `backend/pom.xml` — barchasi

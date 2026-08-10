@@ -69,14 +69,28 @@ public class InviteService {
         invites.put(invite.id(), invite);
 
         UserDto from = UserDto.of(users.require(fromUserId));
+        UserDto to = UserDto.of(users.require(toUserId));
+        int expiresIn = props.duel().inviteTimeoutSeconds();
+
+        // The challenger is told first, and both lookups happen before either
+        // frame goes out. The other way round lost a race live: a client that
+        // refused the instant the challenge landed had its "invite.declined"
+        // delivered while this thread was still loading the receiver for the
+        // frame below, so the challenger heard the answer to an invite it had
+        // never been told it had sent. These are two sockets and nothing orders
+        // them against each other — but a receiver cannot answer a frame that
+        // has not been written yet, and the challenger's own socket keeps the
+        // order its frames were written in. The app opens its "waiting for X"
+        // screen on invite.sent, which is what the reversal skipped, or left
+        // standing with the frame that would have closed it already spent.
+        sockets.send(fromUserId, "invite.sent", Map.of(
+                "inviteId", invite.id(),
+                "to", to,
+                "expiresInSeconds", expiresIn));
         sockets.send(toUserId, "invite.incoming", Map.of(
                 "inviteId", invite.id(),
                 "from", from,
-                "expiresInSeconds", props.duel().inviteTimeoutSeconds()));
-        sockets.send(fromUserId, "invite.sent", Map.of(
-                "inviteId", invite.id(),
-                "to", UserDto.of(users.require(toUserId)),
-                "expiresInSeconds", props.duel().inviteTimeoutSeconds()));
+                "expiresInSeconds", expiresIn));
     }
 
     /**

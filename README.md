@@ -159,7 +159,7 @@ APK istalgan narsani yubora oladi — natija rad javobi bo'ladi.
 | Onboarding 1 | `POST /api/auth/google` (yoki dev login) |
 | Onboarding 2 | `GET /api/users/nickname/check` (har 400 ms), `PUT /api/users/me/nickname` |
 | Lobbi | `hello` freym: profil, onlayn soni; `GET /api/friends` |
-| Raqib qidirish | `queue.join` → `match.found` (12 s dan keyin bot) |
+| Raqib qidirish | `queue.join` → `match.found` (35 s dan keyin bot) |
 | Jang | `duel.update` freymlari; taymer ikki freym orasida lokal sanaydi |
 | G'alaba / Mag'lubiyat | `duel.finished`: delta, reyting, o'rtacha vaqt, yangi so'zlar, maslahatlar |
 | Reyting taxtasi | `GET /api/leaderboard/global` va `/friends` |
@@ -181,6 +181,14 @@ orqali tekshiriladi.
 "Qayta urinish" bilan ochiladi. Faqat serverning rad javobi tokenni o'chiradi:
 tarmoq yo'qligi u haqida hech narsa aytmaydi. Ikkalasi bir xil ko'rilgan
 paytda internetsiz ochilgan ilova odamni jimgina tizimdan chiqarib yuborardi.
+
+**"Chiqish" serverga ham boradi.** Ilova `POST /api/auth/logout` ni chaqiradi va
+server o'sha akkauntning barcha tokenlarini bekor qiladi — shundan keyin eski
+token na REST'ga, na soketga kiritadi. Avval bu faqat qurilmadagi tokenni
+o'chirardi: nusxasi bo'lgan odam (eski zaxira nusxa, proxy log, qo'ldan-qo'lga
+o'tgan telefon) akkauntdan yana bir oy foydalana olardi. So'rov muvaffaqiyatsiz
+bo'lsa ham (internet yo'q, server o'chgan) ilova baribir chiqadi — chiqishni
+tarmoq to'sib qo'ymasligi kerak, faqat o'sha token bir oz uzoqroq yashaydi.
 
 **Profil ekranida** "Chiqish" va "Akkauntni o'chirish" bor. O'chirish qaytmaydi:
 do'stlar, so'rovlar, reyting tarixi va o'rganilgan so'zlar o'chadi, `users`
@@ -259,8 +267,12 @@ o'z litsenziyalari ostida: [THIRD_PARTY.md](THIRD_PARTY.md).
   Console'dan iOS client (bundle `com.wordbattle.wordBattle`) va Sign in with
   Apple — README → "3. Google Sign-In" → "iOS".
 - **Push (FCM)** — oflayn do'stga chaqiruv bormaydi.
-- **Token bekor qilish (revocation)** — chiqish qurilmadagi tokenni o'chiradi,
-  lekin server tomonda u muddati tugagunicha yaroqli qoladi.
+- **Bitta qurilmadan chiqish — hammasidan chiqish.** Token bekor qilish akkaunt
+  bo'yicha hisoblagichga bog'langan (`users.token_generation`), tokenning
+  o'ziga emas. Ya'ni telefonda "Chiqish" bosilsa, planshetdagi seans ham
+  o'ladi. Bitta telefonda o'ynaladigan o'yin uchun bu xavfsizroq tomon, lekin
+  agar har bir qurilmani alohida chiqarish kerak bo'lsa — har bir kirish uchun
+  saqlanadigan qator (`jti`) kerak bo'ladi.
 - Bitta server instansiyasi uchun mo'ljallangan (navbat va onlayn holat
   xotirada). Ko'p nusxa kerak bo'lsa — Redis. Server o'chganda faol janglar
   `duel.aborted` bilan yopiladi, lekin qayta tiklanmaydi.

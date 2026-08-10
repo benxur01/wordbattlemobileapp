@@ -53,10 +53,21 @@ public class LeaderboardController {
     public Board friendsBoard(@CurrentUser AuthPrincipal principal) {
         User me = userService.require(principal.userId());
 
-        // One query for the whole friend list rather than one per friend.
+        // One query for the whole friend list rather than one per friend, and
+        // through the service so this board and /api/friends read the roster
+        // the same way: that one drops deleted accounts, and going straight to
+        // the repository here meant a deleted friend would have been ranked as
+        // a nameless row with a rating on it.
+        //
+        // Belt and braces rather than a live bug — deleting an account tears
+        // down its friendship rows in both directions before the row itself is
+        // anonymised, so an id that reaches here should already be a live
+        // player. Should is the operative word: nothing stops a friend request
+        // being accepted in the same instant as the deletion and putting the
+        // edge back behind it. Either way the two lists cannot drift apart.
         List<User> people = new ArrayList<>();
         people.add(me);
-        people.addAll(users.findAllById(friends.friendIds(me.getId())));
+        people.addAll(userService.allByIds(friends.friendIds(me.getId())));
         people.sort(Comparator.comparingDouble(User::getRating).reversed());
 
         List<Row> rows = new ArrayList<>();

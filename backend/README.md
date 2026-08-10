@@ -80,6 +80,27 @@ O'yin qoidalari `application.yml` dagi `wordbattle.duel` va
 Token yaroqsiz bo'lsa API `401` qaytaradi — ilova shu holatda foydalanuvchini
 onboarding'ga qaytarishi kerak.
 
+### Tokenni bekor qilish
+
+Har bir token `gen` da chiqarilgan paytdagi `users.token_generation` ni olib
+yuradi, va har bir so'rovda shu raqam qatordagisi bilan solishtiriladi:
+
+- `POST /api/auth/logout` hisoblagichni bittaga oshiradi → o'sha akkauntning
+  **barcha** tokenlari o'sha zahoti o'ladi (tokenning o'ziga emas, akkauntga
+  bog'langan — bir qurilmadan chiqish hammasidan chiqaradi);
+- akkaunt o'chirilganda hisoblagich umuman o'qilmaydi (`deleted_at is not
+  null`), demak o'chirilgan akkauntning tokeni ham o'lik;
+- tekshiruv `JwtService.userIdFrom` ichida — REST filtri ham, WebSocket
+  handshake'i ham shu yerdan o'tadi, ya'ni bekor qilingan token soket ocha
+  olmaydi.
+
+Muddati o'tgan yoki buzilgan token avvalgidek `401`. Hisoblagich xotirada emas,
+`users` jadvalida: server qayta ishga tushganda unutiladigan bekor qilish —
+bekor qilish emas.
+
+**V6 dan oldin chiqarilgan tokenlarda `gen` yo'q va ular rad etiladi** — shu
+migratsiyadan keyin hamma bir marta qaytadan kiradi.
+
 ---
 
 ## REST API
@@ -91,6 +112,7 @@ Barchasi `/api` ostida. `*` — token talab qilinmaydi.
 |---|---|---|
 | POST\* | `/auth/google` | `{idToken}` → `{token, user, needsNickname}` |
 | POST\* | `/auth/dev` | `{displayName}` — faqat `DEV_LOGIN_ENABLED=true` |
+| POST\* | `/auth/logout` | akkauntning barcha tokenlarini bekor qiladi — har doim `204`, tokensiz chaqirilsa hech nima qilmaydi |
 
 ### Foydalanuvchi
 | Method | Path | Izoh |
@@ -175,8 +197,12 @@ server jangning joriy holatini o'zi yuboradi.
 ## Qanday ishlaydi
 
 **Raqib qidirish.** Navbatdagi o'yinchi ±75 reyting oynasi bilan boshlaydi,
-oyna har 3 soniyada 25 ga kengayadi (maksimum ±400). 12 soniyada odam
-topilmasa — bot bilan jang boshlanadi.
+oyna har 3 soniyada 40 ga kengayadi va 33-soniyada maksimumga (±500) yetadi.
+35 soniyada odam topilmasa — bot bilan jang boshlanadi. Bu ikki raqam bir-biriga
+bog'liq: oyna maksimumga botdan oldin yetmasa, maksimum qog'ozda qolib ketadi —
+avval shunday edi va reytingi 325 ball farq qiladigan ikki o'yinchi bir vaqtda
+navbatda turib ham botga tushgan. Bot janglari reytingsiz, ya'ni bunday juftlik
+o'zini ajratgan farqni yopa ham olmaydi.
 
 **Bot janglari reytingsiz.** Ular kutish ekranida qotib qolmaslik uchun bor;
 reyting bersa, ladderni bot ustidan yig'ish juda oson bo'lardi. Streak,
@@ -208,7 +234,8 @@ so'zlarni eslab qoladi, shuning uchun g'alaba ekranidagi son haqiqiy.
 
 Flyway migratsiyalari `src/main/resources/db/migration`:
 
-- `users` — profil, Glicko-2 ko'rsatkichlari, statistika, streak
+- `users` — profil, Glicko-2 ko'rsatkichlari, statistika, streak,
+  `token_generation` (chiqishda oshadi — yuqoriga qarang)
 - `friendships` (har yo'nalish uchun bitta qator), `friend_requests`
 - `matches`, `match_words` — jang tarixi va zanjir
 - `rating_history` — profil grafigi uchun
@@ -265,12 +292,12 @@ birinchi marta prodda ishga tushadi va yiqilsa server umuman ko'tarilmaydi.
 Shu bo'shliqni ikkita test yopadi. Ikkalasi bitta haqiqiy PostgreSQL 16 ni
 bo'lishadi (`MigrationDatabase`):
 
-- `MigrationChainTest` — bo'sh sxemada V1→V5 zanjiri to'liq bajarilishi
+- `MigrationChainTest` — bo'sh sxemada V1→V6 zanjiri to'liq bajarilishi
   (`baseline-on-migrate: true` V1 ni tashlab ketmasligi ham shu yerda),
   qisman indekslar predikati bilan saqlanishi, qayta `migrate` bo'sh amal
   bo'lishi. Ikkinchi test — **mavjud bazani yangilash**: V2 da ma'lumot
-  solinadi, so'ng V3 ustunni tashlaydi va V5 to'la jadvalga `not null` ustun
-  qo'shadi. Noldan yaratish bu yo'lni umuman tekshirmaydi.
+  solinadi, so'ng V3 ustunni tashlaydi, V5 va V6 esa to'la jadvalga `not null`
+  ustun qo'shadi. Noldan yaratish bu yo'lni umuman tekshirmaydi.
 - `SchemaMatchesEntitiesTest` — server aynan proddagi juftlik bilan ko'tariladi:
   Flyway migratsiya qiladi, Hibernate `validate` qiladi. Entity kutgan, lekin
   migratsiya qo'shmagan ustun faqat shu yerda va prodda chiqadi.

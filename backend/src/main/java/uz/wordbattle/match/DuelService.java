@@ -74,6 +74,17 @@ public class DuelService {
     private record MissedFinish(DuelMessages.Finished frame, Instant at) {}
 
     /**
+     * Both sides of a duel as their profiles stood when it started.
+     *
+     * <p>Every state frame names the opponent — see {@link DuelMessages.DuelState}
+     * — and reading that name from the database per frame would put a query
+     * inside the duel's monitor, the one lock every move and every turn timer
+     * has to take. A duel's players cannot change while it runs, so the two
+     * lookups the announcement already does are kept and reused instead.
+     */
+    private record Players(UserDto one, UserDto two) {}
+
+    /**
      * How many times a settlement the database refused is tried again. One that
      * loses the race for a player's row is rolled back whole, so another attempt
      * costs one more transaction and nothing else, and a player has at most a
@@ -91,6 +102,7 @@ public class DuelService {
     private static final long SETTLEMENT_WAIT_SECONDS = 5;
 
     private final Map<String, DuelSession> duels = new ConcurrentHashMap<>();
+    private final Map<String, Players> duelPlayers = new ConcurrentHashMap<>();
     private final Map<Long, String> duelByPlayer = new ConcurrentHashMap<>();
     private final Map<Long, ScheduledFuture<?>> pendingForfeits = new ConcurrentHashMap<>();
     private final Map<Long, MissedFinish> missedFinishes = new ConcurrentHashMap<>();
@@ -188,12 +200,21 @@ public class DuelService {
      * player they share — the other ran its turn timer out unwatched and
      * charged them for losing a duel they were never shown. Duels start rarely,
      * so a lock held across a handful of map writes costs nothing; the
-     * announcement, with the user lookup in it, stays outside.
+     * announcement stays outside, and so does the database read behind it.
      */
     private DuelSession start(long playerOne, long playerTwo, boolean bot) {
         String seed = SEED_WORDS.get(random.nextInt(SEED_WORDS.size()));
         DuelSession session = new DuelSession(
                 UUID.randomUUID().toString(), playerOne, playerTwo, bot, seed, props.duel().rareLetters());
+
+        // The only database calls on this path, so they are made before the
+        // lock: this one is shared by every duel start on the server, and a
+        // slow query underneath it would stall all of them. Registering the
+        // result has to happen inside, because a duel that is in duelByPlayer
+        // can already be asked for its state by a reconnecting player.
+        Players players = new Players(
+                UserDto.of(users.require(playerOne)),
+                bot ? botProfile() : UserDto.of(users.require(playerTwo)));
 
         synchronized (startLock) {
             if (isPlaying(playerOne) || (!bot && isPlaying(playerTwo))) {
@@ -201,6 +222,7 @@ public class DuelService {
                 return null;
             }
             duels.put(session.id(), session);
+            duelPlayers.put(session.id(), players);
             duelByPlayer.put(playerOne, session.id());
             presence.battleStarted(playerOne);
             // A new duel supersedes any result still waiting to be collected.
@@ -228,14 +250,9 @@ public class DuelService {
     }
 
     private void announce(DuelSession session, long playerId) {
-        long opponentId = session.opponentOf(playerId);
-        UserDto opponent = opponentId == DuelSession.BOT_ID
-                ? botProfile()
-                : UserDto.of(users.require(opponentId));
-
         sockets.send(playerId, "match.found", new DuelMessages.MatchFound(
                 session.id(),
-                opponent,
+                opponentFor(session, playerId),
                 !session.botOpponent(),
                 session.turn() == playerId,
                 session.chain().get(0).word(),
@@ -243,6 +260,17 @@ public class DuelService {
                 substitutedFrom(session),
                 props.duel().turnSeconds(),
                 chainFor(session, playerId)));
+    }
+
+    /**
+     * Who {@code playerId} is playing, from the snapshot the duel started with.
+     * Null only for a duel already taken out of the registries, which no frame
+     * is built for — see {@link #sendState}.
+     */
+    private UserDto opponentFor(DuelSession session, long playerId) {
+        Players players = duelPlayers.get(session.id());
+        if (players == null) return null;
+        return playerId == session.playerOne() ? players.two() : players.one();
     }
 
     /** The skipped letter as the frames carry it, or null when there was none. */
@@ -399,6 +427,10 @@ public class DuelService {
      * Hands a returning player the result of the duel that ended while they
      * were disconnected. Without it they come back to a duel screen that will
      * never move again, because the finish frame was written to a dead socket.
+     *
+     * <p>Called by the socket handler when a player reconnects with no live
+     * duel, and by {@link #deliverFinish} when the reconnect got there first and
+     * found the shelf still empty.
      */
     public void sendMissedFinish(long playerId) {
         MissedFinish missed = missedFinishes.remove(playerId);
@@ -571,6 +603,7 @@ public class DuelService {
      */
     private void deregister(DuelSession session) {
         duels.remove(session.id(), session);
+        duelPlayers.remove(session.id());
         if (duelByPlayer.remove(session.playerOne(), session.id())) {
             presence.battleEnded(session.playerOne());
         }
@@ -638,13 +671,56 @@ public class DuelService {
                 stuckLetter,
                 hints);
 
+        deliverFinish(playerId, frame);
+    }
+
+    /**
+     * Hands the player their result, or shelves it for their return — and then
+     * looks once more, which is the part with a reason behind it.
+     *
+     * <p>A returning player asks for a shelved result exactly once, when their
+     * socket comes up, and they are sent to the shelf rather than to a board
+     * because the duel left the registries back in {@link #finish}, before the
+     * settlement was even queued. Everything therefore rests on whether the
+     * frame is on that shelf by the time they look. It is put there one
+     * statement after the registry is read here, with no lock held across the
+     * two — the settlement runs off the session's monitor on purpose, so that
+     * moves and turn timers never queue behind a database transaction. A pool
+     * thread stopped between those two statements for a few milliseconds, which
+     * is a GC pause, an exhausted CPU quota or simply four other duels wanting
+     * the same cores, is all the room a whole reconnect needs: the player
+     * registers a socket, is told there is nothing waiting for them, and settles
+     * onto the lobby — and the result is shelved a moment later for a return
+     * that has already happened. Nobody looks again. Their next reconnect may be
+     * hours off and the shelf only keeps a result for {@link #MISSED_FINISH_TTL},
+     * so the duel does not arrive late, it never arrives at all: a rating that
+     * moved when the result was recorded, and nothing on screen to account for
+     * it.
+     *
+     * <p>Hence the second look. Shelving first and reading the registry after
+     * leaves the two threads no gap to fall through, because each map is atomic
+     * on its own — either this read sees the socket the reconnect registered and
+     * the result goes out from here, or it does not, and a read taken after the
+     * shelving that still missed the registration means the reconnect registered
+     * later still, so its own look at the shelf found the frame already on it.
+     * Both threads taking it at once is not a double send; one remove wins and
+     * the other finds nothing.
+     *
+     * <p>Standing in for a reconnect means standing in for its conditions too,
+     * so the live duel is checked the way the socket handler checks it before
+     * asking. That is the supersession rule {@link #notifyFinish} opens with,
+     * applied at the last moment before the send rather than the first: a result
+     * must never land on the board of a duel the player has started since.
+     */
+    private void deliverFinish(long playerId, DuelMessages.Finished frame) {
         // A player who lost the socket — the usual way a duel ends this way —
         // cannot be told now, so the result is kept for their reconnect.
         if (sockets.isConnected(playerId)) {
             sockets.send(playerId, "duel.finished", frame);
-        } else {
-            rememberMissedFinish(playerId, frame);
+            return;
         }
+        rememberMissedFinish(playerId, frame);
+        if (sockets.isConnected(playerId) && !isPlaying(playerId)) sendMissedFinish(playerId);
     }
 
     // ---------------------------------------------------------------- state
@@ -658,16 +734,31 @@ public class DuelService {
      * Callable from any thread — a reconnect arrives on a socket thread while a
      * bot move may be appending to the chain on a timer thread. Reading the
      * session without its monitor could see that list mid-write.
+     *
+     * <p>Nothing is sent for a duel that has already ended, and that guard is
+     * what keeps a dead board from coming back to life. A reconnect finds the
+     * duel in the live registry on a socket thread and arrives here a moment
+     * later; in between, a turn can expire and end it. The finish frame is
+     * written to the same socket, so without this the app would be handed the
+     * result and then told to raise a board for the very duel it settled — and
+     * would sit on that board forever, because nothing else was ever coming for
+     * it. Both the flag and this method take the session's monitor, which is
+     * what puts the two in an order: either the state goes out before the duel
+     * ends, or the result is the last thing that duel says.
      */
     public void sendState(DuelSession session, long playerId) {
         DuelMessages.DuelState state;
         synchronized (session) {
+            if (session.finished()) return;
+
             int elapsed = (int) Duration.between(session.turnStartedAt(), Instant.now()).toMillis();
             int timeLeft = Math.max(0, props.duel().turnSeconds() * 1000 - elapsed);
             long opponent = session.opponentOf(playerId);
 
             state = new DuelMessages.DuelState(
                     session.id(),
+                    opponentFor(session, playerId),
+                    !session.botOpponent(),
                     chainFor(session, playerId),
                     session.turn() == playerId,
                     String.valueOf(session.requiredLetter()),

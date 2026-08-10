@@ -74,13 +74,29 @@ wordbattle:
     # see DuelSession.requiredLetter() for the counts behind the choice.
     rare-letters: ${DUEL_RARE_LETTERS:x,z}
   matchmaking:
+    # These five are one setting, not five: max-band is a fiction unless the
+    # widening reaches it before the bot does, and it did not. Two players 325
+    # apart (1362 and 1037) queued together and were both handed a bot in the
+    # same second — at the twelve seconds the fallback then allowed, the window
+    # had opened to 175, and the ceiling of 400 needed thirty-nine. A scripted
+    # run stranded a pair 440 apart the same way. Bot duels are unrated, so two
+    # players who cannot reach each other cannot close the gap that separates
+    # them either: a run of one-sided results parts them for good.
+    #
+    # Now the window passes 355 at 21s and 475 at 30s — both live gaps — and
+    # reaches its ceiling at 33s, two seconds before the bot. A player with
+    # nobody to play still gets a game; the search screen counts the wait out
+    # loud, so the longer one reads as searching rather than as a hang.
+    # MatchmakingBandTest fails if the two schedules drift apart again.
+    #
     # Rating window starts here and widens every step until max.
     initial-band: 75
-    band-step: 25
-    max-band: 400
+    band-step: 40
+    max-band: 500
     step-seconds: 3
-    # No human opponent within this many seconds -> play a bot.
-    bot-fallback-seconds: 12
+    # No human opponent within this many seconds -> play a bot. Never shorter
+    # than the time the window needs to reach max-band.
+    bot-fallback-seconds: 35
   dev-login-enabled: ${DEV_LOGIN_ENABLED:false}
 
 logging:

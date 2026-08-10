@@ -16,12 +16,15 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.lang.NonNull;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import uz.wordbattle.user.User;
+import uz.wordbattle.user.UserRepository;
 
 /**
  * Two real clients, one real server: queue up, get paired, have a word refused,
@@ -48,6 +51,9 @@ class DuelWebSocketTest {
 
     @Autowired
     private ObjectMapper mapper;
+
+    @Autowired
+    private UserRepository users;
 
     private final TestRestTemplate rest = new TestRestTemplate();
     private Client alpha;
@@ -101,6 +107,28 @@ class DuelWebSocketTest {
         } catch (Exception e) {
             throw new IllegalStateException("Dev login failed: " + response, e);
         }
+    }
+
+    /** The account behind a token, asked for the way any client would. */
+    private long userId(String token) throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        String body = rest.exchange(
+                        "http://localhost:" + port + "/api/users/me",
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        String.class)
+                .getBody();
+        return mapper.readTree(body).get("id").asLong();
+    }
+
+    /** Moves an account off the 1200 every fresh one starts on. */
+    private long rate(String token, double rating) throws Exception {
+        long id = userId(token);
+        User user = users.findById(id).orElseThrow();
+        user.setRating(rating);
+        users.save(user);
+        return id;
     }
 
     @AfterEach
@@ -183,6 +211,46 @@ class DuelWebSocketTest {
         assertThat(loser.path("hints")).hasSize(3);
     }
 
+    /**
+     * Two humans further apart than the opening window have to find each other
+     * rather than a bot each. Live, they did not: 1362 and 1037 queued together
+     * and were both handed a bot in the same second, because the fallback fired
+     * at twelve seconds and the window had reached only 175 by then. Bot duels
+     * are unrated, so the pair had no way to close the gap that was keeping
+     * them apart, and a run of one-sided results separated them for good.
+     *
+     * <p>180 points is the gap that tells the two schedules apart: wider than
+     * anything the old one opened to before its bot, inside the new one at nine
+     * seconds. The property is what matters — a pair the opening window cannot
+     * hold still meets — so the numbers here are deliberately not the ceiling.
+     */
+    @Test
+    void twoPlayersTooFarApartForTheOpeningWindowMeetEachOtherRatherThanABot() throws Exception {
+        String leaderToken = login("Zafar");
+        String chaserToken = login("Laylo");
+        long leaderId = rate(leaderToken, 1380);
+        long chaserId = rate(chaserToken, 1200);
+
+        alpha = new Client(leaderToken);
+        beta = new Client(chaserToken);
+        alpha.await("hello", 5);
+        beta.await("hello", 5);
+
+        alpha.send("queue.join", Map.of());
+        beta.send("queue.join", Map.of());
+
+        JsonNode leaderMatch = alpha.await("match.found", 30);
+        JsonNode chaserMatch = beta.await("match.found", 30);
+
+        // One duel between the two of them, and a rated one. Two bots would be
+        // two duel ids and rated: false — which is exactly what the old
+        // schedule handed them.
+        assertThat(leaderMatch.path("duelId").asText()).isEqualTo(chaserMatch.path("duelId").asText());
+        assertThat(leaderMatch.path("rated").asBoolean()).isTrue();
+        assertThat(leaderMatch.path("opponent").path("id").asLong()).isEqualTo(chaserId);
+        assertThat(chaserMatch.path("opponent").path("id").asLong()).isEqualTo(leaderId);
+    }
+
     @Test
     void aLoneSearchFallsBackToTheBotAndThatDuelIsUnrated() throws Exception {
         alpha = new Client(login("Solo"));
@@ -191,8 +259,10 @@ class DuelWebSocketTest {
         alpha.send("queue.join", Map.of());
         alpha.await("queue.joined", 5);
 
-        // No human turns up, so the bot steps in (bot-fallback-seconds).
-        JsonNode match = alpha.await("match.found", 25);
+        // No human turns up, so the bot steps in (bot-fallback-seconds). The
+        // wait is the real one: shortening it here for the suite's sake would
+        // leave the shipped number the only part of this never exercised.
+        JsonNode match = alpha.await("match.found", 50);
         assertThat(match.path("rated").asBoolean()).isFalse();
         assertThat(match.path("opponent").path("nickname").asText()).isEqualTo("wordbot");
         assertThat(match.path("yourTurn").asBoolean()).isTrue();

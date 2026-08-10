@@ -2,6 +2,7 @@ package uz.wordbattle.auth;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import uz.wordbattle.common.ApiException;
 import uz.wordbattle.config.AppProperties;
@@ -60,7 +61,38 @@ public class AuthController {
         return response(users.createDevUser(name));
     }
 
+    /**
+     * Signs the player out on the server, not only on the phone. Before this
+     * existed "Chiqish" forgot the token locally and the server went on
+     * honouring it for the rest of its 30-day life, so a copy of it — off an
+     * old device backup, out of a proxy log, from a phone that changed hands —
+     * still had the whole account.
+     *
+     * <p>It ends every session of the account rather than only the one that
+     * called: the counter behind it belongs to the account. For a game people
+     * play on one phone that is the safer reading of "sign me out" anyway, and
+     * the alternative — remembering every token separately — is a stored row
+     * per sign-in for a difference nobody here would notice.
+     *
+     * <p>Answers 204 even to a caller with no usable token, and says nothing
+     * about which it was. The app calls this on its way out and signs out
+     * locally whatever comes back; a 401 would only put an error in front of
+     * somebody who is already leaving, and a token the server would not have
+     * honoured has nothing to revoke.
+     */
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout(@CurrentUser AuthPrincipal principal) {
+        if (principal != null) {
+            users.revokeTokens(principal.userId());
+        }
+    }
+
     private LoginResponse response(User user) {
-        return new LoginResponse(jwt.issue(user.getId()), UserDto.of(user), user.getNickname() == null);
+        // The generation comes off the row that was just read rather than being
+        // looked up again: a token stamped with anything else would be refused
+        // by the very next request, and the row in hand is the truth.
+        return new LoginResponse(
+                jwt.issue(user.getId(), user.getTokenGeneration()), UserDto.of(user), user.getNickname() == null);
     }
 }

@@ -23,6 +23,23 @@ public final class DuelMessages {
 
     public record DuelState(
             String duelId,
+            /**
+             * Who the player is up against, and whether the duel moves anyone's
+             * rating. Neither changes for the life of a duel, and both are also
+             * in {@link MatchFound} — but a player whose app was killed and
+             * relaunched mid-battle never saw that frame and never will, and
+             * this one is the only thing the server sends them. Without these
+             * two the app could not build a board out of it, so it threw the
+             * frame away and left them on the lobby while their turn timer ran
+             * out and charged them a rated loss they were never shown.
+             *
+             * <p>Repeating them on every move costs a name and a boolean; the
+             * cheaper-looking alternative, sending them only on the reconnect
+             * frame, is how the app came to depend on {@code match.found} in
+             * the first place.
+             */
+            UserDto opponent,
+            boolean rated,
             List<ChainEntry> chain,
             boolean yourTurn,
             String needLetter,

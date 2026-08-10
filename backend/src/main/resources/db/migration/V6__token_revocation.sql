@@ -1,0 +1,23 @@
+-- Signing out used to be a thing the phone did alone: the app forgot its token
+-- and the server went on honouring it until the 30-day TTL ran out. Anyone who
+-- had a copy of that token -- lifted off an old device backup, read out of a
+-- proxy log, taken from a phone that changed hands -- kept the whole account
+-- for up to a month after the player believed they had left it.
+--
+-- This counter is what every token is measured against. A token carries the
+-- value the account held when it was minted; signing out increments the column,
+-- and from that moment every token stamped with the old number authenticates
+-- nobody. It is a column rather than a list held in memory because a revocation
+-- that a restart forgets is not a revocation -- a deploy would hand the account
+-- back to whoever was waiting for one.
+--
+-- Deleting an account needs no bump: the check reads this column only for a row
+-- that is not marked deleted, so an erased account has no current generation at
+-- all and every token for it dies with it.
+--
+-- Rows that already exist start at 0, and the tokens those players are holding
+-- carry no counter whatsoever -- so they are refused and everyone signs in once
+-- more after this migration. That is the point of it rather than a cost of it:
+-- a token minted while the server had no way to revoke anything is exactly the
+-- token this closes the door on.
+alter table users add column token_generation bigint not null default 0;

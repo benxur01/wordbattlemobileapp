@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../widgets/glow_orb.dart';
+import '../widgets/google_logo.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/spinner_ring.dart';
+
+/// The sign-in button's own colours, deliberately not in [WBColors]: that class
+/// is the Word Battle design file ported 1:1, and none of these three came from
+/// it. They are Google's published button values, and they are here because the
+/// button is the one place in the app that answers to somebody else's spec.
+const _googleSurface = Color(0xFFFFFFFF);
+const _googleInk = Color(0xFF1F1F1F);
+const _googleStroke = Color(0xFFDADCE0);
 
 class Onboarding1Screen extends StatelessWidget {
   const Onboarding1Screen({super.key, required this.onGoogle, this.onDevLogin, this.busy = false});
@@ -74,44 +83,55 @@ class Onboarding1Screen extends StatelessWidget {
             ),
             Column(
               children: [
+                // The design draws this as an amber plate with an abstract disc
+                // where a provider logo would go, and it was built that way
+                // first — the disc read as decoration rather than as the Google
+                // button, which is the one thing it has to be, since it is the
+                // only way into the app. So this button follows Google's spec
+                // instead of the design file: their mark, on white, in their
+                // ink. The amber went with it rather than being kept as a tint,
+                // because their brand rules put the mark on a light surface —
+                // recolouring the plate around it is not ours to do.
                 Pressable(
                   onTap: busy ? null : onGoogle,
                   pressScale: .98,
                   child: Container(
                     height: 62,
                     decoration: BoxDecoration(
-                      gradient: wbAmberGradient,
+                      color: _googleSurface,
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: [BoxShadow(color: WBColors.amberA(.28), blurRadius: 34, offset: const Offset(0, 14))],
+                      // Google's own button stroke. On this near-black page it
+                      // barely registers as a line — its job is to stop the
+                      // white plate's corners fraying into the background.
+                      border: Border.all(color: _googleStroke),
+                      // The amber button glowed in its own colour to lift it off
+                      // the page, and a white one still has to: with no shadow
+                      // at all it reads as a hole cut in the background, and a
+                      // dark shadow is invisible on #08080D. Same blur and drop
+                      // as the amber had, in white and at half the alpha —
+                      // white carries much further than amber does.
+                      boxShadow: [BoxShadow(color: WBColors.whiteA(.13), blurRadius: 34, offset: const Offset(0, 14))],
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (busy)
-                          const SpinnerRing(
+                          // Dark on light now, the way the old spinner was dark
+                          // on amber — the amber pair vanished on white.
+                          SpinnerRing(
                             size: 22,
-                            trackColor: Color.fromRGBO(18, 11, 1, .25),
-                            activeColor: WBColors.amberInk,
+                            trackColor: _googleInk.withValues(alpha: .2),
+                            activeColor: _googleInk,
                             strokeWidth: 2.5,
                           )
                         else
-                          // The design draws an abstract disc rather than a
-                          // provider logo; the G keeps that shape language.
-                          Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              color: WBColors.amberInk.withValues(alpha: .85),
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text('G',
-                                style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.amber)),
-                          ),
+                          // 20dp against a 17px label: Google asks for a mark
+                          // about the height of the text it sits beside.
+                          const GoogleLogo(size: 20),
                         const SizedBox(width: 10),
                         Text(
                           busy ? 'Kirilmoqda…' : 'Google orqali kirish',
-                          style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.amberInk),
+                          style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: _googleInk),
                         ),
                       ],
                     ),

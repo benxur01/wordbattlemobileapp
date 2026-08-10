@@ -1,6 +1,7 @@
 package uz.wordbattle.rating;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import org.junit.jupiter.api.Test;
 import uz.wordbattle.rating.Glicko2.Outcome;
@@ -57,5 +58,61 @@ class Glicko2Test {
             assertThat(rating.deviation()).isBetween(30.0, 350.0);
             assertThat(rating.volatility()).isPositive();
         }
+    }
+
+    /**
+     * Everything above this point asks only for a direction — bigger, smaller,
+     * shrinking, inside its bounds — and all of it stays green through a
+     * rewrite that quietly changes the arithmetic. Using φ* where the paper
+     * calls for φ' in the µ' update, or dropping a term from v, still moves the
+     * winner up and the loser down. These two pin the numbers themselves.
+     *
+     * <p>Both figures come from outside this implementation, which is the whole
+     * point of having them. They were worked out by hand from Glickman's
+     * published Glicko-2 algorithm, and that hand calculation was checked
+     * against the paper's own example first: a 1500/200/0.06 player meeting
+     * 1400/30, 1550/100 and 1700/300 in one rating period, which the paper
+     * gives as 1464.06 / 151.52 / 0.05999 and which it reproduces, down to the
+     * tabulated g = 0.9955 and E = 0.639 for the 1400/30 opponent used here.
+     *
+     * <p>A hundredth of a rating point is far tighter than any change of
+     * formula could slip through, and loose enough that nothing here depends on
+     * the last bits of a double.
+     */
+    @Test
+    void oneWinOverASettledOpponentLandsOnTheHandCalculatedValues() {
+        Rating after = Glicko2.update(new Rating(1500, 200, 0.06), new Rating(1400, 30, 0.06), Outcome.WIN);
+
+        assertThat(after.rating()).isCloseTo(1563.5642, within(0.01));
+        assertThat(after.deviation()).isCloseTo(175.4027, within(0.01));
+        // Volatility barely stirs after a single unsurprising result; the
+        // tolerance is still a hundred times finer than the solver's own.
+        assertThat(after.volatility()).isCloseTo(0.0599987, within(0.000001));
+    }
+
+    /**
+     * The same pinning, but against a duel two fresh accounts actually played
+     * on the live server rather than against a hand calculation: both started
+     * at 1200 with a deviation of 350, and one game took them to 1362.31 and
+     * 1037.69 with both deviations at 290.32.
+     *
+     * <p>Worth keeping alongside the case above because it is the shape almost
+     * every real first duel has — two unproven players, evenly matched — and
+     * because the symmetry is its own check: with the two sides identical going
+     * in, whatever the winner gains the loser has to lose, and any asymmetry
+     * slipped into the update shows up here as free or vanishing rating.
+     */
+    @Test
+    void twoFreshPlayersMoveExactlyAsTheLiveServerMovedThem() {
+        Rating fresh = new Rating(1200, 350, 0.06);
+        Rating winner = Glicko2.update(fresh, fresh, Outcome.WIN);
+        Rating loser = Glicko2.update(fresh, fresh, Outcome.LOSS);
+
+        assertThat(winner.rating()).isCloseTo(1362.3109, within(0.01));
+        assertThat(loser.rating()).isCloseTo(1037.6891, within(0.01));
+        assertThat(winner.deviation()).isCloseTo(290.3190, within(0.01));
+        assertThat(loser.deviation()).isCloseTo(290.3190, within(0.01));
+
+        assertThat(winner.rating() - 1200).isCloseTo(1200 - loser.rating(), within(0.000001));
     }
 }

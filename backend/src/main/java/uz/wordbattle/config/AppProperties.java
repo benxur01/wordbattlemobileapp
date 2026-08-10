@@ -15,6 +15,23 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * <p>Each section carries defaults: a missing block used to bind to {@code null}
  * and only blow up later inside a scheduled task, which is a poor way to learn
  * about a typo in the configuration.
+ *
+ * <p>Those defaults are not a fallback nobody meets — they are what the test
+ * suite plays on. The test classpath carries an application.yml that shadows
+ * the shipped one entirely rather than adding to it, and it restates only the
+ * infrastructure it has to (an in-memory database, a signing secret, dev
+ * login). Every game rule below is therefore bound from these annotations
+ * during a test run and from application.yml in front of real players, which
+ * means the two can disagree without anything saying so: change a rule in the
+ * yml alone and the suite goes on proving the old one. That is not theoretical.
+ * It was found by setting {@code turn-seconds: 99} in the shipped file and
+ * watching the test that asserts 15 pass, and the matchmaking retune below came
+ * within an afternoon of shipping the same way.
+ *
+ * <p>So every value here has to stay equal to the yml.
+ * {@link uz.wordbattle.config.ShippedConfigurationTest} fails the build when
+ * one of them moves without the other, and names the two properties that are
+ * meant to differ.
  */
 @ConfigurationProperties(prefix = "wordbattle")
 public record AppProperties(
@@ -94,10 +111,20 @@ public record AppProperties(
         }
     }
 
+    /**
+     * The queue's rating window and the moment the bot takes over. The numbers
+     * are one setting between them: {@code maxBand} means nothing unless the
+     * widening reaches it before {@code botFallbackSeconds} — see
+     * application.yml for the pair of players stranded on bots when it did not.
+     *
+     * <p>{@code MatchmakingBandTest} holds that relationship, walking the window
+     * second by second against the shipped file; the equality of these five with
+     * the yml is covered with every other property, as described above.
+     */
     public record Matchmaking(
             @DefaultValue("75") int initialBand,
-            @DefaultValue("25") int bandStep,
-            @DefaultValue("400") int maxBand,
+            @DefaultValue("40") int bandStep,
+            @DefaultValue("500") int maxBand,
             @DefaultValue("3") int stepSeconds,
-            @DefaultValue("12") int botFallbackSeconds) {}
+            @DefaultValue("35") int botFallbackSeconds) {}
 }

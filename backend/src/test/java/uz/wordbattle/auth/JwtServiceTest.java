@@ -6,7 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import uz.wordbattle.config.AppProperties;
 
@@ -18,7 +20,12 @@ import uz.wordbattle.config.AppProperties;
  */
 class JwtServiceTest {
 
+    /** Every account on generation zero: the state a server with no sign-outs is in. */
     private static JwtService withSecret(String secret) {
+        return withSecret(secret, userId -> Optional.of(0L));
+    }
+
+    private static JwtService withSecret(String secret, TokenGenerations generations) {
         AppProperties props = new AppProperties(
                 new AppProperties.Jwt(secret, Duration.ofDays(1), "wordbattle-test"),
                 new AppProperties.Google(""),
@@ -28,7 +35,7 @@ class JwtServiceTest {
                 new AppProperties.Limits(20, 40, 64),
                 ZoneId.of("Asia/Tashkent"),
                 false);
-        return new JwtService(props);
+        return new JwtService(props, generations);
     }
 
     @Test
@@ -55,12 +62,42 @@ class JwtServiceTest {
     @Test
     void roundTripsTheUserId() {
         JwtService jwt = withSecret("a-real-secret-of-at-least-32-bytes-length");
-        assertThat(jwt.userIdFrom(jwt.issue(42L))).contains(42L);
+        assertThat(jwt.userIdFrom(jwt.issue(42L, 0))).contains(42L);
     }
 
     @Test
     void rejectsATokenSignedWithAnotherSecret() {
-        String foreign = withSecret("a-completely-different-secret-32-bytes!!").issue(42L);
+        String foreign = withSecret("a-completely-different-secret-32-bytes!!").issue(42L, 0);
         assertThat(withSecret("a-real-secret-of-at-least-32-bytes-length").userIdFrom(foreign)).isEmpty();
+    }
+
+    /**
+     * The rule the whole of revocation rests on. Everything else — the logout
+     * endpoint, the socket handshake — is this comparison reached by a
+     * different road.
+     */
+    @Test
+    void refusesATokenFromAGenerationTheAccountHasLeftBehind() {
+        AtomicLong generation = new AtomicLong(7);
+        JwtService jwt = withSecret(
+                "a-real-secret-of-at-least-32-bytes-length", userId -> Optional.of(generation.get()));
+
+        String token = jwt.issue(42L, generation.get());
+        assertThat(jwt.userIdFrom(token)).contains(42L);
+
+        // What signing out does to the row.
+        generation.incrementAndGet();
+        assertThat(jwt.userIdFrom(token)).isEmpty();
+    }
+
+    /**
+     * An account that answers nothing — deleted, or a row that is simply not
+     * there any more. Its tokens are still perfectly signed, and must name
+     * nobody all the same.
+     */
+    @Test
+    void refusesAPerfectlySignedTokenForAnAccountThatIsGone() {
+        JwtService jwt = withSecret("a-real-secret-of-at-least-32-bytes-length", userId -> Optional.empty());
+        assertThat(jwt.userIdFrom(jwt.issue(42L, 0))).isEmpty();
     }
 }

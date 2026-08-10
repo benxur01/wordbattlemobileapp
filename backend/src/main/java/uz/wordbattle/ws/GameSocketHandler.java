@@ -73,10 +73,11 @@ public class GameSocketHandler extends TextWebSocketHandler {
         Long userId = userIdOf(session);
         if (userId == null) return;
 
+        // Registering is also what puts them online — presence reads the live
+        // sockets rather than being told about them separately.
         sockets.register(userId, session);
         // Back inside the grace window: the drop must not cost them the duel.
         duels.connectionRestored(userId);
-        presence.connected(userId);
         users.markSeen(userId);
         log.info("Socket connected: user={} online={}", userId, presence.onlineCount());
 
@@ -153,6 +154,15 @@ public class GameSocketHandler extends TextWebSocketHandler {
         // running them for a socket that has already been replaced would tear
         // down the state of the session that is right now live and playing.
         // Only unregister can tell the two apart, so it decides.
+        //
+        // It cannot always tell, and that is worth knowing before adding
+        // anything here: taking the entry out of the registry directly, as
+        // SocketRegistry.disconnect does for account deletion, makes an
+        // ordinary close look like a replaced socket when there is no new one
+        // at all. Whoever does that owns this teardown. Presence used to be
+        // part of it and was the one thing nobody thought to hand over — a
+        // deleted player stayed in the online count until the server was
+        // restarted — so it is now read from the registry instead of tracked.
         if (!sockets.unregister(userId, session)) {
             log.info("Stale socket closed: user={} status={} (already reconnected)", userId, status);
             return;
