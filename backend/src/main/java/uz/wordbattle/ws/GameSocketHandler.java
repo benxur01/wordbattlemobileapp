@@ -110,7 +110,6 @@ public class GameSocketHandler extends TextWebSocketHandler {
         if (userId == null) return;
 
         if (!rateLimiter.allow(userId)) {
-            log.warn("Rate limit hit by user {}", userId);
             sockets.sendError(userId, "too_many_frames", "Juda ko'p so'rov — biroz kuting");
             return;
         }
