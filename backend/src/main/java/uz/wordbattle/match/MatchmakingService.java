@@ -100,6 +100,16 @@ public class MatchmakingService {
             for (int j = i + 1; j < waiting.size(); j++) {
                 Waiting other = waiting.get(j);
                 if (!queue.containsKey(other.userId())) continue;
+                // The same sweep the outer loop does, because a candidate is
+                // reached here first: an entry left behind by someone who
+                // started a duel elsewhere would be picked as the best match,
+                // duels.start would refuse it, and a genuinely free player
+                // would lose a whole tick to it before the outer loop ever got
+                // round to that index and cleared it.
+                if (!sockets.isConnected(other.userId()) || duels.isPlaying(other.userId())) {
+                    queue.remove(other.userId());
+                    continue;
+                }
                 double gap = Math.abs(first.rating() - other.rating());
                 // Either side's window is enough: the one who has waited longer
                 // has already widened theirs.

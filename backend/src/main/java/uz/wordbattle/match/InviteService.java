@@ -29,18 +29,21 @@ public class InviteService {
     private final UserService users;
     private final FriendService friends;
     private final DuelService duels;
+    private final MatchmakingService matchmaking;
 
     public InviteService(
             AppProperties props,
             SocketRegistry sockets,
             UserService users,
             FriendService friends,
-            DuelService duels) {
+            DuelService duels,
+            MatchmakingService matchmaking) {
         this.props = props;
         this.sockets = sockets;
         this.users = users;
         this.friends = friends;
         this.duels = duels;
+        this.matchmaking = matchmaking;
     }
 
     public void send(long fromUserId, long toUserId) {
@@ -131,7 +134,18 @@ public class InviteService {
             // or whoever is still free waits out a duel that is not coming.
             sockets.sendError(userId, "duel_unavailable", "Jang boshlanmadi, qaytadan urinib ko'ring");
             sockets.send(invite.fromUserId(), "invite.expired", Map.of("inviteId", inviteId));
+            return;
         }
+        // Either side may have been searching for a random opponent while this
+        // invite waited out its timeout, and nothing so far has told the queue
+        // that they just found one. A second duel is already impossible —
+        // DuelService.start refuses it under its own lock — but the abandoned
+        // entry keeps counting toward queueSize(), keeps isQueued() lying, and
+        // costs pair() a wasted start against some unrelated third player, who
+        // is dropped from the queue and requeued for nothing. Leaving here is
+        // free; waiting for pair() to notice is not.
+        matchmaking.leave(invite.fromUserId());
+        matchmaking.leave(invite.toUserId());
     }
 
     public void decline(long userId, String inviteId) {

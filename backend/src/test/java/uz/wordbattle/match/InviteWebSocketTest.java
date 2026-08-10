@@ -38,6 +38,9 @@ class InviteWebSocketTest {
     @Autowired
     private ObjectMapper mapper;
 
+    @Autowired
+    private MatchmakingService matchmaking;
+
     private final TestRestTemplate rest = new TestRestTemplate();
     private Client host;
     private Client guest;
@@ -294,6 +297,75 @@ class InviteWebSocketTest {
         } finally {
             third.close();
         }
+    }
+
+    /**
+     * The search screen and a friend's challenge sheet can be up at the same
+     * time, so accepting has to close the search too. It did not: the queue
+     * entry outlived the duel it lost to. No second duel could come of it —
+     * {@code DuelService.start} refuses that under its own lock — but the dead
+     * entry kept counting toward {@code queueSize()}, kept {@code isQueued()}
+     * answering yes, and cost the next tick a start against some unrelated
+     * third player, who was pulled out of the queue and put back for nothing.
+     */
+    @Test
+    void acceptingAnInviteLeavesTheMatchmakingQueue() throws Exception {
+        String hostToken = login("Farrux");
+        String guestToken = login("Shahnoza");
+        call("PUT", "/api/users/me/nickname", hostToken, "{\"nickname\":\"farrux_m1\"}", String.class);
+        call("PUT", "/api/users/me/nickname", guestToken, "{\"nickname\":\"shahno_m1\"}", String.class);
+        befriend(hostToken, guestToken);
+        long guestId = userId(guestToken);
+
+        host = new Client(hostToken);
+        guest = new Client(guestToken);
+        host.await("hello", 5);
+        guest.await("hello", 5);
+
+        // Only the guest searches. Two fresh accounts both sit on 1200, so
+        // queueing the host as well would have the band pair them to each other
+        // before the invite was ever answered.
+        guest.send("queue.join", Map.of());
+        guest.await("queue.joined", 5);
+
+        host.send("invite.send", Map.of("userId", guestId));
+        String inviteId = guest.await("invite.incoming", 5).path("inviteId").asText();
+        guest.send("invite.accept", Map.of("inviteId", inviteId));
+
+        // The opponent proves this is the invited duel rather than something
+        // the queue found on its own.
+        assertThat(guest.await("match.found", 5).path("opponent").path("nickname").asText())
+                .isEqualTo("farrux_m1");
+        guest.await("queue.left", 5);
+        assertThat(matchmaking.isQueued(guestId)).isFalse();
+    }
+
+    /** Symmetric: the challenger can be the one searching while the invite waits. */
+    @Test
+    void acceptingAnInviteLeavesTheQueueForTheChallengerToo() throws Exception {
+        String hostToken = login("Doniyor");
+        String guestToken = login("Madina");
+        call("PUT", "/api/users/me/nickname", hostToken, "{\"nickname\":\"doniyo_n1\"}", String.class);
+        call("PUT", "/api/users/me/nickname", guestToken, "{\"nickname\":\"madina_n1\"}", String.class);
+        befriend(hostToken, guestToken);
+        long hostId = userId(hostToken);
+
+        host = new Client(hostToken);
+        guest = new Client(guestToken);
+        host.await("hello", 5);
+        guest.await("hello", 5);
+
+        host.send("queue.join", Map.of());
+        host.await("queue.joined", 5);
+
+        host.send("invite.send", Map.of("userId", userId(guestToken)));
+        String inviteId = guest.await("invite.incoming", 5).path("inviteId").asText();
+        guest.send("invite.accept", Map.of("inviteId", inviteId));
+
+        assertThat(host.await("match.found", 5).path("opponent").path("nickname").asText())
+                .isEqualTo("madina_n1");
+        host.await("queue.left", 5);
+        assertThat(matchmaking.isQueued(hostId)).isFalse();
     }
 
     /** A player mid-duel should not be able to open a second one either. */
