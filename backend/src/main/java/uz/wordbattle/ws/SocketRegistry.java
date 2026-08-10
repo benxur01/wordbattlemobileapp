@@ -95,16 +95,32 @@ public class SocketRegistry implements PresenceService.ConnectedPlayers {
         return (int) sessions.values().stream().filter(WebSocketSession::isOpen).count();
     }
 
-    public void send(Long userId, String type, Object payload) {
+    /**
+     * Writes a frame to the player's socket.
+     *
+     * <p>{@code false} means it did not go — there was no socket, it had closed
+     * since, or the write itself failed. Most callers have nothing to do about
+     * any of the three and ignore the answer, which is why this stayed void for
+     * so long. A duel's finish frame is the exception: it is the only thing a
+     * player is ever owed rather than merely sent, and its caller has a shelf to
+     * put it on for their return — but only if it is told the write did not
+     * land. It was not, so a socket that closed between being looked up and
+     * being written to swallowed the result, at DEBUG, and the duel ended with
+     * the rating moved and the player never told which way. See {@code
+     * DuelService.deliverFinish}.
+     */
+    public boolean send(Long userId, String type, Object payload) {
         WebSocketSession session = sessions.get(userId);
-        if (session == null || !session.isOpen()) return;
+        if (session == null || !session.isOpen()) return false;
         try {
             String json = mapper.writeValueAsString(Map.of("type", type, "payload", payload));
             synchronized (session) {
                 session.sendMessage(new TextMessage(json));
             }
+            return true;
         } catch (IOException e) {
             log.debug("Frame to {} dropped: {}", userId, e.getMessage());
+            return false;
         }
     }
 

@@ -435,7 +435,16 @@ public class DuelService {
     public void sendMissedFinish(long playerId) {
         MissedFinish missed = missedFinishes.remove(playerId);
         if (missed == null || missed.at().isBefore(Instant.now().minus(MISSED_FINISH_TTL))) return;
-        sockets.send(playerId, "duel.finished", missed.frame());
+        // Back on the shelf if the write did not land. A shelved result is only
+        // ever reached for on a reconnect, so taking it off for a socket that
+        // turns out to be gone spends the one attempt it was being kept for and
+        // leaves the next reconnect nothing to find. Put back only if the shelf
+        // is empty again: anything there now belongs to a duel this player has
+        // started since, and that one supersedes this result rather than
+        // queueing behind it — the rule start() and notifyFinish() both keep.
+        if (!sockets.send(playerId, "duel.finished", missed.frame())) {
+            missedFinishes.putIfAbsent(playerId, missed);
+        }
     }
 
     private void rememberMissedFinish(long playerId, DuelMessages.Finished frame) {
@@ -711,14 +720,23 @@ public class DuelService {
      * asking. That is the supersession rule {@link #notifyFinish} opens with,
      * applied at the last moment before the send rather than the first: a result
      * must never land on the board of a duel the player has started since.
+     *
+     * <p>Whether the frame went is the send's own answer rather than a guess
+     * taken beforehand, and that is the second thing here with a reason behind
+     * it. Asking the registry first and writing after left a gap of exactly the
+     * same shape as the one above: {@link SocketRegistry#send} does nothing at
+     * all for a session that has closed since, and a write that fails outright
+     * is logged at DEBUG and forgotten — so a socket dying in that gap took the
+     * result with it. Nothing was shelved, so the reconnect that followed found
+     * the shelf empty and was shown the lobby, and a rated duel ended with the
+     * rating moved and the player never told which way. A send that comes back
+     * false now lands on the same path as a player who was never connected at
+     * all, which is the path that was already right.
      */
     private void deliverFinish(long playerId, DuelMessages.Finished frame) {
         // A player who lost the socket — the usual way a duel ends this way —
         // cannot be told now, so the result is kept for their reconnect.
-        if (sockets.isConnected(playerId)) {
-            sockets.send(playerId, "duel.finished", frame);
-            return;
-        }
+        if (sockets.send(playerId, "duel.finished", frame)) return;
         rememberMissedFinish(playerId, frame);
         if (sockets.isConnected(playerId) && !isPlaying(playerId)) sendMissedFinish(playerId);
     }

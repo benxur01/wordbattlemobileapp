@@ -1,6 +1,8 @@
 package uz.wordbattle.match;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.willAnswer;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -55,12 +57,19 @@ import uz.wordbattle.ws.SocketRegistry;
  * written before any of this ran.
  *
  * <p>Milliseconds are not something a test can schedule, so the stall is made
- * rather than waited for: the settlement is held inside the registry read it
+ * rather than waited for: the settlement is held inside the registry call it
  * would have been preempted after, with the same latch-and-override mechanism
  * {@link StaleDuelFinishTest} holds a settlement mid-transaction with. The
- * registry answers with what it really knew at that moment — the player was
- * gone — and the reconnect completes before the answer is acted upon, which is
- * exactly the ordering a preempted thread produces.
+ * registry answers with what it really knew at that moment — the frame could
+ * not go, the player was gone — and the reconnect completes before the answer
+ * is acted upon, which is exactly the ordering a preempted thread produces.
+ *
+ * <p>That call is the send itself rather than a reachability check taken before
+ * it, because the send is what decides now: it reports whether the frame landed,
+ * so a socket that closes between the lookup and the write goes down the shelving
+ * path instead of vanishing at DEBUG — see {@link DroppedFinishFrameTest}, which
+ * is that gap on its own. The stall sits in the same place either way: the
+ * settlement has learned the frame did not go and has not yet shelved it.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class MissedFinishRaceTest {
@@ -172,8 +181,7 @@ class MissedFinishRaceTest {
 
     /**
      * Blocks until the server has noticed a socket go, so that the duel really
-     * does end on a player it believes to be away. Read through the spy before
-     * anything is stubbed on it, which is why the stub goes in afterwards.
+     * does end on a player it believes to be away.
      */
     private void awaitDisconnect(long userId) throws Exception {
         for (int attempt = 0; attempt < 100 && sockets.isConnected(userId); attempt++) {
@@ -208,20 +216,21 @@ class MissedFinishRaceTest {
         awaitDisconnect(awayId);
 
         // The settlement is stopped where a busy machine would have stopped it:
-        // after it has read the registry, before it has done anything with the
-        // answer. One call only — the reconnect, and the second look the fix
-        // takes, must both see the registry as it really is.
+        // after it has tried the registry and been told the frame could not go,
+        // before it has done anything about that. One call only — the reconnect,
+        // and the second look the fix takes, must both see the registry as it
+        // really is.
         AtomicBoolean held = new AtomicBoolean();
         willAnswer(invocation -> {
-            boolean connected = (boolean) invocation.callRealMethod();
-            if (!connected && held.compareAndSet(false, true)) {
+            boolean sent = (boolean) invocation.callRealMethod();
+            if (!sent && held.compareAndSet(false, true)) {
                 settlementAtTheRegistry.countDown();
                 reconnectHasLooked.await(10, TimeUnit.SECONDS);
             }
-            return connected;
+            return sent;
         })
                 .given(sockets)
-                .isConnected(awayId);
+                .send(eq(awayId), eq("duel.finished"), any());
 
         // The opponent walks out, which hands the duel to the player who is not
         // there to see it.
