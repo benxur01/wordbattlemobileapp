@@ -56,8 +56,19 @@ class NicknameCheck {
 class RatingPoint {
   const RatingPoint(this.at, this.rating);
 
-  factory RatingPoint.fromJson(Map<String, dynamic> json) =>
-      RatingPoint(DateTime.parse(json['at'] as String), (json['rating'] as num).toInt());
+  /// A date that will not parse costs this point its label, not the screen.
+  ///
+  /// `DateTime.parse` throws, and a throw here came out of `_loadProfile` —
+  /// which catches `ApiException` and nothing else — through an `unawaited`
+  /// future, leaving the profile spinning forever over a rating history the
+  /// server had already sent. The chart is drawn from the ratings and only the
+  /// first and last points are ever labelled with a day, so a today that should
+  /// have said last Tuesday is a far smaller lie than a screen that never
+  /// loads.
+  factory RatingPoint.fromJson(Map<String, dynamic> json) => RatingPoint(
+        DateTime.tryParse(json['at'] as String? ?? '') ?? DateTime.now(),
+        (json['rating'] as num).toInt(),
+      );
 
   final DateTime at;
   final int rating;
@@ -140,7 +151,11 @@ class FriendDto {
         user: UserDto.fromJson(json['user'] as Map<String, dynamic>),
         online: json['online'] as bool? ?? false,
         inBattle: json['inBattle'] as bool? ?? false,
-        lastSeenAt: json['lastSeenAt'] == null ? null : DateTime.parse(json['lastSeenAt'] as String),
+        // A date that will not parse is treated as one that was not sent, which
+        // this field already has an answer for: [status] says "oflayn" and the
+        // friends list draws as it always does. Nothing here is worth throwing
+        // out of `_refreshSocial` for.
+        lastSeenAt: DateTime.tryParse(json['lastSeenAt'] as String? ?? ''),
       );
 
   final UserDto user;
@@ -246,7 +261,11 @@ class MatchSummaryDto {
         ratingAfter: (json['ratingAfter'] as num?)?.toInt() ?? 0,
         chainLength: (json['chainLength'] as num?)?.toInt() ?? 0,
         endReason: json['endReason'] as String? ?? '',
-        finishedAt: DateTime.parse(json['finishedAt'] as String),
+        // Same trade as [RatingPoint]: the date is a label on a row — "bugun",
+        // "kecha", a day and a month — and one row wearing the wrong one is
+        // worth far less than the whole history screen sitting on its spinner
+        // because a single battle came back with a date this cannot read.
+        finishedAt: DateTime.tryParse(json['finishedAt'] as String? ?? '') ?? DateTime.now(),
       );
 
   final int id;

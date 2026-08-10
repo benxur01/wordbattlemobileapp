@@ -607,6 +607,24 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
   // ---------------------------------------------------------------- loading
 
+  /// The one failure a loader could not report, and the only one that stranded
+  /// a screen for good.
+  ///
+  /// `on ApiException` covers the call going wrong; it does not cover the call
+  /// going right and the body not being what this version of the app knows how
+  /// to read — a field dropped, a date in a shape `DateTime.parse` refuses,
+  /// either of which a rolling deploy can serve for as long as it takes to roll.
+  /// That throws a `FormatException` or a `TypeError` from inside the `try`,
+  /// matches no `on` clause, and escapes an `unawaited` future where nothing is
+  /// waiting to catch it. The screen keeps its spinner — no banner, no retry,
+  /// nothing but leaving and coming back. [_bootstrap] has had the same
+  /// fallback since the day a malformed session response did this to the
+  /// loading screen; the loaders were simply never given one.
+  void _onLoadFailure() {
+    if (!mounted) return;
+    setState(() => banner = "Ma'lumotni o'qib bo'lmadi");
+  }
+
   Future<void> _refreshSocial() async {
     try {
       final friendList = await _api.friends();
@@ -620,6 +638,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       // The lobby still works without the counters, so a failure here is
       // silent — unless it is the session itself that has gone.
       if (_isSessionOver(e)) _onApiError(e);
+    } catch (_) {
+      // Silent for the same reason, and unlike the loaders below there is no
+      // spinner behind this one: the friends list keeps whatever it last had.
+      // Caught all the same, because escaping is what does the damage.
     }
   }
 
@@ -630,6 +652,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       setState(() => board = data);
     } on ApiException catch (e) {
       _onApiError(e);
+    } catch (_) {
+      _onLoadFailure();
     }
   }
 
@@ -643,6 +667,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       });
     } on ApiException catch (e) {
       _onApiError(e);
+    } catch (_) {
+      _onLoadFailure();
     }
   }
 
@@ -655,6 +681,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       setState(() => history = data);
     } on ApiException catch (e) {
       _onApiError(e);
+    } catch (_) {
+      _onLoadFailure();
     }
   }
 
@@ -668,6 +696,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       });
     } on ApiException catch (e) {
       _onApiError(e);
+    } catch (_) {
+      _onLoadFailure();
     }
   }
 
