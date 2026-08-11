@@ -212,9 +212,22 @@ public class DuelService {
         // slow query underneath it would stall all of them. Registering the
         // result has to happen inside, because a duel that is in duelByPlayer
         // can already be asked for its state by a reconnecting player.
-        Players players = new Players(
-                UserDto.of(users.require(playerOne)),
-                bot ? botProfile() : UserDto.of(users.require(playerTwo)));
+        User userOne = users.require(playerOne);
+        User userTwo = bot ? null : users.require(playerTwo);
+
+        // A banned account plays nobody, whichever route asked. Banning closes
+        // the socket and every way into a duel needs one, so this is the
+        // backstop for the frame that was already in flight when the ban landed
+        // — without it, an account its owner has just lost could still be
+        // dragged through a rated duel by an invite accepted a moment too
+        // early. Read off rows this method has already loaded, so the guard
+        // costs the duel path no query of its own.
+        if (userOne.isBanned() || (userTwo != null && userTwo.isBanned())) {
+            log.warn("Refusing duel {} vs {}: a player is banned", playerOne, playerTwo);
+            return null;
+        }
+
+        Players players = new Players(UserDto.of(userOne), bot ? botProfile() : UserDto.of(userTwo));
 
         synchronized (startLock) {
             if (isPlaying(playerOne) || (!bot && isPlaying(playerTwo))) {

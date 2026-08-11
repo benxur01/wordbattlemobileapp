@@ -79,24 +79,48 @@ public class AdminUserService {
      * that is already banned changes nothing, writes no audit row, and does not
      * move the timestamp that records when they actually lost it.
      *
-     * <p>The session is ended before the row is written and outside the
-     * transaction, exactly as {@code AccountDeletionService} does it and for the
-     * same two reasons. Every way into a duel goes through the socket registry,
-     * so closing the socket first is what stops a duel starting in the gap; and
-     * the wait for a duel of theirs to settle is a wait on another thread
-     * writing this very row, which inside a transaction holding it would be a
-     * deadlock that resolves itself only by timing out.
+     * <p>The row is committed first and the session ended afterwards — the
+     * opposite order to {@code AccountDeletionService}, and the difference is
+     * the point. Ending a session is not instant: it closes the socket, empties
+     * the queue and then waits up to five seconds for a duel of theirs to
+     * settle. The app, meanwhile, reconnects on its own a second after its
+     * socket drops. With the ban still unwritten that reconnect carried a token
+     * {@link UserRepository#currentFor} had no reason to refuse — it is asked
+     * live, of the database, on every REST call and every socket handshake — so
+     * the player came back inside the teardown of their own ban and could queue,
+     * accept an invite and finish a rated duel on an account they had already
+     * lost. Committing first shuts that window rather than racing it: from the
+     * moment the transaction lands, every reconnect is refused at both doors.
+     *
+     * <p>A deletion cannot be reordered the same way and does not need to be.
+     * It has rows to erase after the wait, so the account has to be out of the
+     * duel before it starts, and the anonymous shell it leaves behind is refused
+     * by that same query.
+     *
+     * <p>The teardown stays outside the transaction either way, for the reason
+     * it always was: the wait inside it is a wait on another thread writing this
+     * very row, and holding the row across that wait is a deadlock that resolves
+     * itself only by timing out.
      */
     public User ban(Long adminId, Long targetId, String reason) {
         User target = require(targetId);
         if (target.isBanned()) return target;
+        // An admin who bans themselves cannot lift it: banning shuts the panel
+        // to them, and the panel is the only thing that unbans anybody.
+        if (targetId.equals(adminId)) {
+            throw ApiException.badRequest("cannot_ban_self", "O'zingizni bloklay olmaysiz");
+        }
+        // The same lockout one step out. With the last admin banned there is
+        // nobody left who can lift anything, and no endpoint hands the role to
+        // somebody new — see UserRepository.countActiveAdmins.
+        if (target.isAdmin() && users.countActiveAdmins() <= 1) {
+            throw ApiException.badRequest("last_admin", "Bu — yagona faol admin, bloklab bo'lmaydi");
+        }
 
-        sessionEnder.endSessionOf(targetId);
-
-        transactions.executeWithoutResult(status -> {
-            // A second ban that landed while the session was being torn down
-            // has already done all of this.
-            if (users.ban(targetId, Instant.now()) == 0) return;
+        boolean banned = transactions.execute(status -> {
+            // A second ban that landed at the same moment has already done all
+            // of this, and its session teardown is running for it.
+            if (users.ban(targetId, Instant.now()) == 0) return false;
             // Belt and braces beside the ban itself. A banned account has no
             // current token generation, so its tokens are already refused — but
             // this is what keeps them refused after an unban, rather than
@@ -104,7 +128,12 @@ public class AdminUserService {
             users.revokeTokensOf(targetId);
             audit.record(adminId, AdminAuditService.BAN, targetId, reason);
             log.info("Admin {} banned account {}", adminId, targetId);
+            return true;
         });
+        // Only for the call that actually took the account away: the loser of a
+        // double ban has nothing to tear down that the winner is not already
+        // tearing down, and would only sit through the wait a second time.
+        if (banned) sessionEnder.endSessionOf(targetId);
         return require(targetId);
     }
 

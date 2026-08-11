@@ -115,6 +115,21 @@ public interface UserRepository extends JpaRepository<User, Long>, TokenGenerati
     boolean isAdmin(@Param("userId") Long userId);
 
     /**
+     * How many accounts can still open the panel — asked before a ban aimed at
+     * an admin, and counting the same accounts {@link #isAdmin} would let in.
+     *
+     * <p>The role is granted from configuration on startup and by nothing in the
+     * API, deliberately, so an admin panel with every admin banned out of it is
+     * not a mistake anybody can undo from inside: it takes a redeploy with
+     * {@code ADMIN_BOOTSTRAP_USER_ID} set to get back in.
+     */
+    @Query("""
+            select count(u) from User u
+            where u.admin = true and u.deletedAt is null and u.bannedAt is null
+            """)
+    long countActiveAdmins();
+
+    /**
      * Straight at the column, like {@link #revokeTokensOf}: granting the role is
      * no reason to rewrite a player's rating and statistics, and going through
      * the entity would put this write in a fight with a duel of theirs settling

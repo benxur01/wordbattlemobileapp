@@ -1,8 +1,12 @@
 package uz.wordbattle.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willReturn;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -18,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,8 +34,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import uz.wordbattle.auth.JwtService;
+import uz.wordbattle.common.ApiException;
 import uz.wordbattle.config.AppProperties;
 import uz.wordbattle.match.DuelService;
+import uz.wordbattle.user.AccountDeletionService;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserRepository;
 import uz.wordbattle.user.UserService;
@@ -82,6 +89,15 @@ class AdminControllerTest {
      */
     @MockitoSpyBean
     private UserService userService;
+
+    /**
+     * Spied so the middle of a ban can be looked at. The order of its two halves
+     * is the whole of what stops a banned player reconnecting into the teardown
+     * of their own ban, and from outside a ban they are over too quickly to tell
+     * apart.
+     */
+    @MockitoSpyBean
+    private AccountDeletionService.SessionEnder sessionEnder;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -469,16 +485,23 @@ class AdminControllerTest {
     }
 
     /**
-     * A duel of the banned player's settling <em>after</em> the ban commits.
+     * A duel of the banned player's settling <em>after</em> the ban commits, in
+     * both the ways that can still happen.
      *
-     * <p>Banning ends the session and waits for any duel of theirs to settle,
-     * but the wait gives up after five seconds and lets the ban go ahead — so a
-     * slow settlement can land behind it. That settlement reads the player and
-     * writes every column of the row back, which is the exact shape of write
-     * that used to bring a signed-out token back to life before {@code
-     * token_generation} was made unwritable through the entity. {@code
-     * banned_at} is unwritable for the same reason, and this is that reason
-     * being checked rather than asserted.
+     * <p>The first is the ordinary one: a duel already under way when the ban
+     * lands. The row is written first and the session torn down afterwards, so
+     * the forfeit that ends the duel — and the result it writes — is behind the
+     * ban by construction. A new duel is not, and cannot be: {@code
+     * DuelService.start} refuses a banned account outright, which is what {@code
+     * BannedPlayerCannotDuelTest} is about.
+     *
+     * <p>The second is a settlement that was already in flight when the
+     * transaction committed — a duel that ended a moment before the admin
+     * pressed the button. It read the player beforehand and writes every column
+     * of the row back afterwards, which is the exact shape of write that used to
+     * bring a signed-out token back to life before {@code token_generation} was
+     * made unwritable through the entity. {@code banned_at} is unwritable for the
+     * same reason, and this is that reason being checked rather than asserted.
      *
      * <p>That the settlement writes the duel at all is deliberate — see {@code
      * MatchResultService.playerBehind} for why a ban is not a deletion here.
@@ -491,23 +514,17 @@ class AdminControllerTest {
         long playerId = userId(player);
         long opponentId = userId(login("Doniyor"));
 
-        // Read before the ban, exactly as a settlement already in flight would
-        // have read it.
-        User loadedBeforeTheBan = users.findById(playerId).orElseThrow();
+        // Mid-duel, which is where a player about to be banned usually is.
+        assertThat(duels.start(playerId, opponentId)).isNotNull();
 
         mvc.perform(post("/api/admin/users/" + playerId + "/ban").header("Authorization", "Bearer " + admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.banned").value(true));
 
-        // The settlement now lands: a whole-row write over the stale copy, and
-        // then a real duel settled the ordinary way.
-        loadedBeforeTheBan.setCity("Toshkent");
-        users.saveAndFlush(loadedBeforeTheBan);
-        assertThat(duels.start(playerId, opponentId)).isNotNull();
-        duels.forfeitAndAwaitSettlement(opponentId);
-
+        // No polling: the teardown does not return until the forfeit it caused
+        // has been written, so the settlement has already landed here.
         User banned = users.findById(playerId).orElseThrow();
-        assertThat(banned.isBanned()).as("the ban survived a settlement written over it").isTrue();
+        assertThat(banned.isBanned()).as("the ban survived the settlement it caused").isTrue();
         // The duel itself was recorded, which is the decision documented on
         // MatchResultService.playerBehind: a ban erases nothing, so there is
         // nothing for this write to resurrect, and the opponent keeps the duel
@@ -515,12 +532,144 @@ class AdminControllerTest {
         assertThat(banned.getBattles()).isEqualTo(1);
         assertThat(users.findById(opponentId).orElseThrow().getBattles()).isEqualTo(1);
 
-        // And the account is still shut, which is the whole of what a ban
-        // promises: no token for it works, old or new.
+        // And the other one, on an account of its own because a stale copy has
+        // to be read while the row is still where the settlement left it: a
+        // whole-row write from a copy taken before the ban committed.
+        String late = login("Nafisa");
+        long lateId = userId(late);
+        User loadedBeforeTheBan = users.findById(lateId).orElseThrow();
+        mvc.perform(post("/api/admin/users/" + lateId + "/ban").header("Authorization", "Bearer " + admin))
+                .andExpect(status().isOk());
+        loadedBeforeTheBan.setCity("Toshkent");
+        users.saveAndFlush(loadedBeforeTheBan);
+        assertThat(users.findById(lateId).orElseThrow().isBanned())
+                .as("the ban survived a whole-row write from before it")
+                .isTrue();
+
+        // And the accounts are still shut, which is the whole of what a ban
+        // promises: no token for them works, old or new.
         mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + player))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + issueFor(playerId)))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + late))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * The ban is committed before the session is torn down, and this is what
+     * holds it there.
+     *
+     * <p>Tearing a session down is not instant: the socket closes, the queue and
+     * the invites go, and then it waits up to five seconds for a duel of theirs
+     * to settle. The app reconnects on its own a second after its socket drops,
+     * and the question the reconnect is answered with — {@code
+     * UserRepository.currentFor} — is asked of the database every time, of a row
+     * nothing caches. So with the teardown running first, the player came back
+     * inside the teardown of their own ban on a token that was still perfectly
+     * good, and could queue, take an invite and finish a rated duel with it.
+     *
+     * <p>What is read below is exactly what that reconnect would have been
+     * measured against, at the moment it would have arrived. Asserting the order
+     * of the two calls would not be the same thing: it is the {@code commit}
+     * that closes the door, not the call.
+     */
+    @Test
+    void theBanIsAlreadyCommittedWhenTheSessionIsTornDown() throws Exception {
+        String admin = adminLogin("Sardor", "sardor_admin");
+        long playerId = userId(login("Nigina"));
+
+        AtomicBoolean bannedByThen = new AtomicBoolean();
+        willAnswer(invocation -> {
+            bannedByThen.set(users.findById(playerId).orElseThrow().isBanned());
+            return invocation.callRealMethod();
+        })
+                .given(sessionEnder)
+                .endSessionOf(playerId);
+
+        mvc.perform(post("/api/admin/users/" + playerId + "/ban").header("Authorization", "Bearer " + admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.banned").value(true));
+
+        assertThat(bannedByThen)
+                .as("the session was torn down before the ban committed, so a reconnect in that window is let in")
+                .isTrue();
+        verify(sessionEnder).endSessionOf(playerId);
+
+        // A second ban changes nothing, so it tears nothing down either: there
+        // is no session left to end, and the wait would only be served twice.
+        mvc.perform(post("/api/admin/users/" + playerId + "/ban").header("Authorization", "Bearer " + admin))
+                .andExpect(status().isOk());
+        verify(sessionEnder, times(1)).endSessionOf(playerId);
+    }
+
+    /**
+     * An admin banning themselves. The panel is the only thing that lifts a ban
+     * and a ban shuts the panel, so this is a door that locks from the inside
+     * with the key still in it — and the account is one of the few on the server
+     * that cannot be replaced by signing up again.
+     */
+    @Test
+    void anAdminCannotBanThemselvesOutOfThePanel() throws Exception {
+        String admin = adminLogin("Zafar", "zafar_admin");
+        long adminId = userId(admin);
+        long before = auditLog.count();
+
+        mvc.perform(post("/api/admin/users/" + adminId + "/ban")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"xato bosildi\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("cannot_ban_self"))
+                .andExpect(jsonPath("$.message").isNotEmpty());
+
+        // Nothing happened, so nothing was written down and the panel still
+        // opens.
+        assertThat(users.findById(adminId).orElseThrow().isBanned()).isFalse();
+        assertThat(auditLog.count()).isEqualTo(before);
+        mvc.perform(get("/api/admin/users").header("Authorization", "Bearer " + admin))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * The same lockout one step out: the last account that can open the panel.
+     * With it banned there is nobody left to lift anything, and no endpoint hands
+     * the role to somebody new — getting back in means a redeploy with {@code
+     * ADMIN_BOOTSTRAP_USER_ID} set.
+     *
+     * <p>Driven through the service rather than the API, and the reason is worth
+     * writing down. The filter only lets an admin reach the route, and an admin
+     * banning somebody else is two active admins by definition — so through the
+     * API the count can only be one when the caller's own role has gone since the
+     * filter looked at it, which a revoke-role screen will make ordinary. The
+     * caller below is exactly that: a real id that is not an admin.
+     */
+    @Test
+    void theLastAdminLeftCannotBeBanned() throws Exception {
+        long lastAdminId = userId(adminLogin("Rustam", "rustam_admin"));
+        long caller = userId(login("Malika"));
+
+        // "The last one" is a fact about the whole table, and the suite shares
+        // one database, so every other admin still standing in it is put out of
+        // the way first — straight at the column, since this is the scene being
+        // set rather than something the panel did.
+        transactions.executeWithoutResult(status -> users.findAll().stream()
+                .filter(user -> user.isAdmin() && !user.isBanned() && !user.isDeleted())
+                .filter(user -> !user.getId().equals(lastAdminId))
+                .forEach(user -> users.ban(user.getId(), Instant.now())));
+        assertThat(users.countActiveAdmins()).isEqualTo(1);
+
+        long before = auditLog.count();
+        assertThatThrownBy(() -> adminUsers.ban(caller, lastAdminId, "oxirgisi"))
+                .isInstanceOfSatisfying(
+                        ApiException.class, refused -> assertThat(refused.code()).isEqualTo("last_admin"));
+        assertThat(users.findById(lastAdminId).orElseThrow().isBanned()).isFalse();
+        assertThat(auditLog.count()).isEqualTo(before);
+
+        // With a second admin back it goes through: the guard is about the
+        // count and nothing else.
+        long secondId = userId(adminLogin("Sevara", "sevara_admin"));
+        assertThat(adminUsers.ban(secondId, lastAdminId, "endi mumkin").isBanned()).isTrue();
     }
 
     /**
