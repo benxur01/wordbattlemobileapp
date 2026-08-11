@@ -58,6 +58,7 @@ bo'lsa Testcontainers, bo'lmasa ichki (embedded) server. Pastdagi
 | `JWT_TTL` | Token amal qilish muddati (ISO-8601) | `P30D` |
 | `GOOGLE_WEB_CLIENT_ID` | Google **Web** OAuth client ID; bo'sh bo'lsa Google login o'chadi | bo'sh |
 | `DEV_LOGIN_ENABLED` | `/api/auth/dev` ni yoqadi — **prodda hech qachon** | `false` |
+| `ADMIN_BOOTSTRAP_USER_ID` | Startda shu `users.id` ga admin roli beriladi — birinchi adminni yaratishning yagona yo'li. Bo'sh bo'lsa hech kimga berilmaydi | bo'sh |
 | `PORT` | HTTP porti | `8080` |
 
 O'yin qoidalari `application.yml` dagi `wordbattle.duel` va
@@ -90,6 +91,9 @@ yuradi, va har bir so'rovda shu raqam qatordagisi bilan solishtiriladi:
   bog'langan — bir qurilmadan chiqish hammasidan chiqaradi);
 - akkaunt o'chirilganda hisoblagich umuman o'qilmaydi (`deleted_at is not
   null`), demak o'chirilgan akkauntning tokeni ham o'lik;
+- akkaunt bloklanganda ham xuddi shunday (`banned_at is not null`) — ban
+  o'sha zahoti kuchga kiradi, tokenning muddati kutilmaydi va soket ham
+  ochilmaydi;
 - tekshiruv `JwtService.userIdFrom` ichida — REST filtri ham, WebSocket
   handshake'i ham shu yerdan o'tadi, ya'ni bekor qilingan token soket ocha
   olmaydi.
@@ -149,6 +153,27 @@ Barchasi `/api` ostida. `*` — token talab qilinmaydi.
 | GET | `/leaderboard/friends` | o'zi va do'stlari orasida |
 | GET | `/practice/word` | kunlik so'z: `{word, ipa, meaning}` |
 | GET | `/practice/hints?letter=&limit=` | "?" tugmasi uchun maslahatlar |
+
+### Admin panel
+
+Hammasi `/admin` ostida va faqat `users.is_admin = true` bo'lgan akkaunt uchun.
+Boshqa har qanday token — `403 forbidden`, tokensiz — `401`. Birinchi admin
+faqat `ADMIN_BOOTSTRAP_USER_ID` orqali paydo bo'ladi (yuqoridagi jadval).
+
+| Method | Path | Izoh |
+|---|---|---|
+| GET | `/admin/users?q=&page=&size=` | taxallus, ism yoki id bo'yicha qidiruv; o'chirilgan va bloklangan akkauntlar ham ko'rinadi |
+| GET | `/admin/users/{id}` | profil, statistika, ban holati |
+| POST | `/admin/users/{id}/ban` | `{reason}` (ixtiyoriy) — jangdan va soketdan chiqaradi, barcha tokenlarini o'ldiradi |
+| POST | `/admin/users/{id}/unban` | |
+| PUT | `/admin/users/{id}/nickname` | `{nickname}` — onboarding bilan bir xil qoidalar |
+| GET | `/admin/matches?page=&size=` | barcha janglar (hech kimga bog'lanmagan) |
+| GET | `/admin/metrics` | foydalanuvchilar, banlanganlar, bugungi janglar, bot/inson |
+| GET | `/admin/audit-log?page=&size=` | har bir o'zgarish — kim, kimga, qachon |
+
+Har bir o'zgartirish `admin_audit_log` ga o'zgarishning **o'zi bilan bitta
+tranzaksiyada** yoziladi. Hech narsa o'zgarmagan bo'lsa (masalan, allaqachon
+bloklangan akkauntni qayta bloklash) yozuv ham qo'shilmaydi.
 
 Xatolar bir xil shaklda: `{"code": "...", "message": "...", "timestamp": "..."}`.
 
@@ -240,6 +265,8 @@ Flyway migratsiyalari `src/main/resources/db/migration`:
 - `matches`, `match_words` — jang tarixi va zanjir
 - `rating_history` — profil grafigi uchun
 - `practice_words`, `user_words`
+- `admin_audit_log` — admin panelidagi har bir o'zgarish (`users.is_admin` va
+  `users.banned_at` bilan birga V9 da qo'shilgan)
 
 Taxalluslar registrga bog'liq bo'lmagan holda unikal: `lower(nickname)`
 ustidagi unikal indeks. Ikki o'yinchi bir vaqtda bir nomni so'rasa, biri

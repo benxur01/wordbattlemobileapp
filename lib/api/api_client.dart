@@ -1,67 +1,31 @@
-import 'dart:async';
-import 'dart:convert';
-
 import 'package:http/http.dart' as http;
 
-import 'api_config.dart';
-import 'api_exception.dart';
 import 'models.dart';
+import 'rest_transport.dart';
 
 /// Thin REST client. Every call carries the JWT and turns a non-2xx response
 /// into an [ApiException] with the server's own error code, so screens can
 /// react to `nickname_taken` or a 401 without parsing strings.
+///
+/// The header, the timeout and the error rule live in [RestTransport], which the
+/// admin panel's client shares — see `lib/admin/admin_api_client.dart`.
 class ApiClient {
-  ApiClient({http.Client? httpClient}) : _http = httpClient ?? http.Client();
+  ApiClient({http.Client? httpClient}) : _rest = RestTransport(httpClient: httpClient);
 
-  final http.Client _http;
+  final RestTransport _rest;
 
   /// The JWT sent with every call. Null before login and after logout.
-  String? token;
+  String? get token => _rest.token;
 
-  static const _timeout = Duration(seconds: 10);
+  set token(String? value) => _rest.token = value;
 
-  Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
+  Future<dynamic> _get(String path, [Map<String, dynamic>? query]) => _rest.get(path, query);
 
-  Future<dynamic> _send(Future<http.Response> Function() request) async {
-    final http.Response response;
-    try {
-      response = await request().timeout(_timeout);
-    } on TimeoutException catch (e) {
-      throw ApiException.network(e);
-    } catch (e) {
-      throw ApiException.network(e);
-    }
+  Future<dynamic> _post(String path, [Object? body]) => _rest.post(path, body);
 
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.bodyBytes.isEmpty) return null;
-      return jsonDecode(utf8.decode(response.bodyBytes));
-    }
+  Future<dynamic> _put(String path, Object body) => _rest.put(path, body);
 
-    String code = 'http_${response.statusCode}';
-    String message = 'Server xatosi (${response.statusCode})';
-    try {
-      final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-      code = (body['code'] as String?) ?? code;
-      message = (body['message'] as String?) ?? message;
-    } catch (_) {
-      // non-JSON error body — keep the generic message
-    }
-    throw ApiException(code, message, statusCode: response.statusCode);
-  }
-
-  Future<dynamic> _get(String path, [Map<String, dynamic>? query]) =>
-      _send(() => _http.get(ApiConfig.rest(path, query), headers: _headers));
-
-  Future<dynamic> _post(String path, [Object? body]) =>
-      _send(() => _http.post(ApiConfig.rest(path), headers: _headers, body: body == null ? null : jsonEncode(body)));
-
-  Future<dynamic> _put(String path, Object body) =>
-      _send(() => _http.put(ApiConfig.rest(path), headers: _headers, body: jsonEncode(body)));
-
-  Future<dynamic> _delete(String path) => _send(() => _http.delete(ApiConfig.rest(path), headers: _headers));
+  Future<dynamic> _delete(String path) => _rest.delete(path);
 
   // ---------------------------------------------------------------- auth
 
@@ -154,5 +118,5 @@ class ApiClient {
     return list.map((e) => e as String).toList();
   }
 
-  void close() => _http.close();
+  void close() => _rest.close();
 }

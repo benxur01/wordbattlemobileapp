@@ -42,6 +42,7 @@ public record AppProperties(
         @DefaultValue Rating rating,
         @DefaultValue Cors cors,
         @DefaultValue Limits limits,
+        @DefaultValue Admin admin,
         /**
          * The zone every "which day is it" decision is made in — daily streaks
          * and the practice word of the day. UTC would roll those over at 05:00
@@ -66,6 +67,23 @@ public record AppProperties(
     public record Cors(@DefaultValue List<String> allowedOrigins) {
         public boolean enabled() {
             return allowedOrigins != null && !allowedOrigins.isEmpty();
+        }
+    }
+
+    /**
+     * How the first admin comes to exist. The role is a column on {@code users}
+     * and the panel grants it, which leaves the usual bootstrap problem: nobody
+     * can open the panel until somebody already has it.
+     *
+     * <p>So one id, given as an environment variable, is granted the role on
+     * startup and nothing else happens. Empty — the default — grants nobody,
+     * which is what a server that has been set up already wants: leaving the
+     * variable exported is harmless, since a second grant to an account that
+     * holds the role writes nothing.
+     */
+    public record Admin(@DefaultValue("") String bootstrapUserId) {
+        public boolean configured() {
+            return bootstrapUserId != null && !bootstrapUserId.isBlank();
         }
     }
 

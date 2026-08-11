@@ -12,6 +12,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import uz.wordbattle.admin.AdminAuthFilter;
 import uz.wordbattle.auth.JwtAuthFilter;
 import uz.wordbattle.auth.RestAuthEntryPoint;
 
@@ -20,12 +21,21 @@ import uz.wordbattle.auth.RestAuthEntryPoint;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final AdminAuthFilter adminAuthFilter;
     private final RestAuthEntryPoint authEntryPoint;
+    private final RestAccessDeniedHandler accessDeniedHandler;
     private final AppProperties props;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, RestAuthEntryPoint authEntryPoint, AppProperties props) {
+    public SecurityConfig(
+            JwtAuthFilter jwtAuthFilter,
+            AdminAuthFilter adminAuthFilter,
+            RestAuthEntryPoint authEntryPoint,
+            RestAccessDeniedHandler accessDeniedHandler,
+            AppProperties props) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.adminAuthFilter = adminAuthFilter;
         this.authEntryPoint = authEntryPoint;
+        this.accessDeniedHandler = accessDeniedHandler;
         this.props = props;
     }
 
@@ -52,9 +62,20 @@ public class SecurityConfig {
                         // query string during the handshake.
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Before the catch-all, or the catch-all would answer
+                        // for it and every signed-in player would be an admin.
+                        // The role is granted by AdminAuthFilter, to admins, on
+                        // this path alone.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(authEntryPoint))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(authEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // After the token has named a player, since that is what this
+                // one looks the admin role up for. The position is expressed
+                // relative to JwtAuthFilter, which the line above is what
+                // registers — so the two calls cannot be reordered.
+                .addFilterAfter(adminAuthFilter, JwtAuthFilter.class)
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable());
         return http.build();

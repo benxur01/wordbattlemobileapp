@@ -224,6 +224,42 @@ public class MatchResultService {
      *
      * <p>The window itself is closed on the other side, in {@code
      * SocketSessionEnder}; this is what holds if a duel ever gets in regardless.
+     *
+     * <p><b>A banned account is deliberately not treated this way</b>, and the
+     * asymmetry is the point rather than an oversight — it was raised against
+     * this line and settled on purpose. Banning has the same shape as deleting
+     * from here: {@code AdminUserService} ends the session and waits, and a
+     * settlement that outlasts the five-second wait lands after {@code
+     * banned_at} is written. Four things make it the opposite decision.
+     *
+     * <p>Deleting <em>erases</em> rows and promises they stay erased; a late
+     * settlement puts a rating-history point and a list of learned words back
+     * and breaks that promise. Banning erases nothing. The row is untouched by
+     * design — that is the whole difference between the two — so there is
+     * nothing for a late write to resurrect.
+     *
+     * <p>Dropping the banned player would be paid for by the wrong person. The
+     * duel settles unrated for whoever is left, and the match row loses its
+     * second player, so their opponent — who has done nothing — loses the
+     * rating they won and gets the "Word Bot" card described above for a duel
+     * they played against a human.
+     *
+     * <p>It would also not be one behaviour but two. In the ordinary case the
+     * settlement commits before the ban does, so the duel is rated and recorded;
+     * only the rare slow settlement would come out unrated. The same admin
+     * action would mean different things depending on how busy the duel pool
+     * was that second.
+     *
+     * <p>And a ban is reversible where a deletion is not. Skipping the write
+     * would leave the opponent's win recorded against a player whose own row
+     * shows no such battle — two halves of one duel disagreeing for as long as
+     * the account exists, which unbanning then makes visible to the player.
+     *
+     * <p>What a late settlement must never do is undo the ban itself, and that
+     * is already impossible: {@code banned_at} and {@code token_generation} are
+     * both {@code updatable = false} on the entity, so the whole-row write below
+     * cannot carry their pre-ban values back over the top. {@code
+     * AdminControllerTest} holds that.
      */
     private User playerBehind(long playerId) {
         return users.findById(playerId).filter(user -> !user.isDeleted()).orElse(null);

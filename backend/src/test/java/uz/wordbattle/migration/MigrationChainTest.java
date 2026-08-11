@@ -47,11 +47,11 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(8);
+        assertThat(result.migrationsExecuted).isEqualTo(9);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -71,14 +71,24 @@ class MigrationChainTest {
                         "match_words",
                         "rating_history",
                         "practice_words",
-                        "user_words");
+                        "user_words",
+                        "admin_audit_log");
 
         // Where the chain leaves the table everything else edits: V3 traded the
         // Telegram identity for Google's, V4 added the deletion marker, V5 the
         // optimistic lock, V6 the counter a signed-out token is measured
-        // against, V7 the clock Glicko-2's inactivity growth counts from.
+        // against, V7 the clock Glicko-2's inactivity growth counts from, and V9
+        // the two the admin panel reads — who may use it, and whose account has
+        // been taken away.
         assertThat(columnsOf("fresh", "users"))
-                .contains("google_subject", "deleted_at", "version", "token_generation", "rating_period_at")
+                .contains(
+                        "google_subject",
+                        "deleted_at",
+                        "version",
+                        "token_generation",
+                        "rating_period_at",
+                        "is_admin",
+                        "banned_at")
                 .doesNotContain("telegram_id");
 
         // V8 put the same optimistic lock on the other table two calls can
@@ -90,6 +100,7 @@ class MigrationChainTest {
         // them, and losing the predicate would turn one into a unique index
         // over every row.
         assertThat(indexDefinition("fresh", "ix_users_deleted_at")).contains("deleted_at IS NOT NULL");
+        assertThat(indexDefinition("fresh", "ix_users_banned_at")).contains("banned_at IS NOT NULL");
         assertThat(indexDefinition("fresh", "ux_friend_requests_pending"))
                 .contains("UNIQUE")
                 .contains("'PENDING'");
@@ -134,7 +145,7 @@ class MigrationChainTest {
                 where a.nickname = 'aziza_m' and b.nickname = 'bekzod_99'
                 """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(6);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(7);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -187,6 +198,20 @@ class MigrationChainTest {
         // same reason: the entity maps this to a primitive long, and the first
         // answer to that request would break on a null.
         assertThat(query("upgrade", "select version from friend_requests")).containsExactly("0");
+
+        // V9 is a not-null column with a default over populated rows once more,
+        // and the value is the whole point of it: an upgrade that let is_admin
+        // arrive as anything but false would hand the admin panel to every
+        // account that already existed. The entity maps it to a primitive
+        // boolean, so a null would break on the first read as well.
+        assertThat(query("upgrade", "select count(*) from users where is_admin = false"))
+                .as("an upgrade makes nobody an admin")
+                .containsExactly("2");
+        // And nobody is banned by being upgraded. This one is nullable, so the
+        // risk is the opposite: a default of now() would have locked both
+        // players out of accounts they still have, since a banned row answers
+        // no token generation at all and every token for it dies.
+        assertThat(query("upgrade", "select count(*) from users where banned_at is null")).containsExactly("2");
     }
 
     // --------------------------------------------------------------- helpers

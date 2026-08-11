@@ -89,6 +89,14 @@ public class AuthController {
     }
 
     private LoginResponse response(User user) {
+        // A banned player is turned away here rather than handed a token that
+        // authenticates nobody. The generation a token is measured against is
+        // read only for a row that is neither deleted nor banned, so signing in
+        // would otherwise succeed and every request after it fail with a 401 —
+        // which the app answers by sending the player back to sign in again.
+        if (user.isBanned()) {
+            throw ApiException.forbidden("account_banned", "Akkaunt bloklangan");
+        }
         // The generation comes off the row that was just read rather than being
         // looked up again: a token stamped with anything else would be refused
         // by the very next request, and the row in hand is the truth.

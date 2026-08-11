@@ -40,6 +40,11 @@ dependencies:
   # The only sign-in the app has: the phone gets an idToken, the server checks
   # it against Google's public keys.
   google_sign_in: ^7.2.0
+  # Already pulled in by the line above; named here because the admin panel's
+  # web build imports it directly. A browser has no `authenticate()` to call, so
+  # the credential comes from a button Google renders — see
+  # `lib/admin/admin_google_button_web.dart`. The phone build never touches it.
+  google_sign_in_web: ^1.1.3
 
 dev_dependencies:
   flutter_test:

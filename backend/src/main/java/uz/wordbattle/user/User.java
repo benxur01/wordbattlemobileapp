@@ -126,6 +126,32 @@ public class User {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    /**
+     * Whether this account may use the admin panel — every {@code /api/admin/**}
+     * route is closed to everyone else.
+     *
+     * <p>Not updatable through the entity, for the reason {@link
+     * #tokenGeneration} is not: a duel settling reads this row and writes every
+     * column back, so a mapped value would carry whatever it read over the top
+     * of a grant that landed in between. Moved by an update aimed at this column
+     * alone — see {@code UserRepository.grantAdmin}.
+     */
+    @Column(name = "is_admin", nullable = false, updatable = false)
+    private boolean admin;
+
+    /**
+     * When an admin took the account away from the player, and null while they
+     * still have it. Read beside {@link #deletedAt} on the way in to every
+     * request: a banned account has no current token generation, so a ban ends
+     * whatever sessions the player had open instead of waiting out their token.
+     *
+     * <p>Not updatable through the entity for the same reason as {@link #admin}
+     * above — a settlement committing a moment after the ban would otherwise put
+     * the player straight back in.
+     */
+    @Column(name = "banned_at", updatable = false)
+    private Instant bannedAt;
+
     protected User() {}
 
     private User(String displayName) {
@@ -187,6 +213,9 @@ public class User {
     public void setLastSeenAt(Instant lastSeenAt) { this.lastSeenAt = lastSeenAt; }
     public Instant getDeletedAt() { return deletedAt; }
     public boolean isDeleted() { return deletedAt != null; }
+    public boolean isAdmin() { return admin; }
+    public Instant getBannedAt() { return bannedAt; }
+    public boolean isBanned() { return bannedAt != null; }
 
     /**
      * Strips the account of everything that identifies a person, keeping only

@@ -23,6 +23,14 @@ spring:
     hibernate:
       ddl-auto: create-drop
     database-platform: org.hibernate.dialect.H2Dialect
+    # As the shipped file sets it. Not a game rule, so ShippedConfigurationTest
+    # does not police this one — and it was the difference that mattered: on
+    # Spring's default of true a session lives for the whole request, so an
+    # entity read before an update written in JPQL is handed back stale
+    # afterwards. The server does not behave that way and the suite must not
+    # either, or the suite is proving the wrong server. Found by a ban that
+    # answered with the account as it stood a line before it.
+    open-in-view: false
   flyway:
     enabled: false
 

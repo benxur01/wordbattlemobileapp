@@ -59,6 +59,7 @@ class FrameRateLimiterTest {
                 new AppProperties.Rating(Duration.ofHours(24)),
                 new AppProperties.Cors(List.of()),
                 new AppProperties.Limits(framesPerSecond, burst, 64),
+                new AppProperties.Admin(""),
                 ZoneId.of("Asia/Tashkent"),
                 false);
         return new FrameRateLimiter(props);

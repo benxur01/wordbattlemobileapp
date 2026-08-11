@@ -51,6 +51,13 @@ wordbattle:
   limits:
     socket-frames-per-second: ${WS_FRAMES_PER_SECOND:20}
     socket-frame-burst: ${WS_FRAME_BURST:40}
+  admin:
+    # The users.id granted the admin role on every start, which is the only way
+    # the first admin can exist: the role is a column and the panel grants it,
+    # so without this nobody could ever open the panel to grant it to anybody.
+    # Empty grants nobody. Leaving it set is harmless — an account that already
+    # holds the role is not written to again.
+    bootstrap-user-id: ${ADMIN_BOOTSTRAP_USER_ID:}
   google:
     # The *Web* OAuth client id — "web" being Google's name for a client that
     # runs on a server, which is what this is, rather than anything to do with

@@ -1,0 +1,249 @@
+/// Wire models for `/api/admin/**`, mirroring the records in
+/// `AdminController.java` field for field.
+///
+/// Shapes of their own rather than the player-facing DTOs on purpose, and for
+/// the same reason the server keeps them apart: this is the one place a deleted
+/// shell, a ban and the admin role itself are worth rendering.
+///
+/// Every field here is read defensively — a date that will not parse becomes
+/// null and a number that is missing becomes zero — so one changed shape costs a
+/// cell its label rather than costing the screen its whole table. A rolling
+/// deploy has two versions answering for as long as it takes to roll, and an
+/// admin looking into a complaint is exactly who should not be told to come back
+/// later.
+library;
+
+class AdminPage<T> {
+  const AdminPage({
+    required this.items,
+    required this.page,
+    required this.size,
+    required this.total,
+    required this.totalPages,
+  });
+
+  factory AdminPage.fromJson(Map<String, dynamic> json, T Function(Map<String, dynamic>) item) => AdminPage(
+        items: ((json['items'] as List?) ?? const []).map((e) => item(e as Map<String, dynamic>)).toList(),
+        page: (json['page'] as num?)?.toInt() ?? 0,
+        size: (json['size'] as num?)?.toInt() ?? 0,
+        total: (json['total'] as num?)?.toInt() ?? 0,
+        totalPages: (json['totalPages'] as num?)?.toInt() ?? 0,
+      );
+
+  final List<T> items;
+  final int page;
+  final int size;
+  final int total;
+  final int totalPages;
+
+  bool get hasPrevious => page > 0;
+
+  bool get hasNext => page + 1 < totalPages;
+}
+
+class AdminUserRow {
+  const AdminUserRow({
+    required this.id,
+    required this.nickname,
+    required this.displayName,
+    required this.city,
+    required this.rating,
+    required this.battles,
+    required this.wins,
+    required this.admin,
+    required this.banned,
+    required this.bannedAt,
+    required this.deleted,
+    required this.createdAt,
+    required this.lastSeenAt,
+  });
+
+  factory AdminUserRow.fromJson(Map<String, dynamic> json) => AdminUserRow(
+        id: (json['id'] as num).toInt(),
+        nickname: json['nickname'] as String?,
+        displayName: json['displayName'] as String?,
+        city: json['city'] as String?,
+        rating: (json['rating'] as num?)?.toInt() ?? 0,
+        battles: (json['battles'] as num?)?.toInt() ?? 0,
+        wins: (json['wins'] as num?)?.toInt() ?? 0,
+        admin: json['admin'] as bool? ?? false,
+        banned: json['banned'] as bool? ?? false,
+        bannedAt: DateTime.tryParse(json['bannedAt'] as String? ?? ''),
+        deleted: json['deleted'] as bool? ?? false,
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+        lastSeenAt: DateTime.tryParse(json['lastSeenAt'] as String? ?? ''),
+      );
+
+  final int id;
+  final String? nickname;
+  final String? displayName;
+  final String? city;
+  final int rating;
+  final int battles;
+  final int wins;
+  final bool admin;
+  final bool banned;
+  final DateTime? bannedAt;
+  final bool deleted;
+  final DateTime? createdAt;
+  final DateTime? lastSeenAt;
+
+  /// A nickname, a display name, or the id — whichever the row still has, which
+  /// is how the server labels these accounts too. A deleted shell has neither.
+  String get label => nickname ?? displayName ?? '#$id';
+}
+
+class AdminUserDetail {
+  const AdminUserDetail({
+    required this.user,
+    required this.globalRank,
+    required this.winPercent,
+    required this.longestChain,
+    required this.wordsLearned,
+    required this.streakDays,
+    required this.lastPlayedOn,
+  });
+
+  factory AdminUserDetail.fromJson(Map<String, dynamic> json) => AdminUserDetail(
+        user: AdminUserRow.fromJson(json['user'] as Map<String, dynamic>),
+        globalRank: (json['globalRank'] as num?)?.toInt() ?? 0,
+        winPercent: (json['winPercent'] as num?)?.toInt() ?? 0,
+        longestChain: (json['longestChain'] as num?)?.toInt() ?? 0,
+        wordsLearned: (json['wordsLearned'] as num?)?.toInt() ?? 0,
+        streakDays: (json['streakDays'] as num?)?.toInt() ?? 0,
+        // A `LocalDate`, so "2026-08-11" rather than an instant.
+        lastPlayedOn: DateTime.tryParse(json['lastPlayedOn'] as String? ?? ''),
+      );
+
+  final AdminUserRow user;
+  final int globalRank;
+  final int winPercent;
+  final int longestChain;
+  final int wordsLearned;
+  final int streakDays;
+  final DateTime? lastPlayedOn;
+}
+
+class AdminMatchRow {
+  const AdminMatchRow({
+    required this.id,
+    required this.playerOneId,
+    required this.playerOne,
+    required this.playerTwoId,
+    required this.playerTwo,
+    required this.botOpponent,
+    required this.winnerId,
+    required this.endReason,
+    required this.chainLength,
+    required this.startedAt,
+    required this.finishedAt,
+  });
+
+  factory AdminMatchRow.fromJson(Map<String, dynamic> json) => AdminMatchRow(
+        id: (json['id'] as num).toInt(),
+        playerOneId: (json['playerOneId'] as num?)?.toInt(),
+        playerOne: json['playerOne'] as String?,
+        // Null for a bot duel: the second player is not an account.
+        playerTwoId: (json['playerTwoId'] as num?)?.toInt(),
+        playerTwo: json['playerTwo'] as String?,
+        botOpponent: json['botOpponent'] as bool? ?? false,
+        winnerId: (json['winnerId'] as num?)?.toInt(),
+        endReason: json['endReason'] as String? ?? '',
+        chainLength: (json['chainLength'] as num?)?.toInt() ?? 0,
+        startedAt: DateTime.tryParse(json['startedAt'] as String? ?? ''),
+        finishedAt: DateTime.tryParse(json['finishedAt'] as String? ?? ''),
+      );
+
+  final int id;
+  final int? playerOneId;
+  final String? playerOne;
+  final int? playerTwoId;
+  final String? playerTwo;
+  final bool botOpponent;
+  final int? winnerId;
+  final String endReason;
+  final int chainLength;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
+
+  String get playerOneLabel => playerOne ?? (playerOneId == null ? '—' : '#$playerOneId');
+
+  String get playerTwoLabel => botOpponent ? 'BOT' : (playerTwo ?? (playerTwoId == null ? '—' : '#$playerTwoId'));
+}
+
+class AdminAuditEntry {
+  const AdminAuditEntry({
+    required this.id,
+    required this.adminUserId,
+    required this.admin,
+    required this.action,
+    required this.targetUserId,
+    required this.target,
+    required this.detail,
+    required this.createdAt,
+  });
+
+  factory AdminAuditEntry.fromJson(Map<String, dynamic> json) => AdminAuditEntry(
+        id: (json['id'] as num).toInt(),
+        adminUserId: (json['adminUserId'] as num?)?.toInt(),
+        admin: json['admin'] as String?,
+        action: json['action'] as String? ?? '',
+        targetUserId: (json['targetUserId'] as num?)?.toInt(),
+        target: json['target'] as String?,
+        detail: json['detail'] as String?,
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+      );
+
+  final int id;
+  final int? adminUserId;
+  final String? admin;
+  final String action;
+  final int? targetUserId;
+  final String? target;
+  final String? detail;
+  final DateTime? createdAt;
+
+  String get adminLabel => admin ?? (adminUserId == null ? '—' : '#$adminUserId');
+
+  String get targetLabel => target ?? (targetUserId == null ? '—' : '#$targetUserId');
+
+  /// The three actions `AdminAuditService` writes, in the panel's language.
+  /// An action it does not know is shown as the server wrote it rather than
+  /// hidden — a log with rows missing is a log that gets believed wrongly.
+  String get actionLabel => switch (action) {
+        'user_ban' => 'Bloklandi',
+        'user_unban' => 'Blok olindi',
+        'user_nickname' => "Taxallus o'zgardi",
+        _ => action,
+      };
+}
+
+class AdminMetrics {
+  const AdminMetrics({
+    required this.totalUsers,
+    required this.bannedUsers,
+    required this.battlesToday,
+    required this.botBattles,
+    required this.humanBattles,
+  });
+
+  factory AdminMetrics.fromJson(Map<String, dynamic> json) => AdminMetrics(
+        totalUsers: (json['totalUsers'] as num?)?.toInt() ?? 0,
+        bannedUsers: (json['bannedUsers'] as num?)?.toInt() ?? 0,
+        battlesToday: (json['battlesToday'] as num?)?.toInt() ?? 0,
+        botBattles: (json['botBattles'] as num?)?.toInt() ?? 0,
+        humanBattles: (json['humanBattles'] as num?)?.toInt() ?? 0,
+      );
+
+  final int totalUsers;
+  final int bannedUsers;
+  final int battlesToday;
+  final int botBattles;
+  final int humanBattles;
+
+  int get totalBattles => botBattles + humanBattles;
+
+  /// The share of settled duels that were against the fallback bot — the one
+  /// ratio that says whether players are finding each other.
+  int get botPercent => totalBattles == 0 ? 0 : ((botBattles * 100) / totalBattles).round();
+}

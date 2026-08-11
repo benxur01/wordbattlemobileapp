@@ -30,6 +30,16 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.UNAUTHORIZED, code, message);
     }
 
+    /**
+     * The token is good and the account behind it is real — it just may not do
+     * this. Distinct from {@link #unauthorized} on purpose: the app sends a 401
+     * back to onboarding, and doing that to a banned player would put them on a
+     * sign-in loop that ends where it started.
+     */
+    public static ApiException forbidden(String code, String message) {
+        return new ApiException(HttpStatus.FORBIDDEN, code, message);
+    }
+
     public HttpStatus status() {
         return status;
     }
