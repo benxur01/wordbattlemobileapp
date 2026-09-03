@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uz.wordbattle.common.ApiException;
@@ -14,12 +15,16 @@ import uz.wordbattle.config.AppProperties;
 @Service
 public class UserService {
 
+    private static final int MIN_PASSWORD_LENGTH = 6;
+
     private final UserRepository users;
     private final AppProperties props;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository users, AppProperties props) {
+    public UserService(UserRepository users, AppProperties props, PasswordEncoder passwordEncoder) {
         this.users = users;
         this.props = props;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -73,17 +78,26 @@ public class UserService {
     }
 
     /**
+     * The format check every path that assigns a nickname shares — claiming
+     * one on the second onboarding screen and choosing one at password
+     * registration fail on the same rules with the same message.
+     */
+    private String validatedNickname(String rawNickname) {
+        NicknamePolicy.Result result = NicknamePolicy.validate(rawNickname);
+        if (result != NicknamePolicy.Result.OK) {
+            throw ApiException.badRequest("nickname_invalid", NicknamePolicy.messageFor(result));
+        }
+        return NicknamePolicy.normalise(rawNickname);
+    }
+
+    /**
      * Claims a nickname for the player. The unique index is the real arbiter —
      * two players sending the same name at the same moment both pass the
      * "is it free" check, and the loser gets a conflict here.
      */
     @Transactional
     public User claimNickname(Long userId, String rawNickname) {
-        NicknamePolicy.Result result = NicknamePolicy.validate(rawNickname);
-        if (result != NicknamePolicy.Result.OK) {
-            throw ApiException.badRequest("nickname_invalid", NicknamePolicy.messageFor(result));
-        }
-        String nickname = NicknamePolicy.normalise(rawNickname);
+        String nickname = validatedNickname(rawNickname);
         if (users.nicknameTaken(nickname)) {
             throw ApiException.conflict("nickname_taken", "Bu taxallus band");
         }
@@ -94,6 +108,46 @@ public class UserService {
         } catch (DataIntegrityViolationException e) {
             throw ApiException.conflict("nickname_taken", "Bu taxallus band");
         }
+    }
+
+    /**
+     * Instagram-style sign-up: the nickname doubles as the login name, chosen
+     * and claimed in the same step instead of over two onboarding screens the
+     * way Google accounts do it. The unique index is still the real arbiter,
+     * same as {@link #claimNickname} — a name taken between the check above
+     * and the insert lands here as the same conflict.
+     */
+    @Transactional
+    public User registerWithPassword(String rawNickname, String rawPassword) {
+        String nickname = validatedNickname(rawNickname);
+        if (rawPassword == null || rawPassword.length() < MIN_PASSWORD_LENGTH) {
+            throw ApiException.badRequest("password_too_short", "Parol kamida 6 ta belgidan iborat bo'lishi kerak");
+        }
+        if (users.nicknameTaken(nickname)) {
+            throw ApiException.conflict("nickname_taken", "Bu taxallus band");
+        }
+        String hash = passwordEncoder.encode(rawPassword);
+        try {
+            return users.saveAndFlush(User.withPassword(nickname, hash));
+        } catch (DataIntegrityViolationException e) {
+            throw ApiException.conflict("nickname_taken", "Bu taxallus band");
+        }
+    }
+
+    /**
+     * The password counterpart to {@link #findOrCreateByGoogleSubject}: looks
+     * the nickname up and checks the password against it in one generic
+     * failure. "No such nickname" and "wrong password" answer identically —
+     * telling them apart would let a caller learn which nicknames exist
+     * without ever guessing a password.
+     */
+    @Transactional
+    public User authenticateWithPassword(String rawNickname, String rawPassword) {
+        User user = users.findByNicknameIgnoreCase(NicknamePolicy.normalise(rawNickname)).orElse(null);
+        if (user == null || user.getPasswordHash() == null || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
+            throw ApiException.unauthorized("invalid_credentials", "Login yoki parol xato");
+        }
+        return seen(user);
     }
 
     @Transactional

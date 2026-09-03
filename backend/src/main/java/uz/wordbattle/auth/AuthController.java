@@ -30,6 +30,10 @@ public class AuthController {
 
     public record DevLoginRequest(String displayName) {}
 
+    public record RegisterRequest(@NotBlank String nickname, @NotBlank String password) {}
+
+    public record PasswordLoginRequest(@NotBlank String nickname, @NotBlank String password) {}
+
     public record LoginResponse(String token, UserDto user, boolean needsNickname) {}
 
     /**
@@ -59,6 +63,24 @@ public class AuthController {
                 ? request.displayName()
                 : "dev_" + System.nanoTime() % 1_000_000_000L;
         return response(users.createDevUser(name));
+    }
+
+    /**
+     * Instagram-style sign-up: the player picks the nickname and password
+     * themselves, rather than the two-step Google flow that hands the app a
+     * displayName first and asks for a nickname after.
+     */
+    @PostMapping("/register")
+    public LoginResponse register(@Valid @RequestBody RegisterRequest request) {
+        User user = users.registerWithPassword(request.nickname(), request.password());
+        return response(user);
+    }
+
+    /** Signs back in with the nickname and password chosen at {@code /register}. */
+    @PostMapping("/login")
+    public LoginResponse login(@Valid @RequestBody PasswordLoginRequest request) {
+        User user = users.authenticateWithPassword(request.nickname(), request.password());
+        return response(user);
     }
 
     /**

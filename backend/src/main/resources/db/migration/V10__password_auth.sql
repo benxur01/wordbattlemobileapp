@@ -1,0 +1,18 @@
+-- Instagram-style sign-up: a player can now register with a nickname and a
+-- password they choose themselves, instead of only through Google. The
+-- nickname column already existed and already means "public handle, unique,
+-- claimed once" -- exactly what a username is -- so this adds nothing beside
+-- it and reuses it as the login name for a password account.
+--
+-- password_hash is nullable because most rows still have no password at all:
+-- a Google account proves who it is with an idToken on every sign-in and
+-- never has one, and a dev account has neither a provider nor a password. A
+-- null here means "this account cannot sign in with a password", which is
+-- the true state of the row rather than a value standing in for it, and it
+-- is the reason the login path refuses a null hash outright instead of ever
+-- comparing against it.
+--
+-- 72 characters is a BCrypt hash's fixed width -- algorithm, cost and salt
+-- all fit inside it -- so this column never has to grow to fit whatever it
+-- is asked to hold.
+alter table users add column password_hash varchar(72);

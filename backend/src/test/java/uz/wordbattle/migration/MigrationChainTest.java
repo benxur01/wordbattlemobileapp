@@ -47,11 +47,11 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(9);
+        assertThat(result.migrationsExecuted).isEqualTo(10);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -77,9 +77,10 @@ class MigrationChainTest {
         // Where the chain leaves the table everything else edits: V3 traded the
         // Telegram identity for Google's, V4 added the deletion marker, V5 the
         // optimistic lock, V6 the counter a signed-out token is measured
-        // against, V7 the clock Glicko-2's inactivity growth counts from, and V9
+        // against, V7 the clock Glicko-2's inactivity growth counts from, V9
         // the two the admin panel reads — who may use it, and whose account has
-        // been taken away.
+        // been taken away — and V10 the password hash a nickname-and-password
+        // account signs in with.
         assertThat(columnsOf("fresh", "users"))
                 .contains(
                         "google_subject",
@@ -88,7 +89,8 @@ class MigrationChainTest {
                         "token_generation",
                         "rating_period_at",
                         "is_admin",
-                        "banned_at")
+                        "banned_at",
+                        "password_hash")
                 .doesNotContain("telegram_id");
 
         // V8 put the same optimistic lock on the other table two calls can
@@ -145,7 +147,7 @@ class MigrationChainTest {
                 where a.nickname = 'aziza_m' and b.nickname = 'bekzod_99'
                 """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(7);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(8);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -212,6 +214,12 @@ class MigrationChainTest {
         // players out of accounts they still have, since a banned row answers
         // no token generation at all and every token for it dies.
         assertThat(query("upgrade", "select count(*) from users where banned_at is null")).containsExactly("2");
+
+        // V10 adds a nullable column with no backfill of its own: an upgrade
+        // must leave both rows exactly as it found them, with no password
+        // either account ever had.
+        assertThat(query("upgrade", "select count(*) from users where password_hash is null"))
+                .containsExactly("2");
     }
 
     // --------------------------------------------------------------- helpers

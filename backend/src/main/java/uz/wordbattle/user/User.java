@@ -63,6 +63,16 @@ public class User {
     @Column(name = "nickname", length = 16)
     private String nickname;
 
+    /**
+     * BCrypt hash of the password for an account that registered with a
+     * nickname and password instead of Google. Null for every Google or dev
+     * account, which have no password of their own to check — and a null
+     * here must never be handed to {@code PasswordEncoder.matches}, only
+     * refused outright.
+     */
+    @Column(name = "password_hash", length = 72)
+    private String passwordHash;
+
     @Column(name = "display_name", length = 64)
     private String displayName;
 
@@ -169,6 +179,20 @@ public class User {
         return new User(displayName);
     }
 
+    /**
+     * A password account: the player chose the nickname themselves at
+     * registration, so — unlike {@link #withGoogle}, which leaves {@link
+     * #nickname} null for the second onboarding screen to fill in — there is
+     * no nickname step still owed. {@code displayName} is set to the same
+     * nickname up front for the same reason.
+     */
+    public static User withPassword(String nickname, String passwordHash) {
+        User user = new User(nickname);
+        user.nickname = nickname;
+        user.passwordHash = passwordHash;
+        return user;
+    }
+
     /** The single letter the client draws in the avatar tile. */
     public String initial() {
         String source = nickname != null && !nickname.isBlank() ? nickname : displayName;
@@ -184,6 +208,7 @@ public class User {
     public long getTokenGeneration() { return tokenGeneration; }
     public String getNickname() { return nickname; }
     public void setNickname(String nickname) { this.nickname = nickname; }
+    public String getPasswordHash() { return passwordHash; }
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public String getCity() { return city; }
