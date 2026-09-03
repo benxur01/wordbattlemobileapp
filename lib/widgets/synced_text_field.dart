@@ -23,6 +23,7 @@ class SyncedTextField extends StatefulWidget {
     this.maxLength,
     this.focusNode,
     this.autofocus = false,
+    this.obscureText = false,
   });
 
   final String value;
@@ -38,6 +39,7 @@ class SyncedTextField extends StatefulWidget {
   final int? maxLength;
   final FocusNode? focusNode;
   final bool autofocus;
+  final bool obscureText;
 
   @override
   State<SyncedTextField> createState() => _SyncedTextFieldState();
@@ -83,6 +85,7 @@ class _SyncedTextFieldState extends State<SyncedTextField> {
       enableSuggestions: widget.enableSuggestions,
       textInputAction: widget.textInputAction,
       maxLength: widget.maxLength,
+      obscureText: widget.obscureText,
     );
   }
 }

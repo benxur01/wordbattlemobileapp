@@ -429,6 +429,35 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     }
   }
 
+  /// Instagram-style sign-up: the player picks the nickname and password
+  /// themselves, straight on the first onboarding screen.
+  Future<void> registerWithPassword(String nickname, String password) async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      banner = null;
+    });
+    try {
+      await _completeLogin(await _api.registerWithPassword(nickname, password));
+    } on ApiException catch (e) {
+      _loginFailed(e);
+    }
+  }
+
+  /// Signs back in with the nickname and password chosen at registration.
+  Future<void> loginWithPassword(String nickname, String password) async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      banner = null;
+    });
+    try {
+      await _completeLogin(await _api.loginWithPassword(nickname, password));
+    } on ApiException catch (e) {
+      _loginFailed(e);
+    }
+  }
+
   Future<void> _completeLogin(({String token, UserDto user, bool needsNickname}) result) async {
     await _session.save(result.token, result.user);
     if (!mounted) return;
@@ -1293,6 +1322,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       WBScreen.onb1 => Onboarding1Screen(
           onGoogle: loginWithGoogle,
           onDevLogin: ApiConfig.googleConfigured ? null : loginDev,
+          onRegister: registerWithPassword,
+          onLogin: loginWithPassword,
           busy: busy,
         ),
       WBScreen.onb2 => Onboarding2Screen(

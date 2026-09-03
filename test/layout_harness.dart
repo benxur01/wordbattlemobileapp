@@ -290,9 +290,9 @@ final _history = [
 Map<String, Widget> buildScreens() => {
       'loading': const LoadingScreen(),
       'offline': LoadingScreen(message: "Serverga ulanib bo'lmadi", onRetry: () {}),
-      'onb1': Onboarding1Screen(onGoogle: () {}),
-      'onb1-dev': Onboarding1Screen(onGoogle: () {}, onDevLogin: () {}),
-      'onb1-busy': Onboarding1Screen(onGoogle: () {}, busy: true),
+      'onb1': Onboarding1Screen(onGoogle: () {}, onRegister: (_, _) {}, onLogin: (_, _) {}),
+      'onb1-dev': Onboarding1Screen(onGoogle: () {}, onDevLogin: () {}, onRegister: (_, _) {}, onLogin: (_, _) {}),
+      'onb1-busy': Onboarding1Screen(onGoogle: () {}, onRegister: (_, _) {}, onLogin: (_, _) {}, busy: true),
       'onb2-idle': Onboarding2Screen(
         nickname: '',
         nickState: NickState.idle,

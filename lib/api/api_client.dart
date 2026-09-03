@@ -43,6 +43,22 @@ class ApiClient {
     return _loginResult(json);
   }
 
+  /// Instagram-style sign-up: the player picks the nickname and password
+  /// themselves. The nickname doubles as the login name, so a fresh account
+  /// never needs the second onboarding screen a Google sign-in does.
+  Future<({String token, UserDto user, bool needsNickname})> registerWithPassword(
+      String nickname, String password) async {
+    final json = await _post('/auth/register', {'nickname': nickname, 'password': password}) as Map<String, dynamic>;
+    return _loginResult(json);
+  }
+
+  /// Signs back in with the nickname and password chosen at registration.
+  Future<({String token, UserDto user, bool needsNickname})> loginWithPassword(
+      String nickname, String password) async {
+    final json = await _post('/auth/login', {'nickname': nickname, 'password': password}) as Map<String, dynamic>;
+    return _loginResult(json);
+  }
+
   ({String token, UserDto user, bool needsNickname}) _loginResult(Map<String, dynamic> json) => (
         token: json['token'] as String,
         user: UserDto.fromJson(json['user'] as Map<String, dynamic>),
