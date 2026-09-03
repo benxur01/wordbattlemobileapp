@@ -122,7 +122,7 @@ class _DuelScreenState extends State<DuelScreen> {
 
     final pct = (duel.timeLeftMs / (duel.turnSeconds * 1000)).clamp(0.0, 1.0);
     final low = duel.secondsLeft <= 5;
-    final ringColor = low ? WBColors.red : WBColors.amber;
+    final ringColor = low ? WBColors.red : WBColors.accent;
     final timeText = duel.secondsLeft.ceil().toString().padLeft(2, '0');
     final turnLabel = duel.yourTurn ? 'SENING NAVBATING' : 'RAQIB YOZMOQDA';
 
@@ -160,7 +160,7 @@ class _DuelScreenState extends State<DuelScreen> {
                         Text('Sen', style: WBText.grotesk(size: 13, weight: FontWeight.w600)),
                         Text(
                           '${widget.me?.rating ?? 0}',
-                          style: WBText.mono(size: 11.5, weight: FontWeight.w500, color: WBColors.amber),
+                          style: WBText.mono(size: 11.5, weight: FontWeight.w500, color: WBColors.accent),
                         ),
                       ],
                     ),
@@ -316,14 +316,14 @@ class _DuelScreenState extends State<DuelScreen> {
                         width: 24,
                         height: 24,
                         decoration: BoxDecoration(
-                          color: WBColors.amberA(.16),
-                          border: Border.all(color: WBColors.amberA(.4)),
+                          color: WBColors.accentA(.16),
+                          border: Border.all(color: WBColors.accentA(.4)),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         alignment: Alignment.center,
                         child: Text(
                           duel.needLetter,
-                          style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.amber),
+                          style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.accent),
                         ),
                       ),
                       const SizedBox(width: 7),
@@ -407,7 +407,7 @@ class _DuelScreenState extends State<DuelScreen> {
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(19),
                             borderSide: BorderSide(
-                              color: duel.yourTurn ? WBColors.amberA(.6) : WBColors.whiteA(.13),
+                              color: duel.yourTurn ? WBColors.accentA(.6) : WBColors.whiteA(.13),
                             ),
                           ),
                         ),
@@ -424,11 +424,11 @@ class _DuelScreenState extends State<DuelScreen> {
                         width: 60,
                         height: 60,
                         decoration: BoxDecoration(
-                          gradient: wbAmberGradient,
+                          gradient: wbAccentGradient,
                           borderRadius: BorderRadius.circular(19),
                           boxShadow: [
                             BoxShadow(
-                              color: WBColors.amberA(.26),
+                              color: WBColors.accentA(.26),
                               blurRadius: 26,
                               offset: const Offset(0, 10),
                             ),
@@ -438,7 +438,7 @@ class _DuelScreenState extends State<DuelScreen> {
                         child: const StrokeGlyph.chevronRight(
                           size: 15,
                           thickness: 3,
-                          color: WBColors.amberInk,
+                          color: WBColors.accentInk,
                           offset: Offset(-4, 0),
                         ),
                       ),
@@ -471,7 +471,7 @@ class _SubstitutionNote extends StatelessWidget {
   Widget build(BuildContext context) {
     // Both letters are drawn like the amber chip above, so the eye connects
     // the sentence to the letter it is talking about.
-    final letter = WBText.mono(size: 11.5, weight: FontWeight.w600, color: WBColors.amberA(.8));
+    final letter = WBText.mono(size: 11.5, weight: FontWeight.w600, color: WBColors.accentA(.8));
     return Text.rich(
       TextSpan(
         style: WBText.grotesk(size: 11.5, color: WBColors.textA(.45)),

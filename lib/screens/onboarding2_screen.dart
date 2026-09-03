@@ -54,9 +54,9 @@ class Onboarding2Screen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Expanded(child: Container(height: 4, decoration: BoxDecoration(color: WBColors.amber, borderRadius: BorderRadius.circular(99)))),
+            Expanded(child: Container(height: 4, decoration: BoxDecoration(color: WBColors.accent, borderRadius: BorderRadius.circular(99)))),
             const SizedBox(width: 10),
-            Expanded(child: Container(height: 4, decoration: BoxDecoration(color: WBColors.amber, borderRadius: BorderRadius.circular(99)))),
+            Expanded(child: Container(height: 4, decoration: BoxDecoration(color: WBColors.accent, borderRadius: BorderRadius.circular(99)))),
           ]),
           const SizedBox(height: 30),
           Text('Arenada qanday\nchaqirilasan?', style: WBText.grotesk(size: 27, weight: FontWeight.w700, height: 1.15, letterSpacing: -.01)),
@@ -146,11 +146,11 @@ class Onboarding2Screen extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                       decoration: BoxDecoration(
-                        color: WBColors.amberA(.11),
-                        border: Border.all(color: WBColors.amberA(.3)),
+                        color: WBColors.accentA(.11),
+                        border: Border.all(color: WBColors.accentA(.3)),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(s, style: WBText.grotesk(size: 13.5, weight: FontWeight.w600, color: WBColors.amber)),
+                      child: Text(s, style: WBText.grotesk(size: 13.5, weight: FontWeight.w600, color: WBColors.accent)),
                     ),
                   ),
               ],
@@ -159,7 +159,7 @@ class Onboarding2Screen extends StatelessWidget {
           if (hint) ...[
             const SizedBox(height: 12),
             Text('3–16 ta belgi: lotin harflari, raqam va pastki chiziq. Har bir taxallus faqat bitta o\'yinchiga tegishli.',
-                style: WBText.grotesk(size: 12.5, height: 1.45, color: WBColors.textA(.42))),
+                style: WBText.grotesk(size: 12.5, height: 1.45, color: WBColors.textA(.5))),
           ],
           if (free) ...[
             const SizedBox(height: 12),
@@ -206,12 +206,12 @@ class Onboarding2Screen extends StatelessWidget {
               child: Container(
                 height: 62,
                 decoration: BoxDecoration(
-                  gradient: wbAmberGradient,
+                  gradient: wbAccentGradient,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: WBColors.amberA(.26), blurRadius: 34, offset: const Offset(0, 14))],
+                  boxShadow: [BoxShadow(color: WBColors.accentA(.26), blurRadius: 34, offset: const Offset(0, 14))],
                 ),
                 alignment: Alignment.center,
-                child: Text('Arenaga kirish', style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.amberInk)),
+                child: Text('Arenaga kirish', style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.accentInk)),
               ),
             )
           else

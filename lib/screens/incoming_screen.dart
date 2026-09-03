@@ -153,11 +153,11 @@ class _IncomingScreenState extends State<IncomingScreen> with SingleTickerProvid
                           width: double.infinity,
                           height: 62,
                           decoration: BoxDecoration(
-                            gradient: wbAmberGradient,
+                            gradient: wbAccentGradient,
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: WBColors.amberA(.26),
+                                color: WBColors.accentA(.26),
                                 blurRadius: 32,
                                 offset: const Offset(0, 14),
                               ),
@@ -169,7 +169,7 @@ class _IncomingScreenState extends State<IncomingScreen> with SingleTickerProvid
                             style: WBText.grotesk(
                               size: 17,
                               weight: FontWeight.w600,
-                              color: WBColors.amberInk,
+                              color: WBColors.accentInk,
                             ),
                           ),
                         ),

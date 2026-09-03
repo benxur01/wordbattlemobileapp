@@ -97,7 +97,7 @@ class BoardScreen extends StatelessWidget {
                   child: SpinnerRing(
                     size: 26,
                     trackColor: Color.fromRGBO(244, 243, 248, .15),
-                    activeColor: WBColors.amber,
+                    activeColor: WBColors.accent,
                     strokeWidth: 2.5,
                   ),
                 )
@@ -158,13 +158,13 @@ class BoardScreen extends StatelessWidget {
         color: highlight
             ? null
             : (row.self
-                  ? WBColors.amberA(pinned ? .11 : .07)
+                  ? WBColors.accentA(pinned ? .11 : .07)
                   : (dim ? WBColors.whiteA(.03) : WBColors.whiteA(.045))),
         border: Border.all(
           color: highlight
-              ? WBColors.amberA(.32)
+              ? WBColors.accentA(.32)
               : (row.self
-                    ? WBColors.amberA(pinned ? .34 : .22)
+                    ? WBColors.accentA(pinned ? .34 : .22)
                     : (dim ? WBColors.whiteA(.07) : WBColors.whiteA(.09))),
         ),
         borderRadius: BorderRadius.circular(17),
@@ -183,7 +183,7 @@ class BoardScreen extends StatelessWidget {
               style: WBText.mono(
                 size: dim ? 15 : 16,
                 weight: dim ? FontWeight.w500 : FontWeight.w700,
-                color: highlight || (row.self && pinned) ? WBColors.amber : WBColors.textA(dim ? .45 : .8),
+                color: highlight || (row.self && pinned) ? WBColors.accent : WBColors.textA(dim ? .45 : .8),
               ),
             ),
           ),
@@ -227,7 +227,7 @@ class BoardScreen extends StatelessWidget {
               size: 16,
               weight: dim ? FontWeight.w600 : FontWeight.w700,
               color: highlight || (row.self && pinned)
-                  ? WBColors.amber
+                  ? WBColors.accent
                   : (row.self ? WBColors.text : WBColors.textA(dim ? .7 : .8)),
             ),
           ),
@@ -251,8 +251,8 @@ class _Tab extends StatelessWidget {
         child: Container(
           height: 40,
           decoration: BoxDecoration(
-            color: active ? WBColors.amberA(.16) : Colors.transparent,
-            border: Border.all(color: active ? WBColors.amberA(.34) : Colors.transparent),
+            color: active ? WBColors.accentA(.16) : Colors.transparent,
+            border: Border.all(color: active ? WBColors.accentA(.34) : Colors.transparent),
             borderRadius: BorderRadius.circular(11),
           ),
           alignment: Alignment.center,
@@ -261,7 +261,7 @@ class _Tab extends StatelessWidget {
             style: WBText.grotesk(
               size: 14,
               weight: active ? FontWeight.w600 : FontWeight.w500,
-              color: active ? WBColors.amber : WBColors.textA(.55),
+              color: active ? WBColors.accent : WBColors.textA(.55),
             ),
           ),
         ),

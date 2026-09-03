@@ -42,11 +42,11 @@ class WordBattleApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.dark,
         scaffoldBackgroundColor: WBColors.bg,
-        colorScheme: ColorScheme.fromSeed(seedColor: WBColors.amber, brightness: Brightness.dark),
+        colorScheme: ColorScheme.fromSeed(seedColor: WBColors.accent, brightness: Brightness.dark),
         textSelectionTheme: const TextSelectionThemeData(
-          cursorColor: WBColors.amber,
+          cursorColor: WBColors.accent,
           selectionColor: Color.fromRGBO(247, 183, 51, .3),
-          selectionHandleColor: WBColors.amber,
+          selectionHandleColor: WBColors.accent,
         ),
       ),
       builder: (context, child) {

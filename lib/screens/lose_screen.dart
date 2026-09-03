@@ -137,8 +137,8 @@ class LoseScreen extends StatelessWidget {
                                   width: 30,
                                   height: 30,
                                   decoration: BoxDecoration(
-                                    color: WBColors.amberA(.15),
-                                    border: Border.all(color: WBColors.amberA(.4)),
+                                    color: WBColors.accentA(.15),
+                                    border: Border.all(color: WBColors.accentA(.4)),
                                     borderRadius: BorderRadius.circular(9),
                                   ),
                                   alignment: Alignment.center,
@@ -147,7 +147,7 @@ class LoseScreen extends StatelessWidget {
                                     style: WBText.mono(
                                       size: 15,
                                       weight: FontWeight.w700,
-                                      color: WBColors.amber,
+                                      color: WBColors.accent,
                                     ),
                                   ),
                                 ),
@@ -178,16 +178,16 @@ class LoseScreen extends StatelessWidget {
                   child: Container(
                     height: 62,
                     decoration: BoxDecoration(
-                      gradient: wbAmberGradient,
+                      gradient: wbAccentGradient,
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
-                        BoxShadow(color: WBColors.amberA(.24), blurRadius: 32, offset: const Offset(0, 14)),
+                        BoxShadow(color: WBColors.accentA(.24), blurRadius: 32, offset: const Offset(0, 14)),
                       ],
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       'Qasos olaman',
-                      style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.amberInk),
+                      style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.accentInk),
                     ),
                   ),
                 ),

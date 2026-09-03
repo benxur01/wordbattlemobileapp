@@ -103,14 +103,14 @@ class LobbyScreen extends StatelessWidget {
                 Row(
                   children: [
                     _StatChip(
-                      color: WBColors.amber,
-                      bg: WBColors.amberA(.1),
-                      border: WBColors.amberA(.28),
+                      color: WBColors.blue,
+                      bg: WBColors.blueA(.1),
+                      border: WBColors.blueA(.28),
                       icon: Container(
                         width: 7,
                         height: 7,
                         decoration: BoxDecoration(
-                          color: WBColors.amber,
+                          color: WBColors.blue,
                           borderRadius: BorderRadius.circular(2),
                         ),
                         transform: Matrix4.rotationZ(math.pi / 4),
@@ -136,25 +136,28 @@ class LobbyScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    'HOZIR ONLAYN · $onlineCount',
-                    style: WBText.mono(
-                      size: 11,
-                      weight: FontWeight.w500,
-                      color: WBColors.textA(.35),
-                      letterSpacing: .2,
+                  Transform.translate(
+                    offset: const Offset(0, -24),
+                    child: Text(
+                      'HOZIR ONLAYN · $onlineCount',
+                      style: WBText.mono(
+                        size: 11,
+                        weight: FontWeight.w500,
+                        color: WBColors.textA(.35),
+                        letterSpacing: .2,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 22),
                   GlowOrb(
-                    glowColor: WBColors.amber,
+                    glowColor: WBColors.accent,
                     child: Pressable(
                       onTap: onStartMatch,
                       pressScale: .97,
                       child: Container(
                         width: 232,
                         height: 232,
-                        decoration: const BoxDecoration(gradient: wbAmberGradient, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(gradient: wbAccentGradient, shape: BoxShape.circle),
                         alignment: Alignment.center,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -172,7 +175,7 @@ class LobbyScreen extends StatelessWidget {
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
-                                      color: WBColors.amberInk.withValues(alpha: .75),
+                                      color: WBColors.accentInk.withValues(alpha: .75),
                                       width: 3,
                                     ),
                                   ),
@@ -184,7 +187,7 @@ class LobbyScreen extends StatelessWidget {
                               style: WBText.grotesk(
                                 size: 24,
                                 weight: FontWeight.w700,
-                                color: WBColors.amberInk,
+                                color: WBColors.accentInk,
                                 letterSpacing: -.01,
                               ),
                             ),
@@ -194,7 +197,7 @@ class LobbyScreen extends StatelessWidget {
                               style: WBText.mono(
                                 size: 12,
                                 weight: FontWeight.w500,
-                                color: WBColors.amberInk.withValues(alpha: .62),
+                                color: WBColors.accentInk.withValues(alpha: .62),
                               ),
                             ),
                           ],
@@ -202,7 +205,7 @@ class LobbyScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 48),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

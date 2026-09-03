@@ -98,7 +98,7 @@ class HistoryScreen extends StatelessWidget {
                   child: SpinnerRing(
                     size: 26,
                     trackColor: Color.fromRGBO(244, 243, 248, .15),
-                    activeColor: WBColors.amber,
+                    activeColor: WBColors.accent,
                     strokeWidth: 2.5,
                   ),
                 )
@@ -220,7 +220,7 @@ class HistoryScreen extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 _dateLabel(match.finishedAt),
-                style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(.35)),
+                style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(.5)),
               ),
             ],
           ),

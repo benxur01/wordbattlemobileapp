@@ -29,13 +29,13 @@ class MatchmakingScreen extends StatelessWidget {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      const RadarRings(size: 220, color: WBColors.amber),
+                      const RadarRings(size: 220, color: WBColors.accent),
                       Container(
                         width: 92,
                         height: 92,
                         decoration: BoxDecoration(
                           gradient: wbPurpleGradient,
-                          borderRadius: BorderRadius.circular(30),
+                          shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,
                         child: Text(
@@ -70,7 +70,7 @@ class MatchmakingScreen extends StatelessWidget {
                       children: [
                         Text(
                           matchClock,
-                          style: WBText.mono(size: 26, weight: FontWeight.w700, color: WBColors.amber),
+                          style: WBText.mono(size: 26, weight: FontWeight.w700, color: WBColors.accent),
                         ),
                         const SizedBox(height: 4),
                         Text(

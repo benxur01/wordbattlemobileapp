@@ -19,12 +19,12 @@ class LoadingScreen extends StatelessWidget {
     final failed = onRetry != null;
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
-          center: Alignment(0, -0.6),
+          center: const Alignment(0, -0.6),
           radius: 1.1,
-          colors: [Color.fromRGBO(247, 183, 51, .16), Colors.transparent],
-          stops: [0, .7],
+          colors: [WBColors.accentA(.16), Colors.transparent],
+          stops: const [0, .7],
         ),
       ),
       child: Padding(
@@ -33,14 +33,14 @@ class LoadingScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GlowOrb(
-              glowColor: WBColors.amber,
+              glowColor: WBColors.accent,
               borderRadius: BorderRadius.circular(34),
               child: Container(
                 width: 96,
                 height: 96,
-                decoration: BoxDecoration(gradient: wbAmberGradient, borderRadius: BorderRadius.circular(28)),
+                decoration: BoxDecoration(gradient: wbAccentGradient, borderRadius: BorderRadius.circular(28)),
                 alignment: Alignment.center,
-                child: Text('W', style: WBText.mono(size: 38, weight: FontWeight.w700, color: WBColors.amberInk2)),
+                child: Text('W', style: WBText.mono(size: 38, weight: FontWeight.w700, color: WBColors.accentInk)),
               ),
             ),
             const SizedBox(height: 30),
@@ -48,7 +48,7 @@ class LoadingScreen extends StatelessWidget {
               const SpinnerRing(
                 size: 22,
                 trackColor: Color.fromRGBO(244, 243, 248, .18),
-                activeColor: WBColors.amber,
+                activeColor: WBColors.accent,
                 strokeWidth: 2.5,
               )
             else ...[
@@ -64,14 +64,14 @@ class LoadingScreen extends StatelessWidget {
                   height: 54,
                   padding: const EdgeInsets.symmetric(horizontal: 34),
                   decoration: BoxDecoration(
-                    gradient: wbAmberGradient,
+                    gradient: wbAccentGradient,
                     borderRadius: BorderRadius.circular(18),
-                    boxShadow: [BoxShadow(color: WBColors.amberA(.24), blurRadius: 28, offset: const Offset(0, 12))],
+                    boxShadow: [BoxShadow(color: WBColors.accentA(.24), blurRadius: 28, offset: const Offset(0, 12))],
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     'Qayta urinish',
-                    style: WBText.grotesk(size: 16, weight: FontWeight.w600, color: WBColors.amberInk),
+                    style: WBText.grotesk(size: 16, weight: FontWeight.w600, color: WBColors.accentInk),
                   ),
                 ),
               ),

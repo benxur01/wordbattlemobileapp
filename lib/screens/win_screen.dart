@@ -158,11 +158,11 @@ class WinScreen extends StatelessWidget {
                       child: Container(
                         height: 62,
                         decoration: BoxDecoration(
-                          gradient: wbAmberGradient,
+                          gradient: wbAccentGradient,
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: WBColors.amberA(.26),
+                              color: WBColors.accentA(.26),
                               blurRadius: 32,
                               offset: const Offset(0, 14),
                             ),
@@ -171,7 +171,7 @@ class WinScreen extends StatelessWidget {
                         alignment: Alignment.center,
                         child: Text(
                           "Yana o'ynash",
-                          style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.amberInk),
+                          style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.accentInk),
                         ),
                       ),
                     ),

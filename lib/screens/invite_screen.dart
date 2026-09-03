@@ -88,7 +88,7 @@ class InviteScreen extends StatelessWidget {
                   const SizedBox(height: 26),
                   Text(
                     clock,
-                    style: WBText.mono(size: 30, weight: FontWeight.w700, color: WBColors.amber),
+                    style: WBText.mono(size: 30, weight: FontWeight.w700, color: WBColors.accent),
                   ),
                 ],
               ),
@@ -173,7 +173,7 @@ class _PulsingTargetState extends State<_PulsingTarget> with SingleTickerProvide
                   height: 74,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: WBColors.amberA(.5), width: 2),
+                    border: Border.all(color: WBColors.accentA(.5), width: 2),
                   ),
                 ),
               );

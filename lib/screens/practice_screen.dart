@@ -136,7 +136,7 @@ class PracticeScreen extends StatelessWidget {
               if (hints.isEmpty)
                 Text(
                   "Bu so'z bilan boshlanadigan so'zlarni ko'rish uchun «?» tugmasini bosing",
-                  style: WBText.grotesk(size: 13, height: 1.5, color: WBColors.textA(.4)),
+                  style: WBText.grotesk(size: 13, height: 1.5, color: WBColors.textA(.5)),
                 )
               else
                 for (var i = 0; i < hints.length; i++) ...[
@@ -255,8 +255,8 @@ class PracticeScreen extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
         decoration: BoxDecoration(
-          color: me ? WBColors.amberA(.16) : WBColors.whiteA(.05),
-          border: Border.all(color: me ? WBColors.amberA(.32) : WBColors.whiteA(.1)),
+          color: me ? WBColors.accentA(.16) : WBColors.whiteA(.05),
+          border: Border.all(color: me ? WBColors.accentA(.32) : WBColors.whiteA(.1)),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -275,7 +275,7 @@ class PracticeScreen extends StatelessWidget {
               TextSpan(text: head),
               TextSpan(
                 text: last,
-                style: const TextStyle(color: WBColors.amber),
+                style: const TextStyle(color: WBColors.accent),
               ),
             ],
           ),

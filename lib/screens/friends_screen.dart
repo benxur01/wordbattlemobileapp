@@ -154,15 +154,15 @@ class FriendsScreen extends StatelessWidget {
               _SectionLabel('ONLAYN · ${friends.where((f) => f.online).length}'),
               const SizedBox(height: 9),
               if (friends.where((f) => f.online).isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    friends.isEmpty
-                        ? "Hali do'stlaringiz yo'q — yuqoridan qidiring"
-                        : "Hozir hech kim onlayn emas",
-                    style: WBText.grotesk(size: 13.5, color: WBColors.textA(.45)),
-                  ),
-                )
+                friends.isEmpty
+                    ? const _NoFriendsYet()
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          "Hozir hech kim onlayn emas",
+                          style: WBText.grotesk(size: 13.5, color: WBColors.textA(.45)),
+                        ),
+                      )
               else
                 for (final friend in friends.where((f) => f.online)) ...[
                   _friendRow(friend),
@@ -274,13 +274,13 @@ class FriendsScreen extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
                 decoration: BoxDecoration(
-                  color: WBColors.amberA(.16),
-                  border: Border.all(color: WBColors.amberA(.4)),
+                  color: WBColors.accentA(.16),
+                  border: Border.all(color: WBColors.accentA(.4)),
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Text(
                   "+ Do'stlik",
-                  style: WBText.grotesk(size: 13, weight: FontWeight.w600, color: WBColors.amber),
+                  style: WBText.grotesk(size: 13, weight: FontWeight.w600, color: WBColors.accent),
                 ),
               ),
             ),
@@ -293,8 +293,8 @@ class FriendsScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: WBColors.amberA(.07),
-        border: Border.all(color: WBColors.amberA(.22)),
+        color: WBColors.accentA(.07),
+        border: Border.all(color: WBColors.accentA(.22)),
         borderRadius: BorderRadius.circular(17),
       ),
       child: Row(
@@ -388,7 +388,7 @@ class FriendsScreen extends StatelessWidget {
                   style: WBText.mono(
                     size: 11.5,
                     weight: FontWeight.w500,
-                    color: friend.online ? WBColors.green : WBColors.textA(.4),
+                    color: friend.online ? WBColors.green : WBColors.textA(.5),
                   ),
                 ),
               ],
@@ -400,10 +400,10 @@ class FriendsScreen extends StatelessWidget {
               pressScale: .96,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 11),
-                decoration: BoxDecoration(gradient: wbAmberGradient, borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(gradient: wbAccentGradient, borderRadius: BorderRadius.circular(14)),
                 child: Text(
                   'Jang',
-                  style: WBText.grotesk(size: 13.5, weight: FontWeight.w600, color: WBColors.amberInk),
+                  style: WBText.grotesk(size: 13.5, weight: FontWeight.w600, color: WBColors.accentInk),
                 ),
               ),
             )
@@ -435,6 +435,47 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       text,
       style: WBText.mono(size: 10, weight: FontWeight.w500, color: WBColors.textA(.4), letterSpacing: .14),
+    );
+  }
+}
+
+/// Shown the very first time a player opens the friends tab, before they have
+/// ever added anyone — distinct from "nobody online right now", which just
+/// reuses the plain text line below it.
+class _NoFriendsYet extends StatelessWidget {
+  const _NoFriendsYet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: WBColors.whiteA(.05),
+              border: Border.all(color: WBColors.whiteA(.1)),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(Icons.person_add_alt_1_outlined, size: 22, color: WBColors.textA(.4)),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            "Hali do'stlaringiz yo'q",
+            style: WBText.grotesk(size: 16, weight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Yuqoridagi qidiruvdan raqiblaringizni toping va do'stlik so'rovi yuboring",
+            textAlign: TextAlign.center,
+            style: WBText.grotesk(size: 14, height: 1.5, color: WBColors.textA(.5)),
+          ),
+        ],
+      ),
     );
   }
 }

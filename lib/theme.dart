@@ -19,6 +19,13 @@ class WBColors {
   static const amberInk = Color(0xFF120B01);
   static const amberInk2 = Color(0xFF100C02);
 
+  /// Primary action / self / active-state accent, used for CTAs, own-turn
+  /// indicators, active nav/tabs, and self-highlighted rows.
+  static const accent = blue;
+  static const accentDark = blueDark;
+  static const accentInk = blueText;
+  static Color accentA(double a) => blueA(a);
+
   static const green = Color(0xFF35D07F);
   static const greenInk = Color(0xFF06170F);
 
@@ -63,6 +70,7 @@ class WBColors {
   static Color redA(double a) => red.withValues(alpha: a);
   static Color whiteA(double a) => Colors.white.withValues(alpha: a);
   static Color indigoA(double a) => indigo.withValues(alpha: a);
+  static Color blueA(double a) => blue.withValues(alpha: a);
 
   static const cardFill = Color.fromRGBO(255, 255, 255, .045);
   static const cardBorder = Color.fromRGBO(255, 255, 255, .09);
@@ -126,6 +134,8 @@ const wbAmberGradient = LinearGradient(
   end: Alignment.bottomRight,
   colors: [WBColors.amber, WBColors.amberDark],
 );
+
+const wbAccentGradient = wbBlueGradient;
 
 const wbPurpleGradient = LinearGradient(
   begin: Alignment.topLeft,

@@ -39,11 +39,11 @@ class _ChainBubbleState extends State<ChainBubble> with SingleTickerProviderStat
             ? LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [WBColors.amberA(.22), WBColors.amberA(.1)],
+                colors: [WBColors.accentA(.22), WBColors.accentA(.1)],
               )
             : null,
         color: widget.isMe ? null : WBColors.whiteA(.05),
-        border: Border.all(color: widget.isMe ? WBColors.amberA(.34) : WBColors.whiteA(.1)),
+        border: Border.all(color: widget.isMe ? WBColors.accentA(.34) : WBColors.whiteA(.1)),
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(18),
           topRight: const Radius.circular(18),
@@ -66,7 +66,7 @@ class _ChainBubbleState extends State<ChainBubble> with SingleTickerProviderStat
               ),
               children: [
                 TextSpan(text: head),
-                TextSpan(text: last, style: const TextStyle(color: WBColors.amber)),
+                TextSpan(text: last, style: const TextStyle(color: WBColors.accent)),
               ],
             ),
           ),

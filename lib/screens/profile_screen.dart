@@ -78,7 +78,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: SpinnerRing(
                 size: 26,
                 trackColor: Color.fromRGBO(244, 243, 248, .15),
-                activeColor: WBColors.amber,
+                activeColor: WBColors.accent,
                 strokeWidth: 2.5,
               ),
             ),
@@ -151,7 +151,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Text(
                         '${user.rating}',
-                        style: WBText.mono(size: 24, weight: FontWeight.w700, color: WBColors.amber),
+                        style: WBText.mono(size: 24, weight: FontWeight.w700, color: WBColors.accent),
                       ),
                       Text(
                         '${data.weeklyDelta >= 0 ? '+' : ''}${data.weeklyDelta} hafta',
@@ -198,7 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ? Center(
                               child: Text(
                                 "Bir nechta jangdan keyin grafik paydo bo'ladi",
-                                style: WBText.grotesk(size: 12, color: WBColors.textA(.35)),
+                                style: WBText.grotesk(size: 12, color: WBColors.textA(.5)),
                               ),
                             )
                           : CustomPaint(painter: _RatingChartPainter(data.ratingHistory)),
@@ -436,15 +436,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return switch (badge.code) {
       'first_battle' || 'rating_1500' => _Badge(
         label: badge.label,
-        color: WBColors.amber,
-        bg: WBColors.amberA(.13),
-        border: WBColors.amberA(.34),
+        color: WBColors.accent,
+        bg: WBColors.accentA(.13),
+        border: WBColors.accentA(.34),
         mark: Transform.rotate(
           angle: math.pi / 4,
           child: Container(
             width: 18,
             height: 18,
-            decoration: BoxDecoration(color: WBColors.amber, borderRadius: BorderRadius.circular(4)),
+            decoration: BoxDecoration(color: WBColors.accent, borderRadius: BorderRadius.circular(4)),
           ),
         ),
       ),
@@ -485,7 +485,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 }
 
 /// A flat, bordered row button — the account actions are deliberately quieter
-/// than the amber calls to action everywhere else in the app.
+/// than the accent-coloured calls to action everywhere else in the app.
 class _AccountButton extends StatelessWidget {
   const _AccountButton({
     required this.label,
@@ -660,7 +660,7 @@ class _RatingChartPainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [WBColors.amberA(.34), WBColors.amberA(0)],
+          colors: [WBColors.accentA(.34), WBColors.accentA(0)],
         ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
     );
 
@@ -671,14 +671,14 @@ class _RatingChartPainter extends CustomPainter {
     canvas.drawPath(
       linePath,
       Paint()
-        ..color = WBColors.amber
+        ..color = WBColors.accent
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
         ..strokeJoin = StrokeJoin.round
         ..strokeCap = StrokeCap.round,
     );
 
-    canvas.drawCircle(scaled.last, 4.5, Paint()..color = WBColors.amber);
+    canvas.drawCircle(scaled.last, 4.5, Paint()..color = WBColors.accent);
   }
 
   @override
