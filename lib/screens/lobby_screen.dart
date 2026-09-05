@@ -8,6 +8,7 @@ import '../api/tournament_models.dart';
 import '../theme.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/flame_badge.dart';
+import '../widgets/glow_orb.dart';
 import '../widgets/primary_button.dart';
 
 class LobbyScreen extends StatelessWidget {
@@ -174,56 +175,59 @@ class LobbyScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 22),
-                  Pressable(
-                    onTap: onStartMatch,
-                    pressScale: .97,
-                    child: Container(
-                      width: 232,
-                      height: 232,
-                      decoration: const BoxDecoration(gradient: wbAccentGradient, shape: BoxShape.circle),
-                      alignment: Alignment.center,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // The margin has to sit outside the rotation: on the
-                          // Container it turns with the diamond and the gap
-                          // ends up pointing 45° off to the side.
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Transform.rotate(
-                              angle: math.pi / 4,
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: WBColors.accentInk.withValues(alpha: .75),
-                                    width: 3,
+                  GlowOrb(
+                    glowColor: WBColors.accent,
+                    child: Pressable(
+                      onTap: onStartMatch,
+                      pressScale: .97,
+                      child: Container(
+                        width: 232,
+                        height: 232,
+                        decoration: const BoxDecoration(gradient: wbAccentGradient, shape: BoxShape.circle),
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // The margin has to sit outside the rotation: on the
+                            // Container it turns with the diamond and the gap
+                            // ends up pointing 45° off to the side.
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Transform.rotate(
+                                angle: math.pi / 4,
+                                child: Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: WBColors.accentInk.withValues(alpha: .75),
+                                      width: 3,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                          Text(
-                            'JANG BOSHLASH',
-                            style: WBText.grotesk(
-                              size: 24,
-                              weight: FontWeight.w700,
-                              color: WBColors.accentInk,
-                              letterSpacing: -.01,
+                            Text(
+                              'JANG BOSHLASH',
+                              style: WBText.grotesk(
+                                size: 24,
+                                weight: FontWeight.w700,
+                                color: WBColors.accentInk,
+                                letterSpacing: -.01,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            "~8 s kutish",
-                            style: WBText.mono(
-                              size: 12,
-                              weight: FontWeight.w500,
-                              color: WBColors.accentInk.withValues(alpha: .62),
+                            const SizedBox(height: 5),
+                            Text(
+                              "~8 s kutish",
+                              style: WBText.mono(
+                                size: 12,
+                                weight: FontWeight.w500,
+                                color: WBColors.accentInk.withValues(alpha: .62),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
