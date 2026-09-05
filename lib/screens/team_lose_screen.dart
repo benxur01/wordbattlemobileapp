@@ -7,20 +7,22 @@ import '../widgets/flame_badge.dart';
 import '../widgets/primary_button.dart';
 
 /// The team-duel defeat screen — [LoseScreen]'s sibling, crediting the loss to
-/// "biz" rather than to the player alone. No rematch in v1 — see
-/// [TeamWinScreen] for why — so the primary action is back to the lobby, with
-/// solo practice offered the same way [LoseScreen] offers it.
+/// "biz" rather than to the player alone. Queueing the same team again is the
+/// primary way off — see [TeamWinScreen] for what a team rematch does and does
+/// not do — with the lobby and solo practice beside it.
 class TeamLoseScreen extends StatelessWidget {
   const TeamLoseScreen({
     super.key,
     required this.me,
     required this.result,
+    required this.onRematch,
     required this.onHome,
     required this.onPractice,
   });
 
   final UserDto? me;
   final TeamFinishedDuel? result;
+  final VoidCallback onRematch;
   final VoidCallback onHome;
   final VoidCallback onPractice;
 
@@ -182,7 +184,7 @@ class TeamLoseScreen extends StatelessWidget {
             Column(
               children: [
                 Pressable(
-                  onTap: onHome,
+                  onTap: onRematch,
                   pressScale: .98,
                   child: Container(
                     height: 62,
@@ -195,28 +197,56 @@ class TeamLoseScreen extends StatelessWidget {
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      'Bosh sahifaga',
+                      "Yana o'ynash",
                       style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.accentInk),
                     ),
                   ),
                 ),
                 const SizedBox(height: 11),
-                Pressable(
-                  onTap: onPractice,
-                  hoverColor: WBColors.whiteA(.05),
-                  borderRadius: BorderRadius.circular(18),
-                  child: Container(
-                    height: 52,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: WBColors.whiteA(.13)),
-                      borderRadius: BorderRadius.circular(18),
+                // The two ways off that are not another duel, side by side, so
+                // the rematch above costs the footer no extra height.
+                Row(
+                  children: [
+                    Expanded(
+                      child: Pressable(
+                        onTap: onHome,
+                        hoverColor: WBColors.whiteA(.05),
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: WBColors.whiteA(.13)),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Bosh sahifaga',
+                            style: WBText.grotesk(size: 15, weight: FontWeight.w500, color: WBColors.textA(.7)),
+                          ),
+                        ),
+                      ),
                     ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'Avval mashq qilaman',
-                      style: WBText.grotesk(size: 15, weight: FontWeight.w500, color: WBColors.textA(.7)),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Pressable(
+                        onTap: onPractice,
+                        hoverColor: WBColors.whiteA(.05),
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: WBColors.whiteA(.13)),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Mashq qilaman',
+                            style: WBText.grotesk(size: 15, weight: FontWeight.w500, color: WBColors.textA(.7)),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),

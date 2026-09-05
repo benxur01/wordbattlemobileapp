@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -344,6 +345,81 @@ public class TeamDuelService {
 
     private void reject(long playerId, String code, String message) {
         sockets.send(playerId, "team_duel.rejected", new DuelMessages.Rejected(code, message));
+    }
+
+    // --------------------------------------------------------------- social
+
+    /** Same limits {@code DuelService}'s own social frames are held to. */
+    private static final Duration SOCIAL_THROTTLE = Duration.ofMillis(400);
+
+    private static final int CHAT_MAX_LENGTH = 200;
+
+    private static final Set<String> ALLOWED_REACTIONS = Set.of("🔥", "😂", "👏", "😮", "🤝", "😢");
+
+    /** One bucket for chat and reactions alike — see {@code DuelService.lastSocialAt}. */
+    private final Map<Long, Instant> lastSocialAt = new ConcurrentHashMap<>();
+
+    /**
+     * A free-text message for the other three, validated exactly as
+     * {@code DuelService.sendChat} validates a 1v1 one and just as ephemeral.
+     * The sender is named in the frame because a recipient has three people it
+     * could have come from, where a 1v1 recipient has only ever had one.
+     */
+    public void sendChat(long playerId, String rawText) {
+        TeamDuelSession session = teamDuelOf(playerId).orElse(null);
+        if (session == null || session.finished()) {
+            sockets.sendError(playerId, "no_duel", "Faol jang topilmadi");
+            return;
+        }
+
+        String trimmed = rawText == null ? "" : rawText.trim();
+        if (trimmed.isEmpty()) {
+            sockets.sendError(playerId, "empty_message", "Bo'sh xabar yuborib bo'lmaydi");
+            return;
+        }
+        if (trimmed.length() > CHAT_MAX_LENGTH) {
+            sockets.sendError(playerId, "message_too_long", "Xabar juda uzun (200 belgigacha)");
+            return;
+        }
+        if (!allowSocialFrame(playerId)) return;
+
+        broadcastToOthers(session, playerId, "team_duel.chat", Map.of("playerId", playerId, "text", trimmed));
+    }
+
+    /** A reaction from the fixed emoji set, shown to the other three. */
+    public void sendReaction(long playerId, String emoji) {
+        TeamDuelSession session = teamDuelOf(playerId).orElse(null);
+        if (session == null || session.finished()) {
+            sockets.sendError(playerId, "no_duel", "Faol jang topilmadi");
+            return;
+        }
+        if (!ALLOWED_REACTIONS.contains(emoji)) {
+            sockets.sendError(playerId, "invalid_reaction", "Noma'lum reaksiya");
+            return;
+        }
+        if (!allowSocialFrame(playerId)) return;
+
+        broadcastToOthers(session, playerId, "team_duel.reaction", Map.of("playerId", playerId, "emoji", emoji));
+    }
+
+    /** Everyone in the duel but the sender, who already knows what they sent. */
+    private void broadcastToOthers(TeamDuelSession session, long senderId, String type, Object payload) {
+        for (long recipientId : session.order()) {
+            if (recipientId == senderId) continue;
+            sockets.send(recipientId, type, payload);
+        }
+    }
+
+    /** Mirrors {@code DuelService.allowSocialFrame} — same window, same per-player bucket. */
+    private boolean allowSocialFrame(long playerId) {
+        Instant now = Instant.now();
+        Instant last = lastSocialAt.get(playerId);
+        if (last != null && Duration.between(last, now).compareTo(SOCIAL_THROTTLE) < 0) {
+            sockets.sendError(playerId, "too_fast", "Sekinroq");
+            return false;
+        }
+        lastSocialAt.put(playerId, now);
+        return true;
     }
 
     // ---------------------------------------------------------- disconnects

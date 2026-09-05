@@ -111,6 +111,18 @@ class TeamDuelWebSocketTest {
             throw new AssertionError("No '" + type + "' frame arrived within " + seconds + "s");
         }
 
+        /** Borrowed from {@code DuelWebSocketTest.Client} — proves a frame was *not* fanned out. */
+        void expectNothing(String type, int seconds) throws Exception {
+            long deadline = System.currentTimeMillis() + seconds * 1000L;
+            while (System.currentTimeMillis() < deadline) {
+                JsonNode frame = frames.poll(deadline - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+                if (frame == null) return;
+                if (type.equals(frame.path("type").asText())) {
+                    throw new AssertionError("Unexpected '" + type + "' frame: " + frame);
+                }
+            }
+        }
+
         void close() throws Exception {
             if (session != null && session.isOpen()) session.close();
         }
@@ -151,6 +163,59 @@ class TeamDuelWebSocketTest {
         String created = call("POST", "/api/friends/requests", a, "{\"userId\":" + bId + "}", String.class);
         long requestId = mapper.readTree(created).get("id").asLong();
         call("POST", "/api/friends/requests/" + requestId + "/accept", b, null, String.class);
+    }
+
+    /** The four ids {@link #startTeamDuel} played into a duel. */
+    private record Four(long aOne, long aTwo, long bOne, long bTwo) {}
+
+    /**
+     * Logs four fresh players in, forms both teams and queues them until they
+     * are matched — the same sequence the duel tests above spell out, gathered
+     * up for the social tests, which care about nothing before the duel exists.
+     */
+    private Four startTeamDuel(String namePrefix) throws Exception {
+        String aOneToken = login(namePrefix + " A one");
+        String aTwoToken = login(namePrefix + " A two");
+        String bOneToken = login(namePrefix + " B one");
+        String bTwoToken = login(namePrefix + " B two");
+
+        Four ids = new Four(userId(aOneToken), userId(aTwoToken), userId(bOneToken), userId(bTwoToken));
+
+        befriend(aOneToken, aTwoToken);
+        befriend(bOneToken, bTwoToken);
+
+        aOne = new Client(aOneToken);
+        aTwo = new Client(aTwoToken);
+        bOne = new Client(bOneToken);
+        bTwo = new Client(bTwoToken);
+        aOne.await("hello", 5);
+        aTwo.await("hello", 5);
+        bOne.await("hello", 5);
+        bTwo.await("hello", 5);
+
+        aOne.send("team_invite.send", Map.of("userId", ids.aTwo()));
+        aTwo.send("team_invite.accept",
+                Map.of("inviteId", aTwo.await("team_invite.incoming", 5).path("inviteId").asText()));
+        aOne.await("team.formed", 5);
+        aTwo.await("team.formed", 5);
+
+        bOne.send("team_invite.send", Map.of("userId", ids.bTwo()));
+        bTwo.send("team_invite.accept",
+                Map.of("inviteId", bTwo.await("team_invite.incoming", 5).path("inviteId").asText()));
+        bOne.await("team.formed", 5);
+        bTwo.await("team.formed", 5);
+
+        aOne.send("team.queue.join", Map.of());
+        aTwo.await("team.queue.joined", 5);
+        bOne.send("team.queue.join", Map.of());
+        bTwo.await("team.queue.joined", 5);
+
+        aOne.await("team_duel.match_found", 10);
+        aTwo.await("team_duel.match_found", 10);
+        bOne.await("team_duel.match_found", 10);
+        bTwo.await("team_duel.match_found", 10);
+
+        return ids;
     }
 
     @AfterEach
@@ -406,5 +471,46 @@ class TeamDuelWebSocketTest {
         int aOneDelta = aOneResult.path("delta").asInt();
         int aTwoDelta = aTwoResult.path("delta").asInt();
         assertThat(Math.abs(aOneDelta - aTwoDelta)).isLessThanOrEqualTo(3);
+    }
+
+    @Test
+    void chatReachesTheOtherThreeTrimmedAndNamesItsSender() throws Exception {
+        Four ids = startTeamDuel("Team chatty");
+
+        aOne.send("team_duel.chat", Map.of("text", "  ketdik  "));
+
+        for (Client recipient : List.of(aTwo, bOne, bTwo)) {
+            JsonNode chat = recipient.await("team_duel.chat", 5);
+            assertThat(chat.path("text").asText()).isEqualTo("ketdik");
+            // Three people could have sent it, so the frame has to say which.
+            assertThat(chat.path("playerId").asLong()).isEqualTo(ids.aOne());
+        }
+        aOne.expectNothing("team_duel.chat", 1);
+    }
+
+    @Test
+    void aReactionReachesTheOtherThreeAndNamesItsSender() throws Exception {
+        Four ids = startTeamDuel("Team reactor");
+
+        bTwo.send("team_duel.reaction", Map.of("emoji", "🔥"));
+
+        for (Client recipient : List.of(aOne, aTwo, bOne)) {
+            JsonNode reaction = recipient.await("team_duel.reaction", 5);
+            assertThat(reaction.path("emoji").asText()).isEqualTo("🔥");
+            assertThat(reaction.path("playerId").asLong()).isEqualTo(ids.bTwo());
+        }
+        bTwo.expectNothing("team_duel.reaction", 1);
+    }
+
+    @Test
+    void chatOverTwoHundredCharactersIsRejectedAndFannedOutToNobody() throws Exception {
+        startTeamDuel("Team wordy");
+
+        aOne.send("team_duel.chat", Map.of("text", "a".repeat(201)));
+
+        assertThat(aOne.await("error", 5).path("code").asText()).isEqualTo("message_too_long");
+        aTwo.expectNothing("team_duel.chat", 1);
+        bOne.expectNothing("team_duel.chat", 1);
+        bTwo.expectNothing("team_duel.chat", 1);
     }
 }

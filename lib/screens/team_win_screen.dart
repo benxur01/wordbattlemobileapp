@@ -9,16 +9,23 @@ import '../widgets/primary_button.dart';
 
 /// The team-duel victory screen — [WinScreen]'s sibling, crediting the result
 /// to "biz" (this player and their partner) rather than to the player alone.
-/// No rematch in v1: a team rematch means re-inviting the same partner, which
-/// is out of scope for this pass, so the only way off is back to the lobby.
+/// A rematch queues the same team again rather than calling the two opponents
+/// back — there is no team-to-team challenge to send.
 class TeamWinScreen extends StatelessWidget {
-  const TeamWinScreen({super.key, required this.me, required this.result, required this.onHome});
+  const TeamWinScreen({
+    super.key,
+    required this.me,
+    required this.result,
+    required this.onRematch,
+    required this.onHome,
+  });
 
   final UserDto? me;
 
   /// The `team_duel.finished` payload. Null only if the screen is somehow
   /// reached without a finished duel.
   final TeamFinishedDuel? result;
+  final VoidCallback onRematch;
   final VoidCallback onHome;
 
   @override
@@ -147,29 +154,53 @@ class TeamWinScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              Pressable(
-                onTap: onHome,
-                pressScale: .98,
-                child: Container(
-                  width: double.infinity,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    gradient: wbAccentGradient,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: WBColors.accentA(.26),
-                        blurRadius: 32,
-                        offset: const Offset(0, 14),
+              // Side by side, as [WinScreen]'s own pair is: the footer keeps
+              // the height it had when going home was the only way off.
+              Row(
+                children: [
+                  Expanded(
+                    child: Pressable(
+                      onTap: onRematch,
+                      pressScale: .98,
+                      child: Container(
+                        height: 62,
+                        decoration: BoxDecoration(
+                          gradient: wbAccentGradient,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: WBColors.accentA(.26),
+                              blurRadius: 32,
+                              offset: const Offset(0, 14),
+                            ),
+                          ],
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          "Yana o'ynash",
+                          style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.accentInk),
+                        ),
                       ),
-                    ],
+                    ),
                   ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'Bosh sahifaga',
-                    style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.accentInk),
+                  const SizedBox(width: 11),
+                  Pressable(
+                    onTap: onHome,
+                    hoverColor: WBColors.whiteA(.1),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      width: 62,
+                      height: 62,
+                      decoration: BoxDecoration(
+                        color: WBColors.whiteA(.06),
+                        border: Border.all(color: WBColors.whiteA(.12)),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(Icons.home_outlined, size: 20, color: WBColors.textA(.75)),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),

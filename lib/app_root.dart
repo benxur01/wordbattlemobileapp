@@ -309,6 +309,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   DateTime? _teamInviteStartedAt;
   int _teamInviteSecondsLeft = 0;
 
+  /// The team duel's own chat and latest reaction — [duelChat] and
+  /// [duelReaction] again, kept apart from them because both modes' state is,
+  /// and carrying the sender's name, which a 1v1 line never needed.
+  List<TeamChatMessage> teamChat = const [];
+  TeamReaction? teamReaction;
+
   /// Mirrors [_settledInviteId], for the team-invite channel — see
   /// [inviteSentActionFor] and [inviteFrameApplies], which serve both.
   String? _settledTeamInviteId;
@@ -1484,6 +1490,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           teamQueuedAt = null;
           outgoingTeamInvite = null;
           incomingTeamInvite = null;
+          teamChat = const [];
+          teamReaction = null;
           screen = WBScreen.teamDuel;
         });
         _scrollTeamChainToBottom();
@@ -1502,12 +1510,34 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         _scrollTeamChainToBottom();
       case 'team_duel.rejected':
         setState(() => teamDuelError = event.payload['message'] as String? ?? "So'z qabul qilinmadi");
+      case 'team_duel.chat':
+        final board = teamDuel;
+        final text = event.payload['text'] as String?;
+        if (board == null || text == null || text.isEmpty) return;
+        setState(() => teamChat = [
+              ...teamChat,
+              TeamChatMessage(
+                text: text,
+                sender: board.labelOf((event.payload['playerId'] as num?)?.toInt() ?? 0),
+              ),
+            ]);
+      case 'team_duel.reaction':
+        final board = teamDuel;
+        final emoji = event.payload['emoji'] as String?;
+        if (board == null || emoji == null || emoji.isEmpty) return;
+        setState(() => teamReaction = TeamReaction(
+              emoji: emoji,
+              sender: board.labelOf((event.payload['playerId'] as num?)?.toInt() ?? 0),
+              id: _reactionSeq++,
+            ));
       case 'team_duel.finished':
         final result = TeamFinishedDuel.fromJson(event.payload);
         if (!duelFrameApplies(teamDuel?.duelId, result.duelId)) return;
         setState(() {
           teamFinished = result;
           teamDuel = null;
+          teamChat = const [];
+          teamReaction = null;
           screen = result.won ? WBScreen.teamWin : WBScreen.teamLose;
         });
         unawaited(_refreshSocial());
@@ -1515,6 +1545,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         setState(() {
           teamDuel = null;
           teamFinished = null;
+          teamChat = const [];
+          teamReaction = null;
           banner = event.payload['message'] as String? ?? 'Jamoa jangi bekor qilindi';
           if (screen == WBScreen.teamDuel) screen = WBScreen.lobby;
         });
@@ -1989,6 +2021,32 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     _socket.send('team_duel.submit', {'word': word.trim()});
   }
 
+  /// Mirrors [sendDuelChat] — the server fans the line out to the other three
+  /// and never echoes it back, so the sender's own copy is added here.
+  void sendTeamChat(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    _socket.send('team_duel.chat', {'text': trimmed});
+    setState(() => teamChat = [...teamChat, TeamChatMessage(text: trimmed, sender: null)]);
+  }
+
+  /// Mirrors [sendDuelReaction]: sent immediately, with no local echo.
+  void sendTeamReaction(String emoji) => _socket.send('team_duel.reaction', {'emoji': emoji});
+
+  /// The team result screens' "Yana o'ynash". Nothing disbands a team when its
+  /// duel ends, so the same two players simply queue again — there is no
+  /// team-to-team challenge to send, so a rematch is a fresh search rather than
+  /// a call back to the two opponents just played. A team that did break up in
+  /// between — a partner who disconnected — has nothing to queue, and goes back
+  /// to the lobby instead of asking the server for a refusal.
+  void rematchAsTeam() {
+    if (teamPartner == null) {
+      go(WBScreen.lobby);
+      return;
+    }
+    startTeamQueue();
+  }
+
   // ------------------------------------------------------------- navigation
 
   static WBTab? _tabOf(WBScreen screen) => switch (screen) {
@@ -2032,6 +2090,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       if (exit == 'duel.forfeit') {
         duelChat = const [];
         duelReaction = null;
+      }
+      if (exit == 'team_duel.forfeit') {
+        teamChat = const [];
+        teamReaction = null;
       }
     });
 
@@ -2234,15 +2296,21 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           error: teamDuelError,
           scrollController: teamChainScrollController,
           onSubmit: submitTeamWord,
+          chatLog: teamChat,
+          onSendChat: sendTeamChat,
+          onSendReaction: sendTeamReaction,
+          reaction: teamReaction,
         ),
       WBScreen.teamWin => TeamWinScreen(
           me: user,
           result: teamFinished,
+          onRematch: rematchAsTeam,
           onHome: () => go(WBScreen.lobby),
         ),
       WBScreen.teamLose => TeamLoseScreen(
           me: user,
           result: teamFinished,
+          onRematch: rematchAsTeam,
           onHome: () => go(WBScreen.lobby),
           onPractice: () => go(WBScreen.practice),
         ),

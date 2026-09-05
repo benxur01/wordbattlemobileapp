@@ -239,6 +239,8 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `team.queue.join` / `team.queue.leave` | — | jamoa nomidan raqib jamoa qidirishni boshlaydi/bekor qiladi — ikkala a'zodan biri yuborsa kifoya |
 | `team_duel.submit` | `{word}` | 2v2 jangida so'z yuboradi |
 | `team_duel.forfeit` | — | 2v2 jangdan chiqadi (jamoasi mag'lub bo'ladi) |
+| `team_duel.chat` | `{text}` | qolgan uch ishtirokchiga matn yuboradi (jang davomida, saqlanmaydi) |
+| `team_duel.reaction` | `{emoji}` | `duel.reaction` bilan bir xil emoji ro'yxati, qolgan uch ishtirokchiga |
 | `ping` | — | `pong` qaytadi |
 
 ### Server → mijoz
@@ -267,6 +269,8 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `team_duel.update` | `chain[{word,playerId,mine,ally,spentMs}], yourTurn, turnPlayerId, needLetter, substitutedFrom?, timeLeftMs, yourWords, partnerWords, opponentOneWords, opponentTwoWords` |
 | `team_duel.rejected` | `code, message` — `duel.rejected` bilan bir xil kodlar |
 | `team_duel.finished` | `result(win/lose), reason, delta, ratingBefore, ratingAfter, chainLength, yourWords, averageMs, newWords, streakDays, stuckLetter, hints[], partner, opponentOne, opponentTwo` |
+| `team_duel.chat` | `playerId, text` — to'rttadan qaysi biri yozgani `playerId` bilan aytiladi |
+| `team_duel.reaction` | `playerId, emoji` — kim reaksiya qilgani `playerId` bilan aytiladi |
 | `team_duel.aborted` | `duelId, message` — server o'chmoqda |
 | `error` | `code, message` |
 

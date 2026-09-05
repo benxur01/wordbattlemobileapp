@@ -385,6 +385,30 @@ class PendingTeamInvite {
   int secondsLeft;
 }
 
+/// One line of a team duel's chat — [DuelChatMessage] with a name on it.
+/// [sender] is null for this player's own line, which is what puts the bubble
+/// on their side and leaves it untagged; every other line carries the name of
+/// whichever of the other three sent it.
+class TeamChatMessage {
+  const TeamChatMessage({required this.text, required this.sender});
+
+  final String text;
+  final String? sender;
+
+  bool get mine => sender == null;
+}
+
+/// A reaction one of the other three sent — [DuelReaction] plus [sender], for
+/// the same reason [TeamChatMessage] carries one. [id] works exactly as
+/// [DuelReaction.id] does.
+class TeamReaction {
+  const TeamReaction({required this.emoji, required this.sender, required this.id});
+
+  final String emoji;
+  final String sender;
+  final int id;
+}
+
 /// One word in a team duel's chain, as all four participants see it: whether
 /// this player said it, their partner said it, or one of the two opponents did
 /// — [mine] and [ally] mirror the server's own fields rather than being
@@ -561,6 +585,16 @@ class TeamDuelView {
   bool get partnerTurn => turnPlayerId == partner.id;
   bool get opponentOneTurn => turnPlayerId == opponentOne.id;
   bool get opponentTwoTurn => turnPlayerId == opponentTwo.id;
+
+  /// Whichever of the other three [playerId] names. Chat and reaction frames
+  /// carry a bare id — the only place they do — because a team message could
+  /// have come from any of the three, where a 1v1 one never had to say.
+  String labelOf(int playerId) {
+    if (playerId == partner.id) return partner.label;
+    if (playerId == opponentOne.id) return opponentOne.label;
+    if (playerId == opponentTwo.id) return opponentTwo.label;
+    return "O'yinchi";
+  }
 
   TeamDuelView applyUpdate(Map<String, dynamic> json) => TeamDuelView(
         duelId: json['duelId'] as String? ?? duelId,

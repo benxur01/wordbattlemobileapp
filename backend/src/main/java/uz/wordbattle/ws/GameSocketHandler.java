@@ -187,6 +187,8 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 case "team.queue.leave" -> teamMatchmaking.leave(userId);
                 case "team_duel.submit" -> teamDuels.submit(userId, text(envelope, "word"));
                 case "team_duel.forfeit" -> teamDuels.forfeit(userId);
+                case "team_duel.chat" -> teamDuels.sendChat(userId, text(envelope, "text"));
+                case "team_duel.reaction" -> teamDuels.sendReaction(userId, text(envelope, "emoji"));
                 default -> sockets.sendError(userId, "unknown_type", "Noma'lum xabar turi: " + type);
             }
         } catch (ApiException e) {
