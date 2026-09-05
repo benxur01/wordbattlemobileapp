@@ -136,6 +136,10 @@ void main() {
               error: '',
               scrollController: ScrollController(),
               onSubmit: (_) {},
+              chatLog: const [],
+              onSendChat: (_) {},
+              onSendReaction: (_) {},
+              reaction: null,
             )));
         await tester.pump();
 
@@ -159,6 +163,10 @@ void main() {
             error: '',
             scrollController: controller,
             onSubmit: (_) {},
+            chatLog: const [],
+            onSendChat: (_) {},
+            onSendReaction: (_) {},
+            reaction: null,
           ));
 
       await tester.pumpWidget(screen(true));
@@ -189,6 +197,10 @@ void main() {
             error: '',
             scrollController: ScrollController(),
             onSubmit: (_) {},
+            chatLog: const [],
+            onSendChat: (_) {},
+            onSendReaction: (_) {},
+            reaction: null,
           )));
       await tester.pump();
       expect(tester.testTextInput.isVisible, isTrue);
@@ -229,6 +241,10 @@ void main() {
             error: '',
             scrollController: ScrollController(),
             onSubmit: sent.add,
+            chatLog: const [],
+            onSendChat: (_) {},
+            onSendReaction: (_) {},
+            reaction: null,
           )));
       await tester.pump();
       await tester.enterText(find.byType(TextField), 'window');
@@ -284,6 +300,10 @@ void main() {
           error: '',
           scrollController: controller,
           onSubmit: (_) {},
+          chatLog: const [],
+          onSendChat: (_) {},
+          onSendReaction: (_) {},
+          reaction: null,
         ),
       ));
       await tester.pump(const Duration(milliseconds: 400));
@@ -326,6 +346,10 @@ void main() {
           error: '',
           scrollController: controller,
           onSubmit: (_) {},
+          chatLog: const [],
+          onSendChat: (_) {},
+          onSendReaction: (_) {},
+          reaction: null,
         ),
       ));
       await tester.pump(const Duration(milliseconds: 400));

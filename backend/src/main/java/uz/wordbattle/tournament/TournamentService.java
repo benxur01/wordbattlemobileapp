@@ -280,11 +280,54 @@ public class TournamentService {
         return saved;
     }
 
+    // ---------------------------------------------------------------------------- admin: cancel
+
+    /**
+     * Calls off a tournament that is stuck — a participant who never accepts,
+     * one who never starts their ready match — with no way back from it: this
+     * is deliberately cancel-only, there is no resuming a cancelled tournament.
+     */
+    @Transactional
+    public TournamentEntity cancel(long adminId, long tournamentId) {
+        TournamentEntity tournament = require(tournamentId);
+        TournamentEntity saved = cancelInternal(tournament);
+        audit.record(adminId, AdminAuditService.TOURNAMENT_CANCEL, null, tournament.getName());
+        return saved;
+    }
+
+    /** The friends-screen equivalent of {@link #cancel} — the organizer only, no audit log. */
+    @Transactional
+    public TournamentEntity cancelByUser(long organizerId, long tournamentId) {
+        TournamentEntity tournament = require(tournamentId);
+        requireOrganizer(tournament, organizerId);
+        return cancelInternal(tournament);
+    }
+
+    private TournamentEntity cancelInternal(TournamentEntity tournament) {
+        if (tournament.getStatus() == TournamentEntity.Status.COMPLETED
+                || tournament.getStatus() == TournamentEntity.Status.CANCELLED) {
+            throw ApiException.conflict("tournament_not_active", "Turnir allaqachon tugagan yoki bekor qilingan");
+        }
+        tournament.setStatus(TournamentEntity.Status.CANCELLED);
+        tournament.setFinishedAt(Instant.now());
+        TournamentEntity saved = tournaments.save(tournament);
+
+        for (TournamentParticipant participant : participantsOf(tournament.getId())) {
+            sockets.send(participant.getUserId(), "tournament.cancelled",
+                    Map.of("tournamentId", tournament.getId(), "name", tournament.getName()));
+        }
+        return saved;
+    }
+
     // ------------------------------------------------------------ participant: accept, decline
 
     @Transactional
     public void accept(long userId, long tournamentId) {
         TournamentParticipant participant = requireParticipant(tournamentId, userId);
+        TournamentEntity tournament = require(tournamentId);
+        if (tournament.getStatus() == TournamentEntity.Status.CANCELLED) {
+            throw ApiException.conflict("tournament_cancelled", "Turnir bekor qilingan");
+        }
         if (participant.getStatus() != TournamentParticipant.Status.INVITED) {
             throw ApiException.conflict("invite_resolved", "Taklif allaqachon hal qilingan");
         }
@@ -295,6 +338,10 @@ public class TournamentService {
     @Transactional
     public void decline(long userId, long tournamentId) {
         TournamentParticipant participant = requireParticipant(tournamentId, userId);
+        TournamentEntity tournament = require(tournamentId);
+        if (tournament.getStatus() == TournamentEntity.Status.CANCELLED) {
+            throw ApiException.conflict("tournament_cancelled", "Turnir bekor qilingan");
+        }
         if (participant.getStatus() != TournamentParticipant.Status.INVITED) {
             throw ApiException.conflict("invite_resolved", "Taklif allaqachon hal qilingan");
         }
@@ -320,6 +367,10 @@ public class TournamentService {
                 .orElseThrow(() -> ApiException.notFound("match_not_found", "Jang topilmadi"));
         if (!match.hasPlayer(userId)) {
             throw ApiException.badRequest("not_your_match", "Bu turnir jangi sizniki emas");
+        }
+        if (require(match.getTournamentId()).getStatus() == TournamentEntity.Status.CANCELLED) {
+            sockets.sendError(userId, "tournament_cancelled", "Turnir bekor qilingan");
+            return;
         }
         if (match.getStatus() != TournamentMatch.Status.READY) {
             sockets.sendError(userId, "match_not_ready", "Jang hali tayyor emas");
@@ -366,6 +417,10 @@ public class TournamentService {
         matches.save(match);
 
         TournamentEntity tournament = require(match.getTournamentId());
+        // The tournament was called off while this duel was already live — it
+        // still had to be allowed to finish for its two players, but nothing
+        // about a cancelled bracket ever moves again.
+        if (tournament.getStatus() == TournamentEntity.Status.CANCELLED) return;
         if (match.getRound() == tournament.rounds()) {
             tournament.setChampionUserId(winnerUserId);
             tournament.setStatus(TournamentEntity.Status.COMPLETED);

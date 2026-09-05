@@ -106,6 +106,11 @@ public class AdminTournamentController {
         return TournamentRow.of(tournaments.start(principal.userId(), id));
     }
 
+    @PostMapping("/{id}/cancel")
+    public TournamentRow cancel(@CurrentUser AuthPrincipal principal, @PathVariable("id") long id) {
+        return TournamentRow.of(tournaments.cancel(principal.userId(), id));
+    }
+
     /** A nickname, a display name, or the id — whichever the row still has, as {@code AdminController} labels it. */
     private static String nameOf(User user, Long id) {
         if (user == null) return "#" + id;

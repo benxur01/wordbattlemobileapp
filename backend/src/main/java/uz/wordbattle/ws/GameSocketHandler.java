@@ -144,6 +144,8 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 case "queue.leave" -> matchmaking.leave(userId);
                 case "duel.submit" -> duels.submit(userId, text(envelope, "word"));
                 case "duel.forfeit" -> duels.forfeit(userId);
+                case "duel.chat" -> duels.sendChat(userId, text(envelope, "text"));
+                case "duel.reaction" -> duels.sendReaction(userId, text(envelope, "emoji"));
                 case "invite.send" -> invites.send(userId, longValue(envelope, "userId"));
                 case "invite.accept" -> invites.accept(userId, text(envelope, "inviteId"));
                 case "invite.decline" -> invites.decline(userId, text(envelope, "inviteId"));

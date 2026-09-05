@@ -93,6 +93,18 @@ class DuelWebSocketTest {
             throw new AssertionError("No '" + type + "' frame arrived within " + seconds + "s");
         }
 
+        /** The opposite: fails if such a frame turns up inside the window. */
+        void expectNothing(String type, int seconds) throws Exception {
+            long deadline = System.currentTimeMillis() + seconds * 1000L;
+            while (System.currentTimeMillis() < deadline) {
+                JsonNode frame = frames.poll(deadline - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+                if (frame == null) return;
+                if (type.equals(frame.path("type").asText())) {
+                    throw new AssertionError("Unexpected '" + type + "' frame: " + frame);
+                }
+            }
+        }
+
         void close() throws Exception {
             if (session != null && session.isOpen()) session.close();
         }
@@ -347,5 +359,119 @@ class DuelWebSocketTest {
         JsonNode afterBot = alpha.await("duel.update", 8);
         assertThat(afterBot.path("yourTurn").asBoolean()).isTrue();
         assertThat(afterBot.path("opponentWords").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void chatReachesTheOpponentOnlyAndTrimmed() throws Exception {
+        alpha = new Client(login("Chatty alpha"));
+        beta = new Client(login("Chatty beta"));
+        alpha.await("hello", 5);
+        beta.await("hello", 5);
+        alpha.send("queue.join", Map.of());
+        beta.send("queue.join", Map.of());
+        alpha.await("match.found", 10);
+        beta.await("match.found", 10);
+
+        alpha.send("duel.chat", Map.of("text", "  gl hf  "));
+
+        assertThat(beta.await("duel.chat", 5).path("text").asText()).isEqualTo("gl hf");
+        alpha.expectNothing("duel.chat", 1);
+    }
+
+    @Test
+    void chatWithNoActiveDuelIsRejected() throws Exception {
+        alpha = new Client(login("No duel chatter"));
+        alpha.await("hello", 5);
+
+        alpha.send("duel.chat", Map.of("text", "hello?"));
+
+        assertThat(alpha.await("error", 5).path("code").asText()).isEqualTo("no_duel");
+    }
+
+    @Test
+    void emptyOrBlankChatIsRejected() throws Exception {
+        alpha = new Client(login("Blank chatter"));
+        beta = new Client(login("Blank chatter rival"));
+        alpha.await("hello", 5);
+        beta.await("hello", 5);
+        alpha.send("queue.join", Map.of());
+        beta.send("queue.join", Map.of());
+        alpha.await("match.found", 10);
+        beta.await("match.found", 10);
+
+        alpha.send("duel.chat", Map.of("text", "   "));
+
+        assertThat(alpha.await("error", 5).path("code").asText()).isEqualTo("empty_message");
+        beta.expectNothing("duel.chat", 1);
+    }
+
+    @Test
+    void chatOverTwoHundredCharactersIsRejected() throws Exception {
+        alpha = new Client(login("Wordy chatter"));
+        beta = new Client(login("Wordy chatter rival"));
+        alpha.await("hello", 5);
+        beta.await("hello", 5);
+        alpha.send("queue.join", Map.of());
+        beta.send("queue.join", Map.of());
+        alpha.await("match.found", 10);
+        beta.await("match.found", 10);
+
+        alpha.send("duel.chat", Map.of("text", "a".repeat(201)));
+
+        assertThat(alpha.await("error", 5).path("code").asText()).isEqualTo("message_too_long");
+        beta.expectNothing("duel.chat", 1);
+    }
+
+    @Test
+    void aReactionOutsideTheFixedSetIsRejected() throws Exception {
+        alpha = new Client(login("Reactor"));
+        beta = new Client(login("Reactor rival"));
+        alpha.await("hello", 5);
+        beta.await("hello", 5);
+        alpha.send("queue.join", Map.of());
+        beta.send("queue.join", Map.of());
+        alpha.await("match.found", 10);
+        beta.await("match.found", 10);
+
+        alpha.send("duel.reaction", Map.of("emoji", "🍕"));
+
+        assertThat(alpha.await("error", 5).path("code").asText()).isEqualTo("invalid_reaction");
+        beta.expectNothing("duel.reaction", 1);
+    }
+
+    @Test
+    void aValidReactionReachesTheOpponent() throws Exception {
+        alpha = new Client(login("Valid reactor"));
+        beta = new Client(login("Valid reactor rival"));
+        alpha.await("hello", 5);
+        beta.await("hello", 5);
+        alpha.send("queue.join", Map.of());
+        beta.send("queue.join", Map.of());
+        alpha.await("match.found", 10);
+        beta.await("match.found", 10);
+
+        alpha.send("duel.reaction", Map.of("emoji", "🔥"));
+
+        assertThat(beta.await("duel.reaction", 5).path("emoji").asText()).isEqualTo("🔥");
+    }
+
+    @Test
+    void chatAndReactionsShareOneThrottleAndTheSecondTooSoonIsRejected() throws Exception {
+        alpha = new Client(login("Fast chatter"));
+        beta = new Client(login("Fast chatter rival"));
+        alpha.await("hello", 5);
+        beta.await("hello", 5);
+        alpha.send("queue.join", Map.of());
+        beta.send("queue.join", Map.of());
+        alpha.await("match.found", 10);
+        beta.await("match.found", 10);
+
+        alpha.send("duel.chat", Map.of("text", "first"));
+        beta.await("duel.chat", 5);
+
+        // Sent immediately after, well inside the 400ms window.
+        alpha.send("duel.reaction", Map.of("emoji", "😂"));
+        assertThat(alpha.await("error", 5).path("code").asText()).isEqualTo("too_fast");
+        beta.expectNothing("duel.reaction", 1);
     }
 }

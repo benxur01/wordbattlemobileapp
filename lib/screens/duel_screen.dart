@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -11,9 +12,12 @@ import '../widgets/primary_button.dart';
 import '../widgets/progress_ring.dart';
 import '../widgets/stroke_glyph.dart';
 
+/// The emoji a player can react with — fixed, same set the server accepts.
+const List<String> kDuelReactions = ['🔥', '😂', '👏', '😮', '🤝', '😢'];
+
 /// The live duel. Every value here comes from the server's duel state — the
 /// timer, whose turn it is, the chain and the required letter. The screen only
-/// sends the typed word back.
+/// sends the typed word back, plus whatever chat or reaction the player sends.
 class DuelScreen extends StatefulWidget {
   const DuelScreen({
     super.key,
@@ -22,6 +26,10 @@ class DuelScreen extends StatefulWidget {
     required this.error,
     required this.scrollController,
     required this.onSubmit,
+    required this.chatLog,
+    required this.onSendChat,
+    required this.onSendReaction,
+    required this.reaction,
   });
 
   final DuelView? duel;
@@ -31,6 +39,17 @@ class DuelScreen extends StatefulWidget {
   final String error;
   final ScrollController scrollController;
   final ValueChanged<String> onSubmit;
+
+  /// This duel's chat, oldest first. Never persisted — it exists only as
+  /// long as the duel and this screen do.
+  final List<DuelChatMessage> chatLog;
+  final ValueChanged<String> onSendChat;
+  final ValueChanged<String> onSendReaction;
+
+  /// The opponent's latest reaction, or null once none is showing. A new
+  /// value (even the same emoji again) replays the float-and-fade animation —
+  /// see [DuelReaction.id].
+  final DuelReaction? reaction;
 
   @override
   State<DuelScreen> createState() => _DuelScreenState();
@@ -53,6 +72,47 @@ class _DuelScreenState extends State<DuelScreen> {
   // the dimmed send button — and [_submit] is what enforces it.
   final _focus = FocusNode();
   final _controller = TextEditingController();
+
+  bool _chatOpen = false;
+  final _chatFocus = FocusNode();
+  final _chatController = TextEditingController();
+  final _chatScroll = ScrollController();
+
+  /// The reaction currently on screen, and where its fade animation has got
+  /// to. Both go back to nothing a couple of seconds after they are set — see
+  /// [didUpdateWidget].
+  DuelReaction? _shownReaction;
+  bool _reactionVisible = false;
+  Timer? _reactionFadeTimer;
+  Timer? _reactionGoneTimer;
+
+  @override
+  void didUpdateWidget(DuelScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final reaction = widget.reaction;
+    if (reaction != null && reaction.id != oldWidget.reaction?.id) {
+      _reactionFadeTimer?.cancel();
+      _reactionGoneTimer?.cancel();
+      setState(() {
+        _shownReaction = reaction;
+        _reactionVisible = true;
+      });
+      _reactionFadeTimer = Timer(const Duration(milliseconds: 1600), () {
+        if (mounted) setState(() => _reactionVisible = false);
+      });
+      _reactionGoneTimer = Timer(const Duration(milliseconds: 2000), () {
+        if (mounted) setState(() => _shownReaction = null);
+      });
+    }
+
+    if (_chatOpen && widget.chatLog.length != oldWidget.chatLog.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_chatScroll.hasClients) return;
+        _chatScroll.jumpTo(_chatScroll.position.maxScrollExtent);
+      });
+    }
+  }
 
   /// How much of the screen the keyboard covered at the last layout, so one
   /// coming back up can be told from one going away. See [didChangeDependencies].
@@ -95,7 +155,22 @@ class _DuelScreenState extends State<DuelScreen> {
   void dispose() {
     _focus.dispose();
     _controller.dispose();
+    _chatFocus.dispose();
+    _chatController.dispose();
+    _chatScroll.dispose();
+    _reactionFadeTimer?.cancel();
+    _reactionGoneTimer?.cancel();
     super.dispose();
+  }
+
+  void _sendChat() {
+    final text = _chatController.text;
+    // A blank message never leaves the phone — the server would refuse it
+    // too, but there is no reason to make a round trip for that.
+    if (text.trim().isEmpty) return;
+    widget.onSendChat(text);
+    _chatController.clear();
+    _chatFocus.requestFocus();
   }
 
   void _submit() {
@@ -266,31 +341,62 @@ class _DuelScreenState extends State<DuelScreen> {
             ],
           ),
         ),
+        _SocialBar(
+          chatOpen: _chatOpen,
+          onToggleChat: () => setState(() => _chatOpen = !_chatOpen),
+          onReact: widget.onSendReaction,
+        ),
+        if (_chatOpen)
+          _ChatPanel(
+            messages: widget.chatLog,
+            scrollController: _chatScroll,
+            textController: _chatController,
+            focusNode: _chatFocus,
+            onSend: _sendChat,
+          ),
         Expanded(
-          child: ListView(
-            controller: widget.scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Stack(
             children: [
-              for (final word in duel.chain) ...[
-                ChainBubble(word: word.word, isMe: word.mine, ms: word.spentLabel),
-                const SizedBox(height: 10),
-              ],
-              if (duel.opponentThinking)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: WBColors.whiteA(.05),
-                      border: Border.all(color: WBColors.whiteA(.1)),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(18),
-                        topRight: Radius.circular(18),
-                        bottomRight: Radius.circular(18),
-                        bottomLeft: Radius.circular(6),
+              ListView(
+                controller: widget.scrollController,
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                children: [
+                  for (final word in duel.chain) ...[
+                    ChainBubble(word: word.word, isMe: word.mine, ms: word.spentLabel),
+                    const SizedBox(height: 10),
+                  ],
+                  if (duel.opponentThinking)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: WBColors.whiteA(.05),
+                          border: Border.all(color: WBColors.whiteA(.1)),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(18),
+                            topRight: Radius.circular(18),
+                            bottomRight: Radius.circular(18),
+                            bottomLeft: Radius.circular(6),
+                          ),
+                        ),
+                        child: const _TypingDots(),
                       ),
                     ),
-                    child: const _TypingDots(),
+                ],
+              ),
+              // The opponent's side of the board — see [ChainBubble], which
+              // aligns their words the same way.
+              if (_shownReaction != null)
+                Positioned(
+                  top: 8,
+                  left: 12,
+                  child: IgnorePointer(
+                    child: AnimatedOpacity(
+                      opacity: _reactionVisible ? 1 : 0,
+                      duration: const Duration(milliseconds: 300),
+                      child: _ReactionBubble(emoji: _shownReaction!.emoji),
+                    ),
                   ),
                 ),
             ],
@@ -450,6 +556,236 @@ class _DuelScreenState extends State<DuelScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The quick-reaction row and the chat toggle, in one slim strip so neither
+/// crowds the board above or the word field below.
+class _SocialBar extends StatelessWidget {
+  const _SocialBar({required this.chatOpen, required this.onToggleChat, required this.onReact});
+
+  final bool chatOpen;
+  final VoidCallback onToggleChat;
+  final ValueChanged<String> onReact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: WBColors.whiteA(.07))),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                for (final emoji in kDuelReactions) ...[
+                  Pressable(
+                    // Sends immediately — a reaction is not worth a confirmation.
+                    onTap: () => onReact(emoji),
+                    pressScale: .95,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: WBColors.whiteA(.05),
+                        border: Border.all(color: WBColors.whiteA(.1)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(emoji, style: const TextStyle(fontSize: 16)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ],
+            ),
+          ),
+          Pressable(
+            onTap: onToggleChat,
+            pressScale: .95,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: chatOpen ? WBColors.accentA(.16) : WBColors.whiteA(.05),
+                border: Border.all(color: chatOpen ? WBColors.accentA(.4) : WBColors.whiteA(.1)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.chat_bubble_outline,
+                size: 16,
+                color: chatOpen ? WBColors.accent : WBColors.textA(.6),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The chat log for the duel now live, plus the field that adds to it. Opens
+/// under [_SocialBar] and disappears with the duel — nothing here is ever
+/// saved.
+class _ChatPanel extends StatelessWidget {
+  const _ChatPanel({
+    required this.messages,
+    required this.scrollController,
+    required this.textController,
+    required this.focusNode,
+    required this.onSend,
+  });
+
+  final List<DuelChatMessage> messages;
+  final ScrollController scrollController;
+  final TextEditingController textController;
+  final FocusNode focusNode;
+  final VoidCallback onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 160),
+      decoration: BoxDecoration(
+        color: WBColors.whiteA(.02),
+        border: Border(bottom: BorderSide(color: WBColors.whiteA(.07))),
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: messages.isEmpty
+                ? Center(
+                    child: Text(
+                      'Hali xabar yo\'q',
+                      style: WBText.grotesk(size: 12.5, color: WBColors.textA(.35)),
+                    ),
+                  )
+                : ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+                    children: [
+                      for (final message in messages) ...[
+                        Align(
+                          alignment: message.mine ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 240),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: message.mine ? WBColors.accentA(.16) : WBColors.whiteA(.05),
+                              border: Border.all(
+                                color: message.mine ? WBColors.accentA(.34) : WBColors.whiteA(.1),
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Text(
+                              message.text,
+                              style: WBText.grotesk(size: 13, weight: FontWeight.w500),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                    ],
+                  ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 40,
+                    child: TextField(
+                      controller: textController,
+                      focusNode: focusNode,
+                      onSubmitted: (_) => onSend(),
+                      textInputAction: TextInputAction.send,
+                      maxLength: 200,
+                      buildCounter: (
+                        BuildContext context, {
+                        required int currentLength,
+                        required bool isFocused,
+                        required int? maxLength,
+                      }) =>
+                          null,
+                      style: WBText.grotesk(size: 13.5),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        filled: true,
+                        fillColor: WBColors.whiteA(.05),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                        hintText: 'Xabar yoz…',
+                        hintStyle: WBText.grotesk(size: 13.5, color: WBColors.textA(.3)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: WBColors.whiteA(.13)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: WBColors.whiteA(.13)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: WBColors.accentA(.6)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Pressable(
+                  onTap: onSend,
+                  pressScale: .95,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: wbAccentGradient,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: const StrokeGlyph.chevronRight(
+                      size: 12,
+                      thickness: 2.5,
+                      color: WBColors.accentInk,
+                      offset: Offset(-3, 0),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The opponent's reaction, floating briefly over their side of the board.
+class _ReactionBubble extends StatelessWidget {
+  const _ReactionBubble({required this.emoji});
+
+  final String emoji;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 52,
+      height: 52,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: WBColors.whiteA(.06),
+        border: Border.all(color: WBColors.whiteA(.12)),
+        shape: BoxShape.circle,
+      ),
+      child: Text(emoji, style: const TextStyle(fontSize: 26)),
     );
   }
 }

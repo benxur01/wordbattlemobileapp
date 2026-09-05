@@ -45,6 +45,12 @@ dependencies:
   # the credential comes from a button Google renders — see
   # `lib/admin/admin_google_button_web.dart`. The phone build never touches it.
   google_sign_in_web: ^1.1.3
+  # The tournament share button's native OS share sheet.
+  share_plus: ^13.3.0
+  # Android App Links: hands a shared tournament link's URI to app_root.dart
+  # so it can jump straight to that tournament's bracket. No effect on iOS —
+  # there is no Universal Links entitlement yet.
+  app_links: ^7.2.1
 
 dev_dependencies:
   flutter_test:

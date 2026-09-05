@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../api/models.dart';
 import '../api/tournament_models.dart';
@@ -21,17 +22,38 @@ import '../widgets/primary_button.dart';
 /// recursively-reseeded single-elimination tree — so this screen only ever
 /// needs to bisect each round's match list down the middle.
 class TournamentBracketScreen extends StatefulWidget {
-  const TournamentBracketScreen({super.key, required this.detail, required this.onBack});
+  const TournamentBracketScreen({
+    super.key,
+    required this.detail,
+    required this.onBack,
+    required this.meId,
+    required this.onCancel,
+  });
 
   /// Null while the detail is still loading.
   final TournamentDetail? detail;
   final VoidCallback onBack;
+
+  /// The signed-in player's own id — compared against `detail.organizer.id`
+  /// to decide whether the cancel button below belongs to this viewer.
+  final int? meId;
+
+  /// Calls the tournament off for good. Null for a spectator or a
+  /// participant who isn't its organizer — the cancel button never shows
+  /// without it.
+  final VoidCallback? onCancel;
 
   @override
   State<TournamentBracketScreen> createState() => _TournamentBracketScreenState();
 }
 
 class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
+  /// Cancelling cannot be undone, so the button asks once more in place
+  /// rather than acting on the first tap — the same inline confirmation
+  /// `OrganizeTournamentManageScreen` uses for its own "Turnirni bekor
+  /// qilish".
+  bool _confirmingCancel = false;
+
   static const _matchWidth = 132.0;
   // Tall enough for two player rows (avatar + name, each ~20dp with its own
   // padding) inside the card's border and padding — 60 clips a real two-line
@@ -84,6 +106,18 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
     });
   }
 
+  /// Only the tournament's own organizer, and only while it is still live —
+  /// a spectator or an ordinary participant never sees this, whatever
+  /// [widget.onCancel] is wired to.
+  bool get _cancellable {
+    final d = widget.detail;
+    return d != null &&
+        widget.onCancel != null &&
+        widget.meId != null &&
+        d.organizer?.id == widget.meId &&
+        d.status == 'in_progress';
+  }
+
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
@@ -100,6 +134,62 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
           _header(),
           _hint(),
           Expanded(child: _bracket()),
+          if (_cancellable)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 0, 22, 22),
+              child: _cancelSection(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _cancelSection() {
+    if (!_confirmingCancel) {
+      return _FlatActionButton(
+        label: 'Bekor qilish',
+        color: WBColors.redSoft,
+        border: WBColors.redA(.28),
+        onTap: () => setState(() => _confirmingCancel = true),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+      decoration: BoxDecoration(
+        color: WBColors.redA(.08),
+        border: Border.all(color: WBColors.redA(.3)),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            "Turnir butunlay bekor qilinadi va uni qayta boshlab bo'lmaydi. Barcha qatnashchilarga xabar beriladi.",
+            style: WBText.grotesk(size: 12, height: 1.45, color: WBColors.textA(.72)),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _FlatActionButton(
+                  label: 'Bekor qilish',
+                  color: WBColors.textA(.75),
+                  border: WBColors.whiteA(.12),
+                  onTap: () => setState(() => _confirmingCancel = false),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: _FlatActionButton(
+                  label: 'Ha, bekor qilish',
+                  color: WBColors.redSoft,
+                  border: WBColors.redA(.45),
+                  fill: WBColors.redA(.14),
+                  onTap: widget.onCancel,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -151,6 +241,22 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
               ],
             ),
           ),
+          Pressable(
+            onTap: d == null ? null : () => _share(d),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: WBColors.whiteA(.05),
+                border: Border.all(color: WBColors.whiteA(.1)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.ios_share, size: 15, color: Colors.white70),
+            ),
+          ),
+          const SizedBox(width: 8),
           if (d != null && d.status == 'in_progress')
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
@@ -180,6 +286,15 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
             const SizedBox(width: 38),
         ],
       ),
+    );
+  }
+
+  /// `wordbattle.example.uz` is a placeholder for the real production domain
+  /// — swap it here once one exists (see backend/README.md's "Turnirlar"
+  /// section for the Android App Links half of this link).
+  void _share(TournamentDetail d) {
+    SharePlus.instance.share(
+      ShareParams(text: "${d.name} turniriga qo'shil! https://wordbattle.example.uz/t/${d.id}"),
     );
   }
 
@@ -677,4 +792,42 @@ class _BracketConnectorPainter extends CustomPainter {
       oldDelegate.childCenters != childCenters ||
       oldDelegate.parentCenters != parentCenters ||
       oldDelegate.decided != decided;
+}
+
+/// A flat, bordered row button — the same quiet, non-accent tone
+/// `OrganizeTournamentManageScreen` uses for its own cancel confirmation.
+class _FlatActionButton extends StatelessWidget {
+  const _FlatActionButton({
+    required this.label,
+    required this.color,
+    required this.border,
+    required this.onTap,
+    this.fill,
+  });
+
+  final String label;
+  final Color color;
+  final Color border;
+  final Color? fill;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Opacity(
+        opacity: onTap == null ? .5 : 1,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          decoration: BoxDecoration(
+            color: fill ?? WBColors.whiteA(.04),
+            border: Border.all(color: border),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          alignment: Alignment.center,
+          child: Text(label, style: WBText.grotesk(size: 13, weight: FontWeight.w600, color: color)),
+        ),
+      ),
+    );
+  }
 }

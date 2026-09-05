@@ -21,7 +21,9 @@ public class TournamentEntity {
         /** The bracket is seeded and matches are being played. */
         IN_PROGRESS,
         /** The final has been decided. */
-        COMPLETED
+        COMPLETED,
+        /** Called off early by its organizer or an admin — no champion, no more rounds. */
+        CANCELLED
     }
 
     @Id

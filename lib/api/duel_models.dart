@@ -232,6 +232,26 @@ class FinishedDuel {
   String get averageLabel => '${(averageMs / 1000).toStringAsFixed(1)}s';
 }
 
+/// One line of the duel's chat — this duel only, never persisted. [mine]
+/// tells the bubble which side to render on, the same way [ChainWord.mine]
+/// does for the chain.
+class DuelChatMessage {
+  const DuelChatMessage({required this.text, required this.mine});
+
+  final String text;
+  final bool mine;
+}
+
+/// A reaction the opponent sent. [id] is a local counter rather than
+/// anything the server hands back, so the same emoji sent twice in a row is
+/// still seen as a fresh event and replays its animation.
+class DuelReaction {
+  const DuelReaction({required this.emoji, required this.id});
+
+  final String emoji;
+  final int id;
+}
+
 /// A challenge waiting for an answer, in either direction.
 class PendingInvite {
   PendingInvite({required this.inviteId, required this.user, required this.secondsLeft});

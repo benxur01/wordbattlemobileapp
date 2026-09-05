@@ -21,6 +21,7 @@ public class AdminAuditService {
     public static final String TOURNAMENT_CREATE = "tournament_create";
     public static final String TOURNAMENT_INVITE = "tournament_invite";
     public static final String TOURNAMENT_START = "tournament_start";
+    public static final String TOURNAMENT_CANCEL = "tournament_cancel";
 
     private final AdminAuditLogRepository entries;
 

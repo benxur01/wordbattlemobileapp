@@ -167,6 +167,21 @@ qilish uchun, qatnashchi bo'lish shart emas.
 | GET | `/tournaments/{id}` | to'liq bracket: barcha bosqichlar, har bir jangning holati va g'olibi |
 | GET | `/tournaments/mine` | javobsiz takliflar va boshlashga tayyor janglar — jonli soket kadrining REST zaxira nusxasi |
 | POST | `/tournaments/{id}/accept` · `/decline` | faqat shu taklifning egasi uchun |
+| POST | `/tournaments/{id}/cancel` | faqat tashkilotchi uchun — o'zi tashkil qilgan turnirni bekor qiladi |
+
+Har bir turnir tashqariga `https://<production-domain>/t/<id>` ko'rinishidagi
+havola sifatida ulashilishi mumkin (native share sheet, `organize_tournament_manage_screen.dart`
+va `tournament_bracket_screen.dart`dagi ulashish tugmasi). Android'da bu havola
+App Links orqali ilovani to'g'ridan-to'g'ri o'sha turnirning bracketiga ochadi —
+buning uchun `wordbattle.example.uz` haqiqiy domenga almashtirilishi va
+`static/.well-known/assetlinks.json` dagi `sha256_cert_fingerprints`
+o'rinbosari release keystore'dan olingan haqiqiy barmoq iz bilan
+to'ldirilishi kerak (`keytool -list -v -keystore <keystore yo'li> | grep
+SHA256` — keystore'ning o'zi qanday yaratilishi uchun ildiz papkadagi
+[`README.md`](../README.md#release-imzosi)dagi "Release imzosi" bo'limiga
+qarang). iOS'da esa hozircha
+Universal Links yo'q (Apple Developer akkaunti yo'q), shuning uchun havola
+oddiy brauzerda ochiladi.
 
 ### Admin panel
 
@@ -189,6 +204,7 @@ faqat `ADMIN_BOOTSTRAP_USER_ID` orqali paydo bo'ladi (yuqoridagi jadval).
 | GET | `/admin/tournaments/{id}` | qatnashchilar ro'yxati + (boshlangan bo'lsa) bracket |
 | POST | `/admin/tournaments/{id}/invite` | `{userId}` — `/users/search` orqali topilgan o'yinchini taklif qiladi |
 | POST | `/admin/tournaments/{id}/start` | qabul qilganlar soni `size` ga teng bo'lgandagina ishlaydi; reyting bo'yicha seed qiladi va 1-bosqichni boshlaydi |
+| POST | `/admin/tournaments/{id}/cancel` | istalgan turnirni bekor qiladi (tugagan yoki allaqachon bekor qilinganidan tashqari) |
 
 Har bir o'zgartirish `admin_audit_log` ga o'zgarishning **o'zi bilan bitta
 tranzaksiyada** yoziladi. Hech narsa o'zgarmagan bo'lsa (masalan, allaqachon
@@ -211,6 +227,8 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `queue.leave` | — | qidiruvni bekor qiladi |
 | `duel.submit` | `{word}` | so'z yuboradi |
 | `duel.forfeit` | — | jangdan chiqadi (mag'lubiyat) |
+| `duel.chat` | `{text}` | raqibga matn yuboradi (jang davomida, saqlanmaydi) |
+| `duel.reaction` | `{emoji}` | tayyor emoji ro'yxatidan biri: 🔥😂👏😮🤝😢 |
 | `invite.send` | `{userId}` | do'stni jangga chaqiradi |
 | `invite.accept` / `invite.decline` | `{inviteId}` | chaqiruvga javob |
 | `tournament.accept` / `tournament.decline` | `{tournamentId}` | turnir taklifiga javob |
@@ -227,11 +245,14 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `duel.update` | `chain[{word,mine,spentMs}], yourTurn, needLetter, substitutedFrom?, timeLeftMs, yourWords, opponentWords, opponentThinking` |
 | `duel.rejected` | `code, message` — **navbat yo'qolmaydi**, faqat xato ko'rsatiladi |
 | `duel.finished` | `result(win/lose), reason, rated, delta, ratingBefore, ratingAfter, chainLength, yourWords, averageMs, newWords, streakDays, stuckLetter, hints[]` |
+| `duel.chat` | `text` — raqibdan kelgan xabar |
+| `duel.reaction` | `emoji` — raqibning reaksiyasi |
 | `invite.sent` / `invite.incoming` / `invite.declined` / `invite.expired` | `inviteId`, `from`/`to`, `expiresInSeconds` |
 | `duel.aborted` | `duelId, message` — server o'chmoqda, jang hech kimning foydasiga tugamadi |
 | `tournament.invite` | `tournamentId, name, size, participantStatus` — ulanganda va qayta ulanganda, javobsiz taklif bo'lsa |
 | `tournament.match_ready` | `tournamentMatchId, tournamentId, tournamentName, round, totalRounds, opponent` — ikkala joy ham to'lganda |
 | `tournament.bracket_update` | `tournamentId` — bracket o'zgardi, ochiq bo'lsa mijoz `GET /tournaments/{id}` bilan qayta yuklaydi |
+| `tournament.cancelled` | `tournamentId, name` — turnir bekor qilindi (tashkilotchi yoki admin tomonidan) |
 | `error` | `code, message` |
 
 `duel.rejected` kodlari: `letters_only`, `too_short`, `wrong_letter`,

@@ -115,6 +115,9 @@ class AdminApiClient {
   Future<AdminTournamentRow> startTournament(int tournamentId) async =>
       AdminTournamentRow.fromJson(await _rest.post('/admin/tournaments/$tournamentId/start') as Map<String, dynamic>);
 
+  Future<AdminTournamentRow> cancelTournament(int tournamentId) async =>
+      AdminTournamentRow.fromJson(await _rest.post('/admin/tournaments/$tournamentId/cancel') as Map<String, dynamic>);
+
   // ------------------------------------------------------- metrics, audit
 
   /// Doubles as the role check: any token can be sent, but only an admin's is

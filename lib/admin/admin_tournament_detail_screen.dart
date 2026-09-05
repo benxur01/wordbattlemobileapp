@@ -110,6 +110,23 @@ class _AdminTournamentDetailScreenState extends State<AdminTournamentDetailScree
     });
   }
 
+  Future<void> _cancel() async {
+    final confirmed = await adminConfirm(
+      context,
+      title: 'Turnirni bekor qilish',
+      message: "Turnir butunlay bekor qilinadi va buni ortga qaytarib bo'lmaydi. Barcha qatnashchilarga xabar beriladi. "
+          'Davom etilsinmi?',
+      confirmLabel: 'Bekor qilish',
+      destructive: true,
+    );
+    if (!confirmed) return;
+    await guard(() async {
+      await widget.api.cancelTournament(widget.tournamentId);
+      await _load();
+      if (mounted) setState(() => _notice = 'Turnir bekor qilindi');
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = _detail;
@@ -157,6 +174,7 @@ class _AdminTournamentDetailScreenState extends State<AdminTournamentDetailScree
     final tournament = detail.tournament;
     final accepted = detail.participants.where((p) => p.status == 'accepted').length;
     final isOpen = tournament.status == 'open';
+    final cancellable = tournament.status == 'open' || tournament.status == 'in_progress';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
@@ -174,12 +192,22 @@ class _AdminTournamentDetailScreenState extends State<AdminTournamentDetailScree
                 color: switch (tournament.status) {
                   'in_progress' => WBColors.green,
                   'completed' => WBColors.textA(.6),
+                  'cancelled' => WBColors.red,
                   _ => WBColors.amber,
                 },
               ),
             ],
           ),
           const SizedBox(height: 16),
+          if (cancellable) ...[
+            OutlinedButton.icon(
+              onPressed: loading ? null : _cancel,
+              icon: const Icon(Icons.cancel_outlined, size: 18),
+              label: const Text('Bekor qilish'),
+              style: OutlinedButton.styleFrom(foregroundColor: WBColors.red, side: const BorderSide(color: WBColors.red)),
+            ),
+            const SizedBox(height: 16),
+          ],
           if (isOpen) ...[
             Text('$accepted / ${tournament.size} qabul qildi', style: WBText.grotesk(size: 13, color: WBColors.textA(.7))),
             const SizedBox(height: 10),

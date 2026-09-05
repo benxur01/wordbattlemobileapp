@@ -168,6 +168,7 @@ APK istalgan narsani yubora oladi — natija rad javobi bo'ladi.
 | Mashq | `GET /api/practice/word`, `/hints` |
 | Turnir taklifi | `tournament.invite` freymi; javob — `tournament.accept`/`tournament.decline` |
 | Turnir bracketi | `GET /api/tournaments/{id}` — istalgan tizimga kirgan foydalanuvchi uchun ochiq, faqat qatnashchilar uchun emas |
+| Turnirni ulashish | Native share sheet orqali `https://wordbattle.example.uz/t/{id}` — Android ilovani to'g'ridan-to'g'ri bracketga ochadi, iOS'da havola brauzerda ochiladi |
 
 **Ulanish uzilsa** soket o'zi qayta ulanadi (1→15 s backoff; birinchi freym
 kelishi bilan hisob nolga qaytadi, shunda ikkinchi uzilish ham 1 soniyadan

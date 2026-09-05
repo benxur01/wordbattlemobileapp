@@ -170,5 +170,8 @@ class ApiClient {
   Future<TournamentSummary> startTournament(int tournamentId) async =>
       TournamentSummary.fromJson(await _post('/tournaments/$tournamentId/start') as Map<String, dynamic>);
 
+  /// Restricted server-side to the tournament's own organizer.
+  Future<void> cancelTournament(int tournamentId) => _post('/tournaments/$tournamentId/cancel');
+
   void close() => _rest.close();
 }

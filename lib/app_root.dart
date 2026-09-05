@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -220,6 +221,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   late final Session _session = Session(_api);
   final GameSocket _socket = GameSocket();
   final GoogleAuth _google = GoogleAuth();
+  final AppLinks _appLinks = AppLinks();
 
   WBScreen screen = WBScreen.loading;
   String? banner; // transient error / notice shown over the current screen
@@ -263,6 +265,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   DateTime? _inviteStartedAt;
   int _inviteSecondsLeft = 0;
 
+  /// Chat exchanged in the current duel only — never persisted, and cleared
+  /// the moment that duel ends or the screen is left.
+  List<DuelChatMessage> duelChat = const [];
+  DuelReaction? duelReaction;
+  int _reactionSeq = 0;
+
   // ---- tournaments ----
   TournamentInvite? tournamentInvite;
   TournamentMatchPrompt? tournamentMatchReady;
@@ -288,6 +296,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   Timer? _ticker;
   StreamSubscription<SocketEvent>? _socketEvents;
   StreamSubscription<SocketStatus>? _socketStatus;
+  StreamSubscription<Uri>? _linkSub;
   DateTime _lastTick = DateTime.now();
 
   @override
@@ -296,6 +305,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) => _onTick());
     _bootstrap();
+    _listenForDeepLinks();
   }
 
   @override
@@ -306,6 +316,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     _searchDebounce?.cancel();
     _socketEvents?.cancel();
     _socketStatus?.cancel();
+    _linkSub?.cancel();
     _socket.dispose();
     _api.close();
     chainScrollController.dispose();
@@ -806,6 +817,64 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     unawaited(_loadTournamentDetail(id));
   }
 
+  /// The bracket screen's own "Ha, bekor qilish" — only ever wired up for the
+  /// tournament's own organizer (see [TournamentBracketScreen]'s visibility
+  /// check), so unlike [cancelOrganizedTournament] this acts on whichever
+  /// tournament is currently open rather than the one just being set up.
+  Future<void> cancelViewedTournament() async {
+    final detail = tournamentDetail;
+    if (detail == null || busy) return;
+    setState(() => busy = true);
+    try {
+      await _api.cancelTournament(detail.id);
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        tournamentDetail = null;
+      });
+      go(WBScreen.lobby);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        banner = e.message;
+      });
+    }
+  }
+
+  /// Wires up Android App Links: a tournament shared as
+  /// `https://wordbattle.example.uz/t/<id>` and tapped while the app is
+  /// already installed lands straight on that tournament's bracket — see
+  /// [_handleDeepLink]. iOS has no Universal Links entitlement yet, so a
+  /// shared link there never reaches this app at all; it just opens in a
+  /// browser, which is the expected fallback for now.
+  void _listenForDeepLinks() {
+    _appLinks.getInitialLink().then((uri) {
+      if (uri != null) _handleDeepLink(uri);
+    });
+    _linkSub = _appLinks.uriLinkStream.listen(_handleDeepLink, onError: (Object _) {});
+  }
+
+  /// Parses `/t/<id>` out of a shared tournament link and jumps to its
+  /// bracket, the same screen [openTournamentBracket] already opens from the
+  /// lobby's own "active tournament" card.
+  ///
+  /// A link that arrives before login has finished has nowhere to land: [me]
+  /// is only ever set once a session is restored or a login completes, which
+  /// is the same "signed in" point every tournament REST call already waits
+  /// for (see the calls right after [_bootstrap] and [_completeLogin]). There
+  /// is no queue behind this — a link that beats sign-in is simply dropped,
+  /// and the tap that opened it falls back to whatever a bare `https://` link
+  /// does outside the app.
+  void _handleDeepLink(Uri uri) {
+    if (!mounted || me == null) return;
+    final segments = uri.pathSegments;
+    if (segments.length != 2 || segments[0] != 't') return;
+    final id = int.tryParse(segments[1]);
+    if (id == null) return;
+    openTournamentBracket(id);
+  }
+
   void openTournamentInvite() => go(WBScreen.tournamentInvite);
 
   void acceptTournamentInvite() {
@@ -904,6 +973,31 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         organizingParticipants = null;
       });
       openTournamentBracket(tournament.id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        banner = e.message;
+      });
+    }
+  }
+
+  /// The manage screen's "Ha, bekor qilish" — calls the tournament off for
+  /// good and drops the organizer back to the lobby, the same place leaving
+  /// it unstarted already does.
+  Future<void> cancelOrganizedTournament() async {
+    final tournament = organizingTournament;
+    if (tournament == null || busy) return;
+    setState(() => busy = true);
+    try {
+      await _api.cancelTournament(tournament.id);
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        organizingTournament = null;
+        organizingParticipants = null;
+      });
+      go(WBScreen.lobby);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -1067,6 +1161,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           queuedAt = null;
           outgoingInvite = null;
           incomingInvite = null;
+          duelChat = const [];
+          duelReaction = null;
           screen = WBScreen.duel;
         });
         _scrollChainToBottom();
@@ -1088,12 +1184,22 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         _scrollChainToBottom();
       case 'duel.rejected':
         setState(() => duelError = event.payload['message'] as String? ?? "So'z qabul qilinmadi");
+      case 'duel.chat':
+        final text = event.payload['text'] as String?;
+        if (duel == null || text == null || text.isEmpty) return;
+        setState(() => duelChat = [...duelChat, DuelChatMessage(text: text, mine: false)]);
+      case 'duel.reaction':
+        final emoji = event.payload['emoji'] as String?;
+        if (duel == null || emoji == null || emoji.isEmpty) return;
+        setState(() => duelReaction = DuelReaction(emoji: emoji, id: _reactionSeq++));
       case 'duel.finished':
         final result = FinishedDuel.fromJson(event.payload);
         if (!duelFrameApplies(duel?.duelId, result.duelId)) return;
         setState(() {
           finished = result;
           duel = null;
+          duelChat = const [];
+          duelReaction = null;
           screen = result.won ? WBScreen.win : WBScreen.lose;
         });
         unawaited(_refreshSocial());
@@ -1149,12 +1255,24 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       case 'tournament.bracket_update':
         final id = (event.payload['tournamentId'] as num?)?.toInt();
         if (id != null && id == _viewingTournamentId) unawaited(_loadTournamentDetail(id));
+      case 'tournament.cancelled':
+        final id = (event.payload['tournamentId'] as num?)?.toInt();
+        final name = event.payload['name'] as String? ?? 'Turnir';
+        setState(() {
+          banner = "'$name' turniri bekor qilindi";
+          if (tournamentInvite?.tournamentId == id) tournamentInvite = null;
+          if (tournamentMatchReady?.tournamentId == id) tournamentMatchReady = null;
+          if (activeTournament?.id == id) activeTournament = null;
+          if (tournamentDetail?.id == id) tournamentDetail = null;
+        });
       case 'duel.aborted':
         // The server is going away mid-duel. Nobody won; say so plainly rather
         // than leaving the duel screen frozen on a turn that will never end.
         setState(() {
           duel = null;
           finished = null;
+          duelChat = const [];
+          duelReaction = null;
           banner = event.payload['message'] as String? ?? 'Jang bekor qilindi';
           if (screen == WBScreen.duel) screen = WBScreen.lobby;
         });
@@ -1346,6 +1464,20 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     _socket.send('duel.submit', {'word': word.trim()});
   }
 
+  /// Sends a chat line to the opponent. The server never echoes it back, so
+  /// it is added to the local log here — the sender already knows what they
+  /// typed, but the log would otherwise show only half the conversation.
+  void sendDuelChat(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    _socket.send('duel.chat', {'text': trimmed});
+    setState(() => duelChat = [...duelChat, DuelChatMessage(text: trimmed, mine: true)]);
+  }
+
+  /// Sends immediately — no confirmation, no local echo. The tap itself is
+  /// the only feedback the sender needs.
+  void sendDuelReaction(String emoji) => _socket.send('duel.reaction', {'emoji': emoji});
+
   void challenge(FriendDto friend) => _socket.send('invite.send', {'userId': friend.user.id});
 
   void acceptIncoming() {
@@ -1402,6 +1534,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       // So the app says what happened and lets that run.
       banner = delivered ? null : "Aloqa yo'q — server bundan xabarsiz";
       duelError = '';
+      // The chat and reactions belong to the duel just left, not whatever
+      // comes next — same as the rest of this duel's state, none of which
+      // outlives the screen it was shown on. `exit` names this move as a
+      // forfeit only when it is leaving the duel screen, which is exactly
+      // when there is a chat log to drop.
+      if (exit == 'duel.forfeit') {
+        duelChat = const [];
+        duelReaction = null;
+      }
     });
 
     switch (next) {
@@ -1558,6 +1699,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           error: duelError,
           scrollController: chainScrollController,
           onSubmit: submitWord,
+          chatLog: duelChat,
+          onSendChat: sendDuelChat,
+          onSendReaction: sendDuelReaction,
+          reaction: duelReaction,
         ),
       WBScreen.win => WinScreen(
           result: finished,
@@ -1655,6 +1800,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       WBScreen.tournamentBracket => TournamentBracketScreen(
           detail: tournamentDetail,
           onBack: () => go(WBScreen.lobby),
+          meId: me?.id,
+          onCancel: cancelViewedTournament,
         ),
       WBScreen.organizeTournamentSetup => OrganizeTournamentScreen(
           friends: friends,
@@ -1669,6 +1816,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onBack: leaveOrganizingTournament,
           onRefresh: () => unawaited(_loadOrganizingParticipants()),
           onStart: startOrganizedTournament,
+          onCancel: cancelOrganizedTournament,
         ),
     };
   }

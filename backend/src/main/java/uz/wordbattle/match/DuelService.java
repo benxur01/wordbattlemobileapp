@@ -110,6 +110,16 @@ public class DuelService {
     private final Map<Long, MissedFinish> missedFinishes = new ConcurrentHashMap<>();
 
     /**
+     * When a player last sent a chat message or a reaction — the two share one
+     * bucket, since both are social noise rather than a move, and a player
+     * alternating between them to dodge a per-type limit should be caught the
+     * same as one spamming a single kind. Left unkeyed entries are harmless:
+     * they are overwritten by that player's next duel, the same tradeoff this
+     * class already makes for {@link #missedFinishes} and the rest.
+     */
+    private final Map<Long, Instant> lastSocialAt = new ConcurrentHashMap<>();
+
+    /**
      * Which duels were started as a tournament match, keyed by duel id. Read
      * once, in {@link #settle}, to tell {@link TournamentService} to advance the
      * bracket — and nowhere else, so an ordinary duel never has to know this
@@ -433,6 +443,75 @@ public class DuelService {
 
     private void reject(long playerId, String code, String message) {
         sockets.send(playerId, "duel.rejected", new DuelMessages.Rejected(code, message));
+    }
+
+    // --------------------------------------------------------------- social
+
+    /** How often a player may send a chat message or a reaction. */
+    private static final Duration SOCIAL_THROTTLE = Duration.ofMillis(400);
+
+    private static final int CHAT_MAX_LENGTH = 200;
+
+    /** The only reactions a player can send — fixed, not free-form. */
+    private static final Set<String> ALLOWED_REACTIONS = Set.of("🔥", "😂", "👏", "😮", "🤝", "😢");
+
+    /**
+     * A free-text message for the opponent only — never the sender, who already
+     * knows what they typed. Ephemeral like the rest of a duel: nothing here is
+     * ever written to the database, and there is no profanity filter, the same
+     * as everywhere else a player can type into this server.
+     */
+    public void sendChat(long playerId, String rawText) {
+        DuelSession session = duelOf(playerId).orElse(null);
+        if (session == null || session.finished()) {
+            sockets.sendError(playerId, "no_duel", "Faol jang topilmadi");
+            return;
+        }
+
+        String trimmed = rawText == null ? "" : rawText.trim();
+        if (trimmed.isEmpty()) {
+            sockets.sendError(playerId, "empty_message", "Bo'sh xabar yuborib bo'lmaydi");
+            return;
+        }
+        if (trimmed.length() > CHAT_MAX_LENGTH) {
+            sockets.sendError(playerId, "message_too_long", "Xabar juda uzun (200 belgigacha)");
+            return;
+        }
+        if (!allowSocialFrame(playerId)) return;
+
+        sockets.send(session.opponentOf(playerId), "duel.chat", Map.of("text", trimmed));
+    }
+
+    /** A reaction from the fixed emoji set, shown to the opponent only. */
+    public void sendReaction(long playerId, String emoji) {
+        DuelSession session = duelOf(playerId).orElse(null);
+        if (session == null || session.finished()) {
+            sockets.sendError(playerId, "no_duel", "Faol jang topilmadi");
+            return;
+        }
+        if (!ALLOWED_REACTIONS.contains(emoji)) {
+            sockets.sendError(playerId, "invalid_reaction", "Noma'lum reaksiya");
+            return;
+        }
+        if (!allowSocialFrame(playerId)) return;
+
+        sockets.send(session.opponentOf(playerId), "duel.reaction", Map.of("emoji", emoji));
+    }
+
+    /**
+     * {@code true} once every {@link #SOCIAL_THROTTLE}, per player. A throttled
+     * attempt tells the sender and leaves the stored instant alone, so it costs
+     * nothing toward the next window.
+     */
+    private boolean allowSocialFrame(long playerId) {
+        Instant now = Instant.now();
+        Instant last = lastSocialAt.get(playerId);
+        if (last != null && Duration.between(last, now).compareTo(SOCIAL_THROTTLE) < 0) {
+            sockets.sendError(playerId, "too_fast", "Sekinroq");
+            return false;
+        }
+        lastSocialAt.put(playerId, now);
+        return true;
     }
 
     // ---------------------------------------------------------- disconnects

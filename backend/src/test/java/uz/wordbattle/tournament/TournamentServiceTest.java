@@ -2,6 +2,9 @@ package uz.wordbattle.tournament;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -13,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,10 +24,13 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 import uz.wordbattle.common.ApiException;
 import uz.wordbattle.match.DuelService;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserRepository;
+import uz.wordbattle.ws.SocketRegistry;
 
 /**
  * The bracket, end to end: seeding an 8-player tournament by rating, playing
@@ -56,6 +63,9 @@ class TournamentServiceTest {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private SocketRegistry sockets;
 
     /**
      * Seeds by rating, pairs the strongest against the weakest each round, and
@@ -203,6 +213,155 @@ class TournamentServiceTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Sinov\",\"size\":4}"))
                 .andExpect(status().isForbidden());
+    }
+
+    // ------------------------------------------------------------------- cancel
+
+    @Test
+    void cancellingNotifiesEveryParticipantWhetherInvitedOrAccepted() throws Exception {
+        long adminId = adminUserId();
+        long accepted = createPlayer("tcancel0", 1200);
+        long stillInvited = createPlayer("tcancel1", 1200);
+        TournamentEntity tournament = tournaments.create(adminId, "Bekor bo'ladigan", 4);
+        tournaments.invite(adminId, tournament.getId(), accepted);
+        tournaments.invite(adminId, tournament.getId(), stillInvited);
+        tournaments.accept(accepted, tournament.getId());
+        // stillInvited never answers.
+
+        WebSocketSession acceptedSocket = registerSocket(accepted);
+        WebSocketSession invitedSocket = registerSocket(stillInvited);
+
+        TournamentEntity cancelled = tournaments.cancel(adminId, tournament.getId());
+        assertThat(cancelled.getStatus()).isEqualTo(TournamentEntity.Status.CANCELLED);
+        assertThat(cancelled.getFinishedAt()).isNotNull();
+
+        assertThat(cancellationFrame(acceptedSocket).get("tournamentId").asLong()).isEqualTo(tournament.getId());
+        assertThat(cancellationFrame(invitedSocket).get("tournamentId").asLong()).isEqualTo(tournament.getId());
+    }
+
+    @Test
+    void cancellingAnAlreadyCompletedTournamentIsRefused() throws Exception {
+        long adminId = adminUserId();
+        long[] ids = {createPlayer("tcancelc0", 1200), createPlayer("tcancelc1", 1100),
+                createPlayer("tcancelc2", 1000), createPlayer("tcancelc3", 900)};
+        TournamentEntity tournament = tournaments.create(adminId, "Tugagan", 4);
+        for (long id : ids) tournaments.invite(adminId, tournament.getId(), id);
+        for (long id : ids) tournaments.accept(id, tournament.getId());
+        tournaments.start(adminId, tournament.getId());
+        for (TournamentMatch match : matchesOf(tournament.getId(), 1)) playOutFavouringLowerIndex(match, ids);
+        playOutFavouringLowerIndex(matchesOf(tournament.getId(), 2).get(0), ids);
+        assertThat(tournaments.require(tournament.getId()).getStatus()).isEqualTo(TournamentEntity.Status.COMPLETED);
+
+        assertThatThrownBy(() -> tournaments.cancel(adminId, tournament.getId()))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("tournament_not_active"));
+    }
+
+    @Test
+    void cancellingAnAlreadyCancelledTournamentIsRefused() {
+        long adminId = adminUserId();
+        TournamentEntity tournament = tournaments.create(adminId, "Ikki marta bekor", 4);
+        tournaments.cancel(adminId, tournament.getId());
+
+        assertThatThrownBy(() -> tournaments.cancel(adminId, tournament.getId()))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("tournament_not_active"));
+    }
+
+    /**
+     * The one case cancelling must not touch: a duel already live when its
+     * tournament is called off has to be allowed to finish normally for its
+     * two players. Only the bracket stops moving — the match itself still
+     * gets its winner, and the round it would have fed is left exactly as it
+     * was.
+     */
+    @Test
+    void aDuelAlreadyLiveWhenItsTournamentIsCancelledStillSettlesButTheBracketDoesNotMove() throws Exception {
+        long adminId = adminUserId();
+        long[] ids = {createPlayer("tcancellive0", 1200), createPlayer("tcancellive1", 1200),
+                createPlayer("tcancellive2", 1200), createPlayer("tcancellive3", 1200)};
+        TournamentEntity tournament = tournaments.create(adminId, "Jonli bekor", 4);
+        for (long id : ids) tournaments.invite(adminId, tournament.getId(), id);
+        for (long id : ids) tournaments.accept(id, tournament.getId());
+        tournaments.start(adminId, tournament.getId());
+
+        TournamentMatch match = matchesOf(tournament.getId(), 1).get(0);
+        long winner = match.getPlayerOneUserId();
+        long loser = match.getPlayerTwoUserId();
+        tournaments.startMatch(winner, match.getId());
+
+        tournaments.cancel(adminId, tournament.getId());
+
+        duels.forfeitAndAwaitSettlement(loser);
+
+        TournamentMatch settled = matchRepo.findById(match.getId()).orElseThrow();
+        assertThat(settled.getStatus()).isEqualTo(TournamentMatch.Status.DONE);
+        assertThat(settled.getWinnerUserId()).isEqualTo(winner);
+
+        assertThat(tournaments.require(tournament.getId()).getStatus()).isEqualTo(TournamentEntity.Status.CANCELLED);
+
+        int nextSlot = settled.getSlot() / 2;
+        TournamentMatch next = matchesOf(tournament.getId(), 2).stream()
+                .filter(m -> m.getSlot() == nextSlot)
+                .findFirst()
+                .orElseThrow();
+        assertThat(next.getStatus()).isEqualTo(TournamentMatch.Status.PENDING);
+        assertThat(next.getPlayerOneUserId()).isNull();
+        assertThat(next.getPlayerTwoUserId()).isNull();
+    }
+
+    @Test
+    void answeringAnInviteToACancelledTournamentIsRefused() {
+        long adminId = adminUserId();
+        long invited = createPlayer("tcancelacc0", 1200);
+        TournamentEntity tournament = tournaments.create(adminId, "Bekor qilingan taklif", 4);
+        tournaments.invite(adminId, tournament.getId(), invited);
+        tournaments.cancel(adminId, tournament.getId());
+
+        assertThatThrownBy(() -> tournaments.accept(invited, tournament.getId()))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("tournament_cancelled"));
+        assertThatThrownBy(() -> tournaments.decline(invited, tournament.getId()))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("tournament_cancelled"));
+    }
+
+    @Test
+    void startingAMatchInACancelledTournamentIsRefusedAndStartsNoDuel() throws Exception {
+        long adminId = adminUserId();
+        long[] ids = {createPlayer("tcancelstart0", 1200), createPlayer("tcancelstart1", 1200),
+                createPlayer("tcancelstart2", 1200), createPlayer("tcancelstart3", 1200)};
+        TournamentEntity tournament = tournaments.create(adminId, "Bekor bo'lgan jang", 4);
+        for (long id : ids) tournaments.invite(adminId, tournament.getId(), id);
+        for (long id : ids) tournaments.accept(id, tournament.getId());
+        tournaments.start(adminId, tournament.getId());
+
+        TournamentMatch match = matchesOf(tournament.getId(), 1).get(0);
+        long sender = match.getPlayerOneUserId();
+        tournaments.cancel(adminId, tournament.getId());
+
+        WebSocketSession socket = registerSocket(sender);
+        tournaments.startMatch(sender, match.getId());
+
+        ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+        verify(socket).sendMessage(captor.capture());
+        JsonNode frame = mapper.readTree(captor.getValue().getPayload());
+        assertThat(frame.get("type").asText()).isEqualTo("error");
+        assertThat(frame.get("payload").get("code").asText()).isEqualTo("tournament_cancelled");
+
+        assertThat(matchRepo.findById(match.getId()).orElseThrow().getStatus()).isEqualTo(TournamentMatch.Status.READY);
+    }
+
+    /** A stand-in socket registered directly with the real {@link SocketRegistry}, the same way {@code AccountDeletionTest} does — there is no server here for a real one to connect to. */
+    private WebSocketSession registerSocket(long userId) {
+        WebSocketSession socket = mock(WebSocketSession.class);
+        given(socket.isOpen()).willReturn(true);
+        sockets.register(userId, socket);
+        return socket;
+    }
+
+    private JsonNode cancellationFrame(WebSocketSession socket) throws Exception {
+        ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+        verify(socket).sendMessage(captor.capture());
+        JsonNode frame = mapper.readTree(captor.getValue().getPayload());
+        assertThat(frame.get("type").asText()).isEqualTo("tournament.cancelled");
+        return frame.get("payload");
     }
 
     // --------------------------------------------------------------- helpers

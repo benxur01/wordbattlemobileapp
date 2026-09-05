@@ -97,6 +97,24 @@ class TournamentSelfServiceTest {
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("not_organizer"));
     }
 
+    /**
+     * The organizer's own way out of a tournament nobody can finish — a
+     * friend who never accepts, say. Nobody else's tournament may be touched
+     * through the same call.
+     */
+    @Test
+    void theOrganizerCanCancelTheirOwnTournamentButNobodyElsesCanBeCancelledThisWay() {
+        long organizerId = createPlayer("selfcancel0");
+        long strangerId = createPlayer("selfcancel1");
+        TournamentEntity tournament = tournaments.createByUser(organizerId, "O'zimniki", 4);
+
+        assertThatThrownBy(() -> tournaments.cancelByUser(strangerId, tournament.getId()))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("not_organizer"));
+
+        TournamentEntity cancelled = tournaments.cancelByUser(organizerId, tournament.getId());
+        assertThat(cancelled.getStatus()).isEqualTo(TournamentEntity.Status.CANCELLED);
+    }
+
     @Test
     void selfServiceCreationRefusesAnythingOtherThanAPowerOfTwoUpTo32() throws Exception {
         String player = login("SelfSizePlayer");

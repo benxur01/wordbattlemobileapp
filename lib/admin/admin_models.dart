@@ -251,6 +251,7 @@ class AdminTournamentRow {
         'open' => 'Ochiq',
         'in_progress' => 'Jonli',
         'completed' => 'Yakunlangan',
+        'cancelled' => 'Bekor qilindi',
         _ => status,
       };
 }

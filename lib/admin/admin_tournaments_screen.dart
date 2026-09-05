@@ -115,6 +115,7 @@ class _AdminTournamentsScreenState extends State<AdminTournamentsScreen> with Ad
               color: switch (tournament.status) {
                 'in_progress' => WBColors.green,
                 'completed' => WBColors.textA(.6),
+                'cancelled' => WBColors.red,
                 _ => WBColors.amber,
               },
             ),

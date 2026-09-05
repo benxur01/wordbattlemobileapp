@@ -63,6 +63,11 @@ public class SecurityConfig {
                         // The socket authenticates itself from the token in the
                         // query string during the handshake.
                         .requestMatchers("/ws/**").permitAll()
+                        // Android's Digital Asset Links verifier fetches this
+                        // with no token at all — behind the catch-all below it
+                        // would get a 401 and App Links verification would
+                        // silently never succeed.
+                        .requestMatchers("/.well-known/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Before the catch-all, or the catch-all would answer
                         // for it and every signed-in player would be an admin.

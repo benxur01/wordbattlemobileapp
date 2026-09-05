@@ -86,6 +86,11 @@ public class TournamentController {
         return summaryOf(tournaments.startByUser(principal.userId(), id));
     }
 
+    @PostMapping("/{id}/cancel")
+    public TournamentSummaryDto cancel(@CurrentUser AuthPrincipal principal, @PathVariable("id") long id) {
+        return summaryOf(tournaments.cancelByUser(principal.userId(), id));
+    }
+
     private static TournamentSummaryDto summaryOf(TournamentEntity tournament) {
         return new TournamentSummaryDto(
                 tournament.getId(), tournament.getName(), tournament.getSize(), tournament.getStatus().name().toLowerCase());
