@@ -47,11 +47,11 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(10);
+        assertThat(result.migrationsExecuted).isEqualTo(11);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -72,7 +72,10 @@ class MigrationChainTest {
                         "rating_history",
                         "practice_words",
                         "user_words",
-                        "admin_audit_log");
+                        "admin_audit_log",
+                        "tournaments",
+                        "tournament_participants",
+                        "tournament_matches");
 
         // Where the chain leaves the table everything else edits: V3 traded the
         // Telegram identity for Google's, V4 added the deletion marker, V5 the
@@ -147,7 +150,7 @@ class MigrationChainTest {
                 where a.nickname = 'aziza_m' and b.nickname = 'bekzod_99'
                 """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(8);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(9);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -220,6 +223,11 @@ class MigrationChainTest {
         // either account ever had.
         assertThat(query("upgrade", "select count(*) from users where password_hash is null"))
                 .containsExactly("2");
+
+        // V11 adds three tables and nothing else — no tournament existed before
+        // this feature shipped, so an upgraded server starts with none.
+        assertThat(tables("upgrade")).contains("tournaments", "tournament_participants", "tournament_matches");
+        assertThat(query("upgrade", "select count(*) from tournaments")).containsExactly("0");
     }
 
     // --------------------------------------------------------------- helpers

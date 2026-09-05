@@ -11,12 +11,14 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import uz.wordbattle.common.ApiException;
 import uz.wordbattle.config.AppProperties;
 import uz.wordbattle.friend.FriendService;
 import uz.wordbattle.friend.PresenceService;
 import uz.wordbattle.match.DuelService;
 import uz.wordbattle.match.InviteService;
 import uz.wordbattle.match.MatchmakingService;
+import uz.wordbattle.tournament.TournamentService;
 import uz.wordbattle.user.UserDto;
 import uz.wordbattle.user.UserService;
 
@@ -39,6 +41,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
     private final UserService users;
     private final FriendService friends;
     private final AppProperties props;
+    private final TournamentService tournaments;
 
     public GameSocketHandler(
             ObjectMapper mapper,
@@ -50,7 +53,8 @@ public class GameSocketHandler extends TextWebSocketHandler {
             PresenceService presence,
             UserService users,
             FriendService friends,
-            AppProperties props) {
+            AppProperties props,
+            TournamentService tournaments) {
         this.mapper = mapper;
         this.sockets = sockets;
         this.rateLimiter = rateLimiter;
@@ -61,6 +65,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
         this.users = users;
         this.friends = friends;
         this.props = props;
+        this.tournaments = tournaments;
     }
 
     private Long userIdOf(WebSocketSession session) {
@@ -91,6 +96,13 @@ public class GameSocketHandler extends TextWebSocketHandler {
         hello.put("onlineCount", presence.onlineCount());
         hello.put("pendingFriendRequests", friends.pendingRequestCount(userId));
         sockets.send(userId, "hello", hello);
+
+        // A tournament invite or a ready match is a real row, not a 12-second
+        // in-memory challenge, so it survives however long this player was
+        // disconnected — but nothing pushes it to them until they have a socket
+        // to push it down again. This is that push, standing in for the FCM this
+        // server does not have (see the README's "Hali yo'q").
+        tournaments.sendPendingNoticesTo(userId);
 
         // Reconnecting mid-duel: hand the player back their live state. If the
         // duel ended while they were away, hand them the result instead — the
@@ -135,8 +147,18 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 case "invite.send" -> invites.send(userId, longValue(envelope, "userId"));
                 case "invite.accept" -> invites.accept(userId, text(envelope, "inviteId"));
                 case "invite.decline" -> invites.decline(userId, text(envelope, "inviteId"));
+                case "tournament.accept" -> tournaments.accept(userId, longValue(envelope, "tournamentId"));
+                case "tournament.decline" -> tournaments.decline(userId, longValue(envelope, "tournamentId"));
+                case "tournament.match_start" -> tournaments.startMatch(userId, longValue(envelope, "tournamentMatchId"));
                 default -> sockets.sendError(userId, "unknown_type", "Noma'lum xabar turi: " + type);
             }
+        } catch (ApiException e) {
+            // The tournament actions above are the only frames that fail this way
+            // — everything else on this switch answers a bad request with its own
+            // sockets.sendError rather than throwing. Their code and message are
+            // worth keeping, the same way GlobalExceptionHandler keeps them for
+            // the REST routes that share this service.
+            sockets.sendError(userId, e.code(), e.getMessage());
         } catch (Exception e) {
             log.warn("Socket frame '{}' from {} failed", type, userId, e);
             sockets.sendError(userId, "frame_failed", "Amalni bajarib bo'lmadi");

@@ -21,6 +21,7 @@ import java.util.concurrent.TimeoutException;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import uz.wordbattle.config.AppProperties;
@@ -28,6 +29,7 @@ import uz.wordbattle.dictionary.DictionaryService;
 import uz.wordbattle.friend.PresenceService;
 import uz.wordbattle.match.DuelMessages.ChainEntry;
 import uz.wordbattle.match.MatchEntity.EndReason;
+import uz.wordbattle.tournament.TournamentService;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserDto;
 import uz.wordbattle.user.UserService;
@@ -108,6 +110,14 @@ public class DuelService {
     private final Map<Long, MissedFinish> missedFinishes = new ConcurrentHashMap<>();
 
     /**
+     * Which duels were started as a tournament match, keyed by duel id. Read
+     * once, in {@link #settle}, to tell {@link TournamentService} to advance the
+     * bracket — and nowhere else, so an ordinary duel never has to know this
+     * exists.
+     */
+    private final Map<String, Long> tournamentMatchByDuel = new ConcurrentHashMap<>();
+
+    /**
      * Guards the check-and-register in {@link #start} — see there for why the
      * two halves cannot stand apart. Nothing else takes it: every other writer
      * of the registries above only ever <em>frees</em> a player, and does so
@@ -135,20 +145,30 @@ public class DuelService {
     private final UserService users;
     private final PresenceService presence;
     private final MatchResultService results;
+    private final TournamentService tournaments;
 
+    /**
+     * {@code tournaments} is {@code @Lazy}: {@link TournamentService} starts a
+     * tournament match through this class, so a straight constructor cycle
+     * between the two beans would refuse to come up at all. The proxy defers
+     * resolving the real bean until {@link #settle} first reaches for it, by
+     * which time both are fully constructed.
+     */
     public DuelService(
             AppProperties props,
             DictionaryService dictionary,
             SocketRegistry sockets,
             UserService users,
             PresenceService presence,
-            MatchResultService results) {
+            MatchResultService results,
+            @Lazy TournamentService tournaments) {
         this.props = props;
         this.dictionary = dictionary;
         this.sockets = sockets;
         this.users = users;
         this.presence = presence;
         this.results = results;
+        this.tournaments = tournaments;
     }
 
     /**
@@ -184,6 +204,18 @@ public class DuelService {
     /** Starts a duel against the bot (unrated). */
     public DuelSession startAgainstBot(long player) {
         return start(player, DuelSession.BOT_ID, true);
+    }
+
+    /**
+     * Starts a duel for a tournament round and tags it, so that {@link #settle}
+     * reports its result back to {@link TournamentService} instead of only to
+     * the two players. Null under the same conditions {@link #start} is: either
+     * player already playing, or banned.
+     */
+    public DuelSession startTournamentMatch(long playerOne, long playerTwo, long tournamentMatchId) {
+        DuelSession session = start(playerOne, playerTwo);
+        if (session != null) tournamentMatchByDuel.put(session.id(), tournamentMatchId);
+        return session;
     }
 
     /**
@@ -544,6 +576,19 @@ public class DuelService {
 
     private void settle(DuelSession session, long winnerId, EndReason reason) {
         MatchResultService.Outcome outcome = recordResult(session, winnerId, reason);
+
+        // Read and cleared here, before either player is told: a tournament
+        // match's winner advancing into the next round is not something either
+        // screen's own frame handling should have to wait on or be able to miss.
+        Long tournamentMatchId = tournamentMatchByDuel.remove(session.id());
+        if (tournamentMatchId != null) {
+            try {
+                tournaments.onDuelFinished(tournamentMatchId, winnerId, outcome.matchId());
+            } catch (RuntimeException e) {
+                log.error("Tournament match {} could not be advanced from duel {}", tournamentMatchId, session.id(), e);
+            }
+        }
+
         try {
             notifyFinish(session, session.playerOne(), winnerId, reason, outcome);
             if (!session.botOpponent()) {

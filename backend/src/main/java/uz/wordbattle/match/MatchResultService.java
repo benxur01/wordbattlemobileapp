@@ -35,6 +35,7 @@ public class MatchResultService {
 
     public static class Outcome {
         private final Map<Long, PlayerResult> byPlayer = new HashMap<>();
+        private Long matchId;
 
         private Outcome() {}
 
@@ -53,6 +54,15 @@ public class MatchResultService {
 
         public PlayerResult forPlayer(long playerId) {
             return byPlayer.getOrDefault(playerId, new PlayerResult(0, 0, 0, 0, 0));
+        }
+
+        /**
+         * The persisted {@code matches} row this duel was written as, or null
+         * when nothing was recorded. A tournament match reads this to remember
+         * which duel it was decided by — see {@code TournamentService}.
+         */
+        public Long matchId() {
+            return matchId;
         }
     }
 
@@ -173,7 +183,7 @@ public class MatchResultService {
                     two.getStreakDays()));
         }
 
-        persist(session, winnerId, reason, one, two, oneBefore, twoBefore, now);
+        outcome.matchId = persist(session, winnerId, reason, one, two, oneBefore, twoBefore, now);
         return outcome;
     }
 
@@ -307,7 +317,7 @@ public class MatchResultService {
         return learned;
     }
 
-    private void persist(
+    private Long persist(
             DuelSession session,
             long winnerId,
             EndReason reason,
@@ -340,5 +350,6 @@ public class MatchResultService {
             Long owner = word.playerId() > 0 ? word.playerId() : null;
             matchWords.save(new MatchWord(match.getId(), owner, i, word.word(), word.spentMs()));
         }
+        return match.getId();
     }
 }

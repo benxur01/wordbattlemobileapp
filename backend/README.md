@@ -154,6 +154,20 @@ Barchasi `/api` ostida. `*` — token talab qilinmaydi.
 | GET | `/practice/word` | kunlik so'z: `{word, ipa, meaning}` |
 | GET | `/practice/hints?letter=&limit=` | "?" tugmasi uchun maslahatlar |
 
+### Turnirlar
+
+Pulsiz, admin tomonidan boshqariladigan yagona eliminatsiya turnirlari — o'z
+ro'yxatdan o'tish yo'q, hech qanday to'lov yo'q. `GET /{id}` istisno: u boshqa
+har qanday tizimga kirgan foydalanuvchi uchun ham ochiq — bracket tomosha
+qilish uchun, qatnashchi bo'lish shart emas.
+
+| Method | Path | Izoh |
+|---|---|---|
+| GET | `/tournaments/active` | hozir o'ynalayotgan turnirlar — lobbi kartochkasi uchun |
+| GET | `/tournaments/{id}` | to'liq bracket: barcha bosqichlar, har bir jangning holati va g'olibi |
+| GET | `/tournaments/mine` | javobsiz takliflar va boshlashga tayyor janglar — jonli soket kadrining REST zaxira nusxasi |
+| POST | `/tournaments/{id}/accept` · `/decline` | faqat shu taklifning egasi uchun |
+
 ### Admin panel
 
 Hammasi `/admin` ostida va faqat `users.is_admin = true` bo'lgan akkaunt uchun.
@@ -170,6 +184,11 @@ faqat `ADMIN_BOOTSTRAP_USER_ID` orqali paydo bo'ladi (yuqoridagi jadval).
 | GET | `/admin/matches?page=&size=` | barcha janglar (hech kimga bog'lanmagan) |
 | GET | `/admin/metrics` | foydalanuvchilar, banlanganlar, bugungi janglar, bot/inson |
 | GET | `/admin/audit-log?page=&size=` | har bir o'zgarish — kim, kimga, qachon |
+| POST | `/admin/tournaments` | `{name, size}` — `size` 4/8/16/32 bo'lishi shart |
+| GET | `/admin/tournaments?page=&size=` | barcha turnirlar |
+| GET | `/admin/tournaments/{id}` | qatnashchilar ro'yxati + (boshlangan bo'lsa) bracket |
+| POST | `/admin/tournaments/{id}/invite` | `{userId}` — `/users/search` orqali topilgan o'yinchini taklif qiladi |
+| POST | `/admin/tournaments/{id}/start` | qabul qilganlar soni `size` ga teng bo'lgandagina ishlaydi; reyting bo'yicha seed qiladi va 1-bosqichni boshlaydi |
 
 Har bir o'zgartirish `admin_audit_log` ga o'zgarishning **o'zi bilan bitta
 tranzaksiyada** yoziladi. Hech narsa o'zgarmagan bo'lsa (masalan, allaqachon
@@ -194,6 +213,8 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `duel.forfeit` | — | jangdan chiqadi (mag'lubiyat) |
 | `invite.send` | `{userId}` | do'stni jangga chaqiradi |
 | `invite.accept` / `invite.decline` | `{inviteId}` | chaqiruvga javob |
+| `tournament.accept` / `tournament.decline` | `{tournamentId}` | turnir taklifiga javob |
+| `tournament.match_start` | `{tournamentMatchId}` | tayyor turnir jangini boshlaydi — ikkala tomondan biri bossa yetarli |
 | `ping` | — | `pong` qaytadi |
 
 ### Server → mijoz
@@ -208,6 +229,9 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `duel.finished` | `result(win/lose), reason, rated, delta, ratingBefore, ratingAfter, chainLength, yourWords, averageMs, newWords, streakDays, stuckLetter, hints[]` |
 | `invite.sent` / `invite.incoming` / `invite.declined` / `invite.expired` | `inviteId`, `from`/`to`, `expiresInSeconds` |
 | `duel.aborted` | `duelId, message` — server o'chmoqda, jang hech kimning foydasiga tugamadi |
+| `tournament.invite` | `tournamentId, name, size, participantStatus` — ulanganda va qayta ulanganda, javobsiz taklif bo'lsa |
+| `tournament.match_ready` | `tournamentMatchId, tournamentId, tournamentName, round, totalRounds, opponent` — ikkala joy ham to'lganda |
+| `tournament.bracket_update` | `tournamentId` — bracket o'zgardi, ochiq bo'lsa mijoz `GET /tournaments/{id}` bilan qayta yuklaydi |
 | `error` | `code, message` |
 
 `duel.rejected` kodlari: `letters_only`, `too_short`, `wrong_letter`,
@@ -267,6 +291,10 @@ Flyway migratsiyalari `src/main/resources/db/migration`:
 - `practice_words`, `user_words`
 - `admin_audit_log` — admin panelidagi har bir o'zgarish (`users.is_admin` va
   `users.banned_at` bilan birga V9 da qo'shilgan)
+- `tournaments`, `tournament_participants`, `tournament_matches` — pulsiz
+  yagona eliminatsiya turnirlari (V11). Bracketning har bir bosqichi va slot'i
+  turnir boshlanganda bir vaqtda yaratiladi, shuning uchun butun tuzilma
+  1-bosqichdanoq ma'lum — keyingi bosqichlar faqat o'yinchi maydonini to'ldiradi.
 
 Taxalluslar registrga bog'liq bo'lmagan holda unikal: `lower(nickname)`
 ustidagi unikal indeks. Ikki o'yinchi bir vaqtda bir nomni so'rasa, biri

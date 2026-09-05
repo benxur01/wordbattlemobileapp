@@ -18,6 +18,9 @@ public class AdminAuditService {
     public static final String BAN = "user_ban";
     public static final String UNBAN = "user_unban";
     public static final String NICKNAME = "user_nickname";
+    public static final String TOURNAMENT_CREATE = "tournament_create";
+    public static final String TOURNAMENT_INVITE = "tournament_invite";
+    public static final String TOURNAMENT_START = "tournament_start";
 
     private final AdminAuditLogRepository entries;
 
