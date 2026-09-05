@@ -428,6 +428,7 @@ Map<String, Widget> buildScreens() => {
         onHome: () {},
         onBoard: () {},
         onProfile: () {},
+        onOrganizeTournament: () {},
       ),
       'friends-empty': FriendsScreen(
         search: '',
@@ -443,6 +444,7 @@ Map<String, Widget> buildScreens() => {
         onHome: () {},
         onBoard: () {},
         onProfile: () {},
+        onOrganizeTournament: () {},
       ),
       'invite': InviteScreen(
         me: _me,

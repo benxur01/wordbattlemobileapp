@@ -12,6 +12,8 @@ import 'admin_google_button.dart';
 import 'admin_login_screen.dart';
 import 'admin_matches_screen.dart';
 import 'admin_metrics_screen.dart';
+import 'admin_tournament_detail_screen.dart';
+import 'admin_tournaments_screen.dart';
 import 'admin_user_detail_screen.dart';
 import 'admin_users_screen.dart';
 import 'admin_widgets.dart';
@@ -35,7 +37,7 @@ enum AdminStage {
   panel,
 }
 
-enum AdminTab { metrics, users, matches, audit }
+enum AdminTab { metrics, users, tournaments, matches, audit }
 
 /// The panel's root: it owns the session, the client every screen calls
 /// through, and the single place a `401` or a `403` decides what happens next.
@@ -66,6 +68,7 @@ class _AdminRootState extends State<AdminRoot> {
   AdminTab _tab = AdminTab.metrics;
   UserDto? _me;
   int? _openUserId;
+  int? _openTournamentId;
   String? _notice;
   String? _bootError;
 
@@ -195,9 +198,15 @@ class _AdminRootState extends State<AdminRoot> {
         _openUserId = userId;
       });
 
+  void _openTournament(int tournamentId) => setState(() {
+        _tab = AdminTab.tournaments;
+        _openTournamentId = tournamentId;
+      });
+
   void _selectTab(AdminTab tab) => setState(() {
         _tab = tab;
         if (tab != AdminTab.users) _openUserId = null;
+        if (tab != AdminTab.tournaments) _openTournamentId = null;
       });
 
   // ----------------------------------------------------------------- build
@@ -256,6 +265,14 @@ class _AdminRootState extends State<AdminRoot> {
                 onAuthFailure: _onAuthFailure,
                 onBack: () => setState(() => _openUserId = null),
               ),
+        AdminTab.tournaments => _openTournamentId == null
+            ? AdminTournamentsScreen(api: _api, onAuthFailure: _onAuthFailure, onOpenTournament: _openTournament)
+            : AdminTournamentDetailScreen(
+                api: _api,
+                tournamentId: _openTournamentId!,
+                onAuthFailure: _onAuthFailure,
+                onBack: () => setState(() => _openTournamentId = null),
+              ),
         AdminTab.matches => AdminMatchesScreen(api: _api, onAuthFailure: _onAuthFailure, onOpenUser: _openUser),
         AdminTab.audit => AdminAuditScreen(api: _api, onAuthFailure: _onAuthFailure, onOpenUser: _openUser),
       };
@@ -283,6 +300,7 @@ class _AdminRootState extends State<AdminRoot> {
           ),
           _navItem(AdminTab.metrics, Icons.insights_outlined, 'Ko‘rsatkichlar', wide),
           _navItem(AdminTab.users, Icons.people_outline, 'Foydalanuvchilar', wide),
+          _navItem(AdminTab.tournaments, Icons.emoji_events_outlined, 'Turnirlar', wide),
           _navItem(AdminTab.matches, Icons.sports_esports_outlined, 'Janglar', wide),
           _navItem(AdminTab.audit, Icons.receipt_long_outlined, 'Audit jurnali', wide),
           const Spacer(),

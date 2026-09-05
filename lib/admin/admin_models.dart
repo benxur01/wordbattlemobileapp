@@ -218,6 +218,143 @@ class AdminAuditEntry {
       };
 }
 
+class AdminTournamentRow {
+  const AdminTournamentRow({
+    required this.id,
+    required this.name,
+    required this.size,
+    required this.status,
+    required this.createdAt,
+    required this.startedAt,
+    required this.finishedAt,
+  });
+
+  factory AdminTournamentRow.fromJson(Map<String, dynamic> json) => AdminTournamentRow(
+        id: (json['id'] as num).toInt(),
+        name: json['name'] as String? ?? '',
+        size: (json['size'] as num?)?.toInt() ?? 0,
+        status: json['status'] as String? ?? '',
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+        startedAt: DateTime.tryParse(json['startedAt'] as String? ?? ''),
+        finishedAt: DateTime.tryParse(json['finishedAt'] as String? ?? ''),
+      );
+
+  final int id;
+  final String name;
+  final int size;
+  final String status;
+  final DateTime? createdAt;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
+
+  String get statusLabel => switch (status) {
+        'open' => 'Ochiq',
+        'in_progress' => 'Jonli',
+        'completed' => 'Yakunlangan',
+        _ => status,
+      };
+}
+
+class AdminTournamentParticipantRow {
+  const AdminTournamentParticipantRow({required this.userId, required this.label, required this.status, required this.seed});
+
+  factory AdminTournamentParticipantRow.fromJson(Map<String, dynamic> json) => AdminTournamentParticipantRow(
+        userId: (json['userId'] as num).toInt(),
+        label: json['label'] as String? ?? '#${json['userId']}',
+        status: json['status'] as String? ?? '',
+        seed: (json['seed'] as num?)?.toInt(),
+      );
+
+  final int userId;
+  final String label;
+  final String status;
+  final int? seed;
+
+  String get statusLabel => switch (status) {
+        'invited' => 'Taklif qilindi',
+        'accepted' => 'Qabul qildi',
+        'declined' => 'Rad etdi',
+        _ => status,
+      };
+}
+
+/// One card of the bracket, flattened out of the nested round/match shape the
+/// server sends — the admin table has no use for the tree, only the rows.
+class AdminTournamentMatchRow {
+  const AdminTournamentMatchRow({
+    required this.round,
+    required this.slot,
+    required this.playerOneLabel,
+    required this.playerTwoLabel,
+    required this.winnerLabel,
+    required this.status,
+  });
+
+  final int round;
+  final int slot;
+  final String playerOneLabel;
+  final String playerTwoLabel;
+  final String? winnerLabel;
+  final String status;
+
+  String get statusLabel => switch (status) {
+        'pending' => 'Kutilmoqda',
+        'ready' => 'Tayyor',
+        'live' => 'Jonli',
+        'done' => 'Tugadi',
+        _ => status,
+      };
+}
+
+class AdminTournamentDetail {
+  const AdminTournamentDetail({required this.tournament, required this.participants, required this.matches});
+
+  factory AdminTournamentDetail.fromJson(Map<String, dynamic> json) {
+    final matches = <AdminTournamentMatchRow>[];
+    final bracket = json['bracket'] as Map<String, dynamic>?;
+    if (bracket != null) {
+      for (final round in (bracket['rounds'] as List? ?? const [])) {
+        final roundJson = round as Map<String, dynamic>;
+        final roundNumber = (roundJson['round'] as num?)?.toInt() ?? 0;
+        for (final match in (roundJson['matches'] as List? ?? const [])) {
+          final matchJson = match as Map<String, dynamic>;
+          final playerOne = matchJson['playerOne'] as Map<String, dynamic>?;
+          final playerTwo = matchJson['playerTwo'] as Map<String, dynamic>?;
+          final winnerId = (matchJson['winnerUserId'] as num?)?.toInt();
+          matches.add(AdminTournamentMatchRow(
+            round: roundNumber,
+            slot: (matchJson['slot'] as num?)?.toInt() ?? 0,
+            playerOneLabel: _playerLabel(playerOne),
+            playerTwoLabel: _playerLabel(playerTwo),
+            winnerLabel: winnerId == null
+                ? null
+                : (playerOne?['id'] as num?)?.toInt() == winnerId
+                    ? _playerLabel(playerOne)
+                    : _playerLabel(playerTwo),
+            status: matchJson['status'] as String? ?? 'pending',
+          ));
+        }
+      }
+    }
+    return AdminTournamentDetail(
+      tournament: AdminTournamentRow.fromJson(json['tournament'] as Map<String, dynamic>),
+      participants: ((json['participants'] as List?) ?? const [])
+          .map((e) => AdminTournamentParticipantRow.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      matches: matches,
+    );
+  }
+
+  final AdminTournamentRow tournament;
+  final List<AdminTournamentParticipantRow> participants;
+  final List<AdminTournamentMatchRow> matches;
+
+  static String _playerLabel(Map<String, dynamic>? player) {
+    if (player == null) return '—';
+    return (player['nickname'] as String?) ?? (player['displayName'] as String?) ?? '#${player['id']}';
+  }
+}
+
 class AdminMetrics {
   const AdminMetrics({
     required this.totalUsers,

@@ -25,6 +25,7 @@ class FriendsScreen extends StatelessWidget {
     required this.onHome,
     required this.onBoard,
     required this.onProfile,
+    required this.onOrganizeTournament,
     this.previousTab,
   });
 
@@ -44,6 +45,9 @@ class FriendsScreen extends StatelessWidget {
   final VoidCallback onHome;
   final VoidCallback onBoard;
   final VoidCallback onProfile;
+
+  /// The friends-screen entry point into organizing a tournament of your own.
+  final VoidCallback onOrganizeTournament;
 
   /// Which tab the previous screen highlighted, so the bar can animate.
   final WBTab? previousTab;
@@ -121,6 +125,31 @@ class FriendsScreen extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Pressable(
+                onTap: onOrganizeTournament,
+                pressScale: .98,
+                borderRadius: BorderRadius.circular(15),
+                child: Container(
+                  height: 46,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: WBColors.accentA(.1),
+                    border: Border.all(color: WBColors.accentA(.3)),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.emoji_events_outlined, size: 18, color: WBColors.accent),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Turnir tashkil qilish',
+                        style: WBText.grotesk(size: 14, weight: FontWeight.w600, color: WBColors.accent),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../api/duel_models.dart';
 import '../api/models.dart';
+import '../api/tournament_models.dart';
 import '../theme.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/flame_badge.dart';
@@ -24,6 +25,12 @@ class LobbyScreen extends StatelessWidget {
     required this.onIncoming,
     required this.onBoard,
     required this.onProfile,
+    this.tournamentInvite,
+    this.tournamentMatchReady,
+    this.activeTournament,
+    this.onOpenTournamentInvite,
+    this.onStartTournamentMatch,
+    this.onOpenTournamentBracket,
     this.previousTab,
   });
 
@@ -36,6 +43,16 @@ class LobbyScreen extends StatelessWidget {
   /// A live challenge from a friend, shown as the green strip above the tab bar.
   final PendingInvite? incoming;
 
+  /// A tournament invite waiting for Accept/Decline.
+  final TournamentInvite? tournamentInvite;
+
+  /// This player's own tournament match, filled and waiting for "Boshlash".
+  final TournamentMatchPrompt? tournamentMatchReady;
+
+  /// A tournament being played right now — the opt-in spectator card, shown
+  /// only when neither of the two above applies.
+  final TournamentSummary? activeTournament;
+
   /// Which tab the previous screen highlighted, so the bar can animate.
   final WBTab? previousTab;
   final VoidCallback onStartMatch;
@@ -44,6 +61,9 @@ class LobbyScreen extends StatelessWidget {
   final VoidCallback onIncoming;
   final VoidCallback onBoard;
   final VoidCallback onProfile;
+  final VoidCallback? onOpenTournamentInvite;
+  final VoidCallback? onStartTournamentMatch;
+  final VoidCallback? onOpenTournamentBracket;
 
   @override
   Widget build(BuildContext context) {
@@ -347,6 +367,12 @@ class LobbyScreen extends StatelessWidget {
                   ),
                 ),
               ),
+            if (tournamentInvite != null)
+              _TournamentInviteBanner(invite: tournamentInvite!, onTap: onOpenTournamentInvite)
+            else if (tournamentMatchReady != null)
+              _TournamentReadyBanner(prompt: tournamentMatchReady!, onTap: onStartTournamentMatch)
+            else if (activeTournament != null)
+              _TournamentDiscoveryBanner(tournament: activeTournament!, onTap: onOpenTournamentBracket),
             BottomNav(
               active: WBTab.home,
               previous: previousTab,
@@ -399,6 +425,186 @@ class _StatChip extends StatelessWidget {
             style: WBText.mono(size: 14, weight: FontWeight.w700, color: color),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "You've been invited to a tournament" — the same weight as the friend
+/// challenge strip above, in the app's accent colour rather than green so the
+/// two are never mistaken for each other.
+class _TournamentInviteBanner extends StatelessWidget {
+  const _TournamentInviteBanner({required this.invite, required this.onTap});
+
+  final TournamentInvite invite;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      hoverColor: WBColors.accentA(.14),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: WBColors.accentA(.09),
+          border: Border.all(color: WBColors.accentA(.28)),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(gradient: wbAccentGradient, borderRadius: BorderRadius.circular(12)),
+              alignment: Alignment.center,
+              child: Icon(Icons.emoji_events_outlined, size: 18, color: WBColors.accentInk),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    invite.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
+                  ),
+                  Text(
+                    "turnir taklifi · ${invite.size} o'yinchi",
+                    style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+              decoration: BoxDecoration(color: WBColors.accent, borderRadius: BorderRadius.circular(11)),
+              child: Text(
+                "Ko'rish",
+                style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.accentInk),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Your tournament match is ready" — tapping sends the start frame directly,
+/// the same one-tap shape as accepting a friend's challenge.
+class _TournamentReadyBanner extends StatelessWidget {
+  const _TournamentReadyBanner({required this.prompt, required this.onTap});
+
+  final TournamentMatchPrompt prompt;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final opponent = prompt.opponent;
+    return Pressable(
+      onTap: onTap,
+      hoverColor: WBColors.greenA(.14),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: WBColors.greenA(.09),
+          border: Border.all(color: WBColors.greenA(.28)),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(gradient: wbTealGradient, borderRadius: BorderRadius.circular(12)),
+              alignment: Alignment.center,
+              child: Text(
+                opponent?.initial ?? '?',
+                style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    opponent == null ? 'Turnir jangi tayyor' : '${opponent.label} bilan turnir jangi tayyor',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
+                  ),
+                  Text(
+                    '${prompt.tournamentName} · ${prompt.roundLabel}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+              decoration: BoxDecoration(color: WBColors.green, borderRadius: BorderRadius.circular(11)),
+              child: Text(
+                'Boshlash',
+                style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.greenInk),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "A tournament is being played" — the opt-in spectator entry point, deliber-
+/// ately quieter than the two banners above: nobody has to look at this.
+class _TournamentDiscoveryBanner extends StatelessWidget {
+  const _TournamentDiscoveryBanner({required this.tournament, required this.onTap});
+
+  final TournamentSummary tournament;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      hoverColor: WBColors.whiteA(.08),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: WBColors.whiteA(.04),
+          border: Border.all(color: WBColors.whiteA(.09)),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.emoji_events_outlined, size: 18, color: WBColors.textA(.5)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '${tournament.name} · jonli bracket',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: WBText.grotesk(size: 12.5, weight: FontWeight.w500, color: WBColors.textA(.7)),
+              ),
+            ),
+            Text(
+              "Ko'rish",
+              style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.textA(.55)),
+            ),
+          ],
+        ),
       ),
     );
   }

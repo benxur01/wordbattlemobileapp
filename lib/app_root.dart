@@ -11,6 +11,7 @@ import 'api/game_socket.dart';
 import 'api/google_auth.dart';
 import 'api/models.dart';
 import 'api/session.dart';
+import 'api/tournament_models.dart';
 import 'models.dart';
 import 'theme.dart';
 import 'screens/onboarding1_screen.dart';
@@ -28,6 +29,10 @@ import 'screens/friends_screen.dart';
 import 'screens/invite_screen.dart';
 import 'screens/incoming_screen.dart';
 import 'screens/loading_screen.dart';
+import 'screens/tournament_invite_screen.dart';
+import 'screens/tournament_bracket_screen.dart';
+import 'screens/organize_tournament_screen.dart';
+import 'screens/organize_tournament_manage_screen.dart';
 import 'widgets/bottom_nav.dart';
 
 /// Drives the whole app off the backend: REST for anything that can wait, and
@@ -258,6 +263,18 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   DateTime? _inviteStartedAt;
   int _inviteSecondsLeft = 0;
 
+  // ---- tournaments ----
+  TournamentInvite? tournamentInvite;
+  TournamentMatchPrompt? tournamentMatchReady;
+  TournamentSummary? activeTournament;
+  TournamentDetail? tournamentDetail;
+  int? _viewingTournamentId;
+
+  /// The friends-screen "Turnir tashkil qilish" flow: the tournament being set
+  /// up, and who has answered so far.
+  TournamentSummary? organizingTournament;
+  List<TournamentParticipantView>? organizingParticipants;
+
   /// An invite the app was told about only by its ending. It is always one we
   /// sent — see [_settleInvite] — and holding its id is what lets the
   /// confirmation still in flight for it be dropped instead of opening a screen
@@ -339,6 +356,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           screen = me?.nickname == null ? WBScreen.onb2 : WBScreen.lobby;
         });
         unawaited(_refreshSocial());
+        unawaited(_refreshActiveTournament());
       } else {
         setState(() {
           busy = false;
@@ -468,6 +486,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       screen = result.needsNickname ? WBScreen.onb2 : WBScreen.lobby;
     });
     unawaited(_refreshSocial());
+    unawaited(_refreshActiveTournament());
   }
 
   void _loginFailed(ApiException e) {
@@ -525,6 +544,13 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       _settledInviteId = null;
       _inviteStartedAt = null;
       queuedAt = null;
+      tournamentInvite = null;
+      tournamentMatchReady = null;
+      activeTournament = null;
+      tournamentDetail = null;
+      _viewingTournamentId = null;
+      organizingTournament = null;
+      organizingParticipants = null;
       nickname = '';
       nickState = NickState.idle;
       busy = false;
@@ -739,6 +765,160 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     } on ApiException catch (_) {
       // The hint button is optional; stay quiet if it fails.
     }
+  }
+
+  // ------------------------------------------------------------ tournaments
+
+  /// The lobby's low-key "a tournament is being played" card. Silent on
+  /// failure, the same way `_refreshSocial` is: the lobby works without it.
+  Future<void> _refreshActiveTournament() async {
+    try {
+      final list = await _api.activeTournaments();
+      if (!mounted) return;
+      setState(() => activeTournament = list.isEmpty ? null : list.first);
+    } on ApiException catch (e) {
+      if (_isSessionOver(e)) _onApiError(e);
+    } catch (_) {
+      // Silent, as above.
+    }
+  }
+
+  Future<void> _loadTournamentDetail(int id) async {
+    try {
+      final data = await _api.tournamentDetail(id);
+      if (!mounted) return;
+      setState(() => tournamentDetail = data);
+    } on ApiException catch (e) {
+      _onApiError(e);
+    } catch (_) {
+      _onLoadFailure();
+    }
+  }
+
+  /// Opens the bracket screen — for the tournament's own participants and for
+  /// a spectator alike, since the screen is read-only either way.
+  void openTournamentBracket(int id) {
+    setState(() {
+      _viewingTournamentId = id;
+      tournamentDetail = null;
+    });
+    go(WBScreen.tournamentBracket);
+    unawaited(_loadTournamentDetail(id));
+  }
+
+  void openTournamentInvite() => go(WBScreen.tournamentInvite);
+
+  void acceptTournamentInvite() {
+    final invite = tournamentInvite;
+    if (invite == null) return;
+    _socket.send('tournament.accept', {'tournamentId': invite.tournamentId});
+    setState(() => tournamentInvite = null);
+    go(WBScreen.lobby);
+  }
+
+  void declineTournamentInvite() {
+    final invite = tournamentInvite;
+    if (invite == null) return;
+    _socket.send('tournament.decline', {'tournamentId': invite.tournamentId});
+    setState(() => tournamentInvite = null);
+    go(WBScreen.lobby);
+  }
+
+  /// The lobby's "Boshlash" tap on a ready tournament match. Either player may
+  /// press it — both already committed to playing by accepting the tournament
+  /// — and the duel that follows arrives through the ordinary `match.found`
+  /// path, tagged as a tournament match only on the server.
+  void startReadyTournamentMatch() {
+    final ready = tournamentMatchReady;
+    if (ready == null) return;
+    _socket.send('tournament.match_start', {'tournamentMatchId': ready.tournamentMatchId});
+    setState(() => tournamentMatchReady = null);
+  }
+
+  // --------------------------------------------- tournaments: self-organized
+
+  void openOrganizeTournament() => go(WBScreen.organizeTournamentSetup);
+
+  /// The organize screen's "Taklif yuborish": creates the tournament, then
+  /// invites every chosen friend one by one — the server checks each against
+  /// the friend list itself, so a friend removed in the meantime is simply
+  /// skipped rather than failing the whole batch.
+  Future<void> createAndInviteTournament(int size, List<UserDto> invitees) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      final created = await _api.createTournament("${me?.label ?? "O'yinchi"} turniri", size);
+      var failed = 0;
+      for (final invitee in invitees) {
+        try {
+          await _api.inviteToTournament(created.id, invitee.id);
+        } on ApiException {
+          failed++;
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        organizingTournament = created;
+        organizingParticipants = null;
+        banner = failed == 0 ? null : "$failed ta taklifni yuborib bo'lmadi";
+      });
+      go(WBScreen.organizeTournamentManage);
+      unawaited(_loadOrganizingParticipants());
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        banner = e.message;
+      });
+    }
+  }
+
+  Future<void> _loadOrganizingParticipants() async {
+    final tournament = organizingTournament;
+    if (tournament == null) return;
+    try {
+      final rows = await _api.tournamentParticipants(tournament.id);
+      if (!mounted) return;
+      setState(() => organizingParticipants = rows);
+    } on ApiException catch (e) {
+      _onApiError(e);
+    } catch (_) {
+      _onLoadFailure();
+    }
+  }
+
+  /// The manage screen's "Turnirni boshlash", once everyone invited has
+  /// accepted. Success drops straight into the live bracket — the same screen
+  /// any spectator or participant would open on it.
+  Future<void> startOrganizedTournament() async {
+    final tournament = organizingTournament;
+    if (tournament == null || busy) return;
+    setState(() => busy = true);
+    try {
+      await _api.startTournament(tournament.id);
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        organizingTournament = null;
+        organizingParticipants = null;
+      });
+      openTournamentBracket(tournament.id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        banner = e.message;
+      });
+    }
+  }
+
+  void leaveOrganizingTournament() {
+    setState(() {
+      organizingTournament = null;
+      organizingParticipants = null;
+    });
+    go(WBScreen.lobby);
   }
 
   // ----------------------------------------------------------------- social
@@ -962,6 +1142,13 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         _settleInvite(event.payload['inviteId'] as String?, refused: true);
       case 'invite.expired':
         _settleInvite(event.payload['inviteId'] as String?, refused: false);
+      case 'tournament.invite':
+        setState(() => tournamentInvite = TournamentInvite.fromJson(event.payload));
+      case 'tournament.match_ready':
+        setState(() => tournamentMatchReady = TournamentMatchPrompt.fromJson(event.payload));
+      case 'tournament.bracket_update':
+        final id = (event.payload['tournamentId'] as num?)?.toInt();
+        if (id != null && id == _viewingTournamentId) unawaited(_loadTournamentDetail(id));
       case 'duel.aborted':
         // The server is going away mid-duel. Nobody won; say so plainly rather
         // than leaving the duel screen frozen on a turn that will never end.
@@ -1229,6 +1416,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       case WBScreen.friends:
       case WBScreen.lobby:
         unawaited(_refreshSocial());
+        unawaited(_refreshActiveTournament());
       default:
         break;
     }
@@ -1250,6 +1438,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         cancelOutgoingInvite();
       case WBScreen.incoming:
         declineIncoming();
+      case WBScreen.organizeTournamentSetup:
+        go(WBScreen.friends);
+      case WBScreen.organizeTournamentManage:
+        leaveOrganizingTournament();
       default:
         go(WBScreen.lobby);
     }
@@ -1341,12 +1533,18 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           friendRequestCount: friendRequests.length,
           friendsOnlineCount: friends.where((f) => f.online).length,
           incoming: incomingInvite,
+          tournamentInvite: tournamentInvite,
+          tournamentMatchReady: tournamentMatchReady,
+          activeTournament: activeTournament,
           onStartMatch: startMatchmaking,
           onFriends: () => go(WBScreen.friends),
           onPractice: () => go(WBScreen.practice),
           onIncoming: () => go(WBScreen.incoming),
           onBoard: () => go(WBScreen.board),
           onProfile: () => go(WBScreen.profile),
+          onOpenTournamentInvite: openTournamentInvite,
+          onStartTournamentMatch: startReadyTournamentMatch,
+          onOpenTournamentBracket: () => openTournamentBracket(activeTournament!.id),
           previousTab: previousNavTab,
         ),
       WBScreen.match => MatchmakingScreen(
@@ -1430,6 +1628,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onHome: () => go(WBScreen.lobby),
           onBoard: () => go(WBScreen.board),
           onProfile: () => go(WBScreen.profile),
+          onOrganizeTournament: openOrganizeTournament,
           previousTab: previousNavTab,
         ),
       WBScreen.invite => InviteScreen(
@@ -1447,6 +1646,29 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
               : _inviteSecondsLeft / incomingInvite!.secondsLeft,
           onAccept: acceptIncoming,
           onDismiss: declineIncoming,
+        ),
+      WBScreen.tournamentInvite => TournamentInviteScreen(
+          invite: tournamentInvite,
+          onAccept: acceptTournamentInvite,
+          onDecline: declineTournamentInvite,
+        ),
+      WBScreen.tournamentBracket => TournamentBracketScreen(
+          detail: tournamentDetail,
+          onBack: () => go(WBScreen.lobby),
+        ),
+      WBScreen.organizeTournamentSetup => OrganizeTournamentScreen(
+          friends: friends,
+          busy: busy,
+          onBack: () => go(WBScreen.friends),
+          onSubmit: createAndInviteTournament,
+        ),
+      WBScreen.organizeTournamentManage => OrganizeTournamentManageScreen(
+          tournament: organizingTournament,
+          participants: organizingParticipants,
+          busy: busy,
+          onBack: leaveOrganizingTournament,
+          onRefresh: () => unawaited(_loadOrganizingParticipants()),
+          onStart: startOrganizedTournament,
         ),
     };
   }

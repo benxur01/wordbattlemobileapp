@@ -166,6 +166,8 @@ APK istalgan narsani yubora oladi — natija rad javobi bo'ladi.
 | Profil | `GET /api/users/me/profile` — statistika, 30 kunlik grafik, nishonlar |
 | Do'stlar | `GET /api/friends`, `/requests`, `GET /api/users/search`, `invite.send` |
 | Mashq | `GET /api/practice/word`, `/hints` |
+| Turnir taklifi | `tournament.invite` freymi; javob — `tournament.accept`/`tournament.decline` |
+| Turnir bracketi | `GET /api/tournaments/{id}` — istalgan tizimga kirgan foydalanuvchi uchun ochiq, faqat qatnashchilar uchun emas |
 
 **Ulanish uzilsa** soket o'zi qayta ulanadi (1→15 s backoff; birinchi freym
 kelishi bilan hisob nolga qaytadi, shunda ikkinchi uzilish ham 1 soniyadan
@@ -219,10 +221,10 @@ Maket statik prototip edi; jonli ma'lumot bilan ba'zi joylar boshqacha:
 ## Testlar
 
 ```bash
-flutter test                 # 79 ta test
+flutter test                 # 170 ta test
 flutter analyze
 
-cd backend && ./mvnw test    # 69 ta test
+cd backend && ./mvnw test    # 148 ta test
 ```
 
 Ikkala to'plam ham hech narsa o'rnatishni talab qilmaydi va hech biri o'zini

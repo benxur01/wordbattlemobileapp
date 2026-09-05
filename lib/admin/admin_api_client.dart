@@ -45,6 +45,14 @@ class AdminApiClient {
   /// Who the token belongs to, for the name in the panel's header.
   Future<UserDto> me() async => UserDto.fromJson(await _rest.get('/users/me') as Map<String, dynamic>);
 
+  /// The same player-facing search the friends screen uses — an admin's token
+  /// is a perfectly ordinary one everywhere outside `/api/admin/**`, so this is
+  /// the one endpoint the panel calls without that prefix.
+  Future<List<UserDto>> searchUsers(String query) async {
+    final list = await _rest.get('/users/search', {'q': query}) as List;
+    return list.map((e) => UserDto.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   // ---------------------------------------------------------------- users
 
   Future<AdminPage<AdminUserRow>> users({String query = '', int page = 0, int size = 20}) async {
@@ -87,6 +95,25 @@ class AdminApiClient {
     final json = await _rest.get('/admin/matches', {'page': page, 'size': size}) as Map<String, dynamic>;
     return AdminPage.fromJson(json, AdminMatchRow.fromJson);
   }
+
+  // ----------------------------------------------------------- tournaments
+
+  Future<AdminTournamentRow> createTournament(String name, int size) async =>
+      AdminTournamentRow.fromJson(await _rest.post('/admin/tournaments', {'name': name, 'size': size}) as Map<String, dynamic>);
+
+  Future<AdminPage<AdminTournamentRow>> tournaments({int page = 0, int size = 20}) async {
+    final json = await _rest.get('/admin/tournaments', {'page': page, 'size': size}) as Map<String, dynamic>;
+    return AdminPage.fromJson(json, AdminTournamentRow.fromJson);
+  }
+
+  Future<AdminTournamentDetail> tournament(int id) async =>
+      AdminTournamentDetail.fromJson(await _rest.get('/admin/tournaments/$id') as Map<String, dynamic>);
+
+  Future<void> inviteToTournament(int tournamentId, int userId) =>
+      _rest.post('/admin/tournaments/$tournamentId/invite', {'userId': userId});
+
+  Future<AdminTournamentRow> startTournament(int tournamentId) async =>
+      AdminTournamentRow.fromJson(await _rest.post('/admin/tournaments/$tournamentId/start') as Map<String, dynamic>);
 
   // ------------------------------------------------------- metrics, audit
 
