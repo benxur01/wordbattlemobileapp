@@ -36,6 +36,7 @@ import 'screens/team_queue_screen.dart';
 import 'screens/team_duel_screen.dart';
 import 'screens/team_win_screen.dart';
 import 'screens/team_lose_screen.dart';
+import 'screens/team_spectate_duel_screen.dart';
 import 'screens/loading_screen.dart';
 import 'screens/tournament_invite_screen.dart';
 import 'screens/tournament_bracket_screen.dart';
@@ -294,6 +295,13 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   SpectateState? spectating;
   final ScrollController spectateScrollController = ScrollController();
 
+  /// The same, for a friend who turned out to be in a 2v2 duel instead —
+  /// rebuilt from every `team_duel.spectate_state` frame. Which of the two the
+  /// server sends is its own decision, made from the duel the friend is
+  /// actually in; the app asks to watch a person either way.
+  TeamSpectateState? teamSpectating;
+  final ScrollController teamSpectateScrollController = ScrollController();
+
   // ---- team duels ----
   /// The friend this player has formed a 2v2 team with — null whenever no
   /// team is currently formed. Set by `team.formed`, cleared by
@@ -380,6 +388,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     _api.close();
     chainScrollController.dispose();
     spectateScrollController.dispose();
+    teamSpectateScrollController.dispose();
     teamChainScrollController.dispose();
     super.dispose();
   }
@@ -1594,6 +1603,22 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           if (screen == WBScreen.spectateDuel) screen = WBScreen.friends;
           if (reason == 'aborted') banner = 'Kuzatilayotgan jang bekor qilindi';
         });
+      case 'team_duel.spectate_state':
+        // `duel.spectate_state` for a friend who turned out to be in a 2v2
+        // duel: the same frame on every move, with four participants on it
+        // instead of two.
+        setState(() {
+          teamSpectating = TeamSpectateState.fromJson(event.payload);
+          screen = WBScreen.teamSpectateDuel;
+        });
+        _scrollTeamSpectateChainToBottom();
+      case 'team_duel.spectate_ended':
+        final reason = event.payload['reason'] as String?;
+        setState(() {
+          teamSpectating = null;
+          if (screen == WBScreen.teamSpectateDuel) screen = WBScreen.friends;
+          if (reason == 'aborted') banner = 'Kuzatilayotgan jang bekor qilindi';
+        });
       case 'error':
         setState(() => banner = event.payload['message'] as String? ?? 'Xatolik');
     }
@@ -1728,12 +1753,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     final current = duel;
     final currentTeam = teamDuel;
     final watched = spectating;
+    final watchedTeam = teamSpectating;
     if (screen == WBScreen.duel && current != null && current.timeLeftMs > 0) {
       setState(() => duel = current.tick(elapsed));
     } else if (screen == WBScreen.teamDuel && currentTeam != null && currentTeam.timeLeftMs > 0) {
       setState(() => teamDuel = currentTeam.tick(elapsed));
     } else if (screen == WBScreen.spectateDuel && watched != null && watched.timeLeftMs > 0) {
       setState(() => spectating = watched.tick(elapsed));
+    } else if (screen == WBScreen.teamSpectateDuel && watchedTeam != null && watchedTeam.timeLeftMs > 0) {
+      setState(() => teamSpectating = watchedTeam.tick(elapsed));
     } else if (screen == WBScreen.match && queuedAt != null) {
       setState(() {}); // redraw the elapsed clock
     } else if (screen == WBScreen.teamQueue && teamQueuedAt != null) {
@@ -1843,6 +1871,18 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     });
   }
 
+  /// [_scrollSpectateChainToBottom] again, for a watched 2v2 duel.
+  void _scrollTeamSpectateChainToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!teamSpectateScrollController.hasClients) return;
+      teamSpectateScrollController.animateTo(
+        teamSpectateScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   /// The same courtesy [_scrollChainToBottom] pays a played 1v1 duel, paid to
   /// a team one.
   void _scrollTeamChainToBottom() {
@@ -1923,6 +1963,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   void leaveSpectating() {
     stopSpectating();
     setState(() => spectating = null);
+    go(WBScreen.friends);
+  }
+
+  /// [leaveSpectating] for a watched 2v2 duel. The frame on the way out is the
+  /// same one: `duel.unspectate` stops either kind of watch, since the app was
+  /// never told which of the two it asked for.
+  void leaveTeamSpectating() {
+    stopSpectating();
+    setState(() => teamSpectating = null);
     go(WBScreen.friends);
   }
 
@@ -2137,6 +2186,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         declineIncomingTeamInvite();
       case WBScreen.spectateDuel:
         leaveSpectating();
+      case WBScreen.teamSpectateDuel:
+        leaveTeamSpectating();
       case WBScreen.organizeTournamentSetup:
         go(WBScreen.friends);
       case WBScreen.organizeTournamentManage:
@@ -2318,6 +2369,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           state: spectating,
           scrollController: spectateScrollController,
           onBack: leaveSpectating,
+        ),
+      WBScreen.teamSpectateDuel => TeamSpectateDuelScreen(
+          state: teamSpectating,
+          scrollController: teamSpectateScrollController,
+          onBack: leaveTeamSpectating,
         ),
       WBScreen.board => BoardScreen(
           board: board,

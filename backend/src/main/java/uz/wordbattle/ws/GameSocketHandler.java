@@ -171,8 +171,15 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 case "duel.forfeit" -> duels.forfeit(userId);
                 case "duel.chat" -> duels.sendChat(userId, text(envelope, "text"));
                 case "duel.reaction" -> duels.sendReaction(userId, text(envelope, "emoji"));
-                case "duel.spectate" -> duels.spectate(userId, longValue(envelope, "userId"));
-                case "duel.unspectate" -> duels.stopSpectating(userId);
+                case "duel.spectate" -> spectate(userId, longValue(envelope, "userId"));
+                case "duel.unspectate" -> {
+                    // One frame stops either kind of watch: the client is not
+                    // told which engine took its `duel.spectate`, so it cannot
+                    // be asked to name one on the way out. Whichever service
+                    // this caller was not watching through does nothing.
+                    duels.stopSpectating(userId);
+                    teamDuels.stopSpectating(userId);
+                }
                 case "invite.send" -> invites.send(userId, longValue(envelope, "userId"));
                 case "invite.accept" -> invites.accept(userId, text(envelope, "inviteId"));
                 case "invite.decline" -> invites.decline(userId, text(envelope, "inviteId"));
@@ -243,9 +250,36 @@ public class GameSocketHandler extends TextWebSocketHandler {
         teamInvites.cancelAllFor(userId);
         teams.cancelAllFor(userId);
         teamDuels.connectionLost(userId);
+        teamDuels.stopSpectating(userId);
         presence.disconnected(userId);
         users.markSeen(userId);
         log.info("Socket closed: user={} status={}", userId, status);
+    }
+
+    /**
+     * Hands a request to watch {@code targetUserId} to whichever engine has
+     * them, and is the only place that knows both exist.
+     *
+     * <p>The app asks to watch a person, not a duel, and cannot tell which mode
+     * that person is playing: {@code PresenceService} flags them as fighting
+     * either way. The choice therefore has to be made here, because neither
+     * service can make it — {@link DuelService} is kept ignorant of 2v2
+     * entirely, and asking it about a player it has never heard of came back
+     * {@code not_in_duel} for a friend who was very much mid-battle.
+     *
+     * <p>Whichever service is chosen answers the whole request, refusals
+     * included, so exactly one error frame is ever sent. The other is only told
+     * to drop a watch this caller may still hold with it, which is what keeps a
+     * spectator from being registered with both at once and fed two boards.
+     */
+    private void spectate(long callerId, long targetUserId) {
+        if (teamDuels.isPlaying(targetUserId)) {
+            duels.stopSpectating(callerId);
+            teamDuels.spectate(callerId, targetUserId);
+        } else {
+            teamDuels.stopSpectating(callerId);
+            duels.spectate(callerId, targetUserId);
+        }
     }
 
     private String text(Envelope envelope, String field) {

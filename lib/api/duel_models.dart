@@ -260,9 +260,10 @@ class SpectateChainWord {
 
   final String word;
 
-  /// Matches [SpectateState.playerOne]'s or [SpectateState.playerTwo]'s id —
-  /// except for the chain's opening word, which the server marks with 0,
-  /// an id that belongs to neither. See [isSeed].
+  /// Matches one of the watched duel's participants — either of
+  /// [SpectateState]'s two, or any of [TeamSpectateState]'s four — except for
+  /// the chain's opening word, which the server marks with 0, an id that
+  /// belongs to nobody. See [isSeed].
   final int playerId;
   final int spentMs;
 
@@ -708,4 +709,110 @@ class TeamFinishedDuel {
   final UserDto opponentTwo;
 
   String get averageLabel => '${(averageMs / 1000).toStringAsFixed(1)}s';
+}
+
+/// A live 2v2 duel as a third party watches it, rebuilt whole from every
+/// `team_duel.spectate_state` frame — [SpectateState] with four participants
+/// named by their roster slot instead of two, and no `mine`/`ally` anywhere:
+/// a spectator plays for neither team. The chain entries are
+/// [SpectateChainWord]s, the same shape a watched 1v1 chain has.
+class TeamSpectateState {
+  const TeamSpectateState({
+    required this.duelId,
+    required this.teamAOne,
+    required this.teamATwo,
+    required this.teamBOne,
+    required this.teamBTwo,
+    required this.chain,
+    required this.turnPlayerId,
+    required this.needLetter,
+    required this.substitutedFrom,
+    required this.timeLeftMs,
+    required this.turnSeconds,
+    required this.teamAOneWords,
+    required this.teamATwoWords,
+    required this.teamBOneWords,
+    required this.teamBTwoWords,
+  });
+
+  factory TeamSpectateState.fromJson(Map<String, dynamic> json) => TeamSpectateState(
+        duelId: json['duelId'] as String,
+        teamAOne: UserDto.fromJson(json['teamAOne'] as Map<String, dynamic>),
+        teamATwo: UserDto.fromJson(json['teamATwo'] as Map<String, dynamic>),
+        teamBOne: UserDto.fromJson(json['teamBOne'] as Map<String, dynamic>),
+        teamBTwo: UserDto.fromJson(json['teamBTwo'] as Map<String, dynamic>),
+        chain: ((json['chain'] as List?) ?? const [])
+            .map((e) => SpectateChainWord.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        turnPlayerId: (json['turnPlayerId'] as num?)?.toInt() ?? 0,
+        needLetter: (json['needLetter'] as String? ?? 'a').toUpperCase(),
+        substitutedFrom: (json['substitutedFrom'] as String?)?.toUpperCase(),
+        timeLeftMs: (json['timeLeftMs'] as num?)?.toInt() ?? 0,
+        turnSeconds: (json['turnSeconds'] as num?)?.toInt() ?? 15,
+        teamAOneWords: (json['teamAOneWords'] as num?)?.toInt() ?? 0,
+        teamATwoWords: (json['teamATwoWords'] as num?)?.toInt() ?? 0,
+        teamBOneWords: (json['teamBOneWords'] as num?)?.toInt() ?? 0,
+        teamBTwoWords: (json['teamBTwoWords'] as num?)?.toInt() ?? 0,
+      );
+
+  final String duelId;
+  final UserDto teamAOne;
+  final UserDto teamATwo;
+  final UserDto teamBOne;
+  final UserDto teamBTwo;
+  final List<SpectateChainWord> chain;
+
+  /// Whichever of the four is on turn right now.
+  final int turnPlayerId;
+  final String needLetter;
+
+  /// The rare letter the chain skipped past, when it did — null the rest of
+  /// the time, same as [SpectateState.substitutedFrom].
+  final String? substitutedFrom;
+  final int timeLeftMs;
+  final int turnSeconds;
+  final int teamAOneWords;
+  final int teamATwoWords;
+  final int teamBOneWords;
+  final int teamBTwoWords;
+
+  bool get teamAOneTurn => turnPlayerId == teamAOne.id;
+  bool get teamATwoTurn => turnPlayerId == teamATwo.id;
+  bool get teamBOneTurn => turnPlayerId == teamBOne.id;
+  bool get teamBTwoTurn => turnPlayerId == teamBTwo.id;
+
+  /// Which side of the board a word belongs on — the four-participant answer
+  /// to [SpectateState.playerOneTurn]'s two-participant one.
+  bool isTeamA(int playerId) => playerId == teamAOne.id || playerId == teamATwo.id;
+
+  /// Whichever of the four [playerId] names — every chain entry is captioned
+  /// with it, since a spectator has no side to tell them apart by.
+  String labelOf(int playerId) {
+    if (playerId == teamAOne.id) return teamAOne.label;
+    if (playerId == teamATwo.id) return teamATwo.label;
+    if (playerId == teamBOne.id) return teamBOne.label;
+    if (playerId == teamBTwo.id) return teamBTwo.label;
+    return "O'yinchi";
+  }
+
+  /// Local countdown between server frames, mirroring [SpectateState.tick].
+  TeamSpectateState tick(int elapsedMs) => TeamSpectateState(
+        duelId: duelId,
+        teamAOne: teamAOne,
+        teamATwo: teamATwo,
+        teamBOne: teamBOne,
+        teamBTwo: teamBTwo,
+        chain: chain,
+        turnPlayerId: turnPlayerId,
+        needLetter: needLetter,
+        substitutedFrom: substitutedFrom,
+        timeLeftMs: timeLeftMs - elapsedMs < 0 ? 0 : timeLeftMs - elapsedMs,
+        turnSeconds: turnSeconds,
+        teamAOneWords: teamAOneWords,
+        teamATwoWords: teamATwoWords,
+        teamBOneWords: teamBOneWords,
+        teamBTwoWords: teamBTwoWords,
+      );
+
+  double get secondsLeft => timeLeftMs / 1000;
 }

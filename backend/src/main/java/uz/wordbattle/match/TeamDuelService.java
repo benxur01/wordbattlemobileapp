@@ -24,9 +24,11 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import uz.wordbattle.config.AppProperties;
 import uz.wordbattle.dictionary.DictionaryService;
+import uz.wordbattle.friend.FriendService;
 import uz.wordbattle.friend.PresenceService;
 import uz.wordbattle.match.MatchEntity.EndReason;
 import uz.wordbattle.match.TeamDuelMessages.TeamChainEntry;
+import uz.wordbattle.match.TeamDuelMessages.TeamSpectateChainEntry;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserDto;
 import uz.wordbattle.user.UserService;
@@ -78,6 +80,17 @@ public class TeamDuelService {
     private final Map<Long, ScheduledFuture<?>> pendingForfeits = new ConcurrentHashMap<>();
     private final Map<Long, MissedFinish> missedFinishes = new ConcurrentHashMap<>();
 
+    /**
+     * Who is watching each live team duel, keyed by duel id — and the reverse
+     * lookup, so a spectator's own disconnect can find their entry without a
+     * scan. The 2v2 copy of {@code DuelService}'s two maps of the same names,
+     * and just as separate from the player registries above: neither is touched
+     * by {@link #start} or {@link #deregister}.
+     */
+    private final Map<String, Set<Long>> spectatorsByDuelId = new ConcurrentHashMap<>();
+
+    private final Map<Long, String> spectatingDuelByUser = new ConcurrentHashMap<>();
+
     /** Guards the check-and-register in {@link #start}, exactly as {@code DuelService.startLock} does. */
     private final Object startLock = new Object();
 
@@ -101,6 +114,7 @@ public class TeamDuelService {
     private final UserService users;
     private final PresenceService presence;
     private final TeamMatchResultService results;
+    private final FriendService friends;
     private final DuelService oneOnOneDuels;
 
     /**
@@ -118,6 +132,7 @@ public class TeamDuelService {
             UserService users,
             PresenceService presence,
             TeamMatchResultService results,
+            FriendService friends,
             DuelService oneOnOneDuels) {
         this.props = props;
         this.dictionary = dictionary;
@@ -125,6 +140,7 @@ public class TeamDuelService {
         this.users = users;
         this.presence = presence;
         this.results = results;
+        this.friends = friends;
         this.oneOnOneDuels = oneOnOneDuels;
     }
 
@@ -422,6 +438,136 @@ public class TeamDuelService {
         return true;
     }
 
+    // ------------------------------------------------------------ spectate
+
+    /**
+     * Starts watching a friend's live 2v2 duel — {@code DuelService.spectate}
+     * with four people on the board instead of two: read-only, and pushed a
+     * {@code team_duel.spectate_state} frame on every move for as long as the
+     * duel runs. Its own frame type rather than the 1v1 one, because a
+     * spectator of a team duel has four participants to be shown, not two.
+     *
+     * <p>The friends-only gate is the same one widened to the roster: being a
+     * friend of any one of the four is enough. Whoever asked reached this
+     * through one friend's name, but all four play the one board, and there is
+     * nothing on it the other three could keep from somebody the fourth has
+     * already let watch.
+     *
+     * <p>Watching somebody else drops whatever this caller was already
+     * watching first, exactly as the 1v1 side does.
+     */
+    public void spectate(long callerId, long targetUserId) {
+        if (callerId == targetUserId) {
+            sockets.sendError(callerId, "self_spectate", "O'zingizni tomosha qila olmaysiz");
+            return;
+        }
+        // Cheap first, as the 1v1 path does: no duel lookup is worth doing for
+        // someone who is not even flagged as fighting.
+        if (!presence.isInBattle(targetUserId)) {
+            sockets.sendError(callerId, "not_in_duel", "Do'stingiz hozir jangda emas");
+            return;
+        }
+        TeamDuelSession session = teamDuelOf(targetUserId).orElse(null);
+        if (session == null) {
+            sockets.sendError(callerId, "not_in_duel", "Do'stingiz hozir jangda emas");
+            return;
+        }
+        // After the duel is in hand rather than before it, unlike the 1v1 path:
+        // the gate is against the whole roster, and there is no roster to read
+        // until the session has been found.
+        if (!friendOfAnyParticipant(callerId, session)) {
+            sockets.sendError(callerId, "not_friends", "Avval do'st bo'lish kerak");
+            return;
+        }
+
+        stopSpectating(callerId);
+
+        TeamDuelMessages.TeamSpectateState state;
+        synchronized (session) {
+            // The lookup above and this lock are not one step, so the duel can
+            // have finished in between — the same gap sendState guards against
+            // for a reconnecting player.
+            if (session.finished()) {
+                sockets.sendError(callerId, "not_in_duel", "Do'stingiz hozir jangda emas");
+                return;
+            }
+            spectatorsByDuelId.computeIfAbsent(session.id(), id -> ConcurrentHashMap.newKeySet()).add(callerId);
+            spectatingDuelByUser.put(callerId, session.id());
+            state = spectateState(session);
+        }
+        sockets.send(callerId, "team_duel.spectate_state", state);
+    }
+
+    private boolean friendOfAnyParticipant(long callerId, TeamDuelSession session) {
+        for (long playerId : session.order()) {
+            if (friends.areFriends(callerId, playerId)) return true;
+        }
+        return false;
+    }
+
+    /** Stops watching whatever team duel this caller was spectating, if any. */
+    public void stopSpectating(long callerId) {
+        String duelId = spectatingDuelByUser.remove(callerId);
+        if (duelId == null) return;
+        Set<Long> spectators = spectatorsByDuelId.get(duelId);
+        if (spectators == null) return;
+        spectators.remove(callerId);
+        if (spectators.isEmpty()) spectatorsByDuelId.remove(duelId, spectators);
+    }
+
+    /** Every spectator still watching, pushed the board the four players just saw change. */
+    private void broadcastToSpectators(TeamDuelSession session) {
+        Set<Long> spectatorIds = spectatorsByDuelId.get(session.id());
+        if (spectatorIds == null || spectatorIds.isEmpty()) return;
+        TeamDuelMessages.TeamSpectateState state;
+        synchronized (session) {
+            if (session.finished()) return;
+            state = spectateState(session);
+        }
+        for (Long spectatorId : spectatorIds) {
+            sockets.send(spectatorId, "team_duel.spectate_state", state);
+        }
+    }
+
+    /** Tells every spectator the duel they were watching is over, and drops them. */
+    private void endSpectating(TeamDuelSession session, String reason) {
+        Set<Long> spectatorIds = spectatorsByDuelId.remove(session.id());
+        if (spectatorIds == null) return;
+        for (Long spectatorId : spectatorIds) {
+            spectatingDuelByUser.remove(spectatorId, session.id());
+            sockets.send(spectatorId, "team_duel.spectate_ended", Map.of("reason", reason));
+        }
+    }
+
+    /** Callers hold the session's monitor. */
+    private TeamDuelMessages.TeamSpectateState spectateState(TeamDuelSession session) {
+        Roster roster = duelPlayers.get(session.id());
+        List<Long> teamA = session.teamA();
+        List<Long> teamB = session.teamB();
+        int elapsed = (int) Duration.between(session.turnStartedAt(), Instant.now()).toMillis();
+        int timeLeft = Math.max(0, props.duel().turnSeconds() * 1000 - elapsed);
+        List<TeamSpectateChainEntry> chain = new ArrayList<>();
+        for (DuelSession.ChainWord word : session.chain()) {
+            chain.add(new TeamSpectateChainEntry(word.word(), word.playerId(), word.spentMs()));
+        }
+        return new TeamDuelMessages.TeamSpectateState(
+                session.id(),
+                roster == null ? null : roster.teamAOne(),
+                roster == null ? null : roster.teamATwo(),
+                roster == null ? null : roster.teamBOne(),
+                roster == null ? null : roster.teamBTwo(),
+                chain,
+                session.turn(),
+                String.valueOf(session.requiredLetter()),
+                substitutedFrom(session),
+                timeLeft,
+                props.duel().turnSeconds(),
+                session.wordsBy(teamA.get(0)),
+                session.wordsBy(teamA.get(1)),
+                session.wordsBy(teamB.get(0)),
+                session.wordsBy(teamB.get(1)));
+    }
+
     // ---------------------------------------------------------- disconnects
 
     /** Mirrors {@code DuelService.connectionLost} — same grace window, same reason for it. */
@@ -486,6 +632,7 @@ public class TeamDuelService {
     private Future<?> finish(TeamDuelSession session, boolean teamAWon, EndReason reason) {
         if (!session.finish()) return null;
         deregister(session);
+        endSpectating(session, "finished");
         return scheduler.submit(() -> settle(session, teamAWon, reason));
     }
 
@@ -531,6 +678,7 @@ public class TeamDuelService {
     private void abort(TeamDuelSession session) {
         if (!session.finish()) return;
         deregister(session);
+        endSpectating(session, "aborted");
         for (long playerId : session.order()) {
             sockets.send(playerId, "team_duel.aborted", Map.of(
                     "duelId", session.id(),
@@ -607,6 +755,7 @@ public class TeamDuelService {
         for (long playerId : session.order()) {
             sendState(session, playerId);
         }
+        broadcastToSpectators(session);
     }
 
     /** Mirrors {@code DuelService.sendState} — callable from any thread, silent for an already-finished duel. */

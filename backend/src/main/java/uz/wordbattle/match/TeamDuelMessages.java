@@ -54,6 +54,39 @@ public final class TeamDuelMessages {
             int opponentOneWords,
             int opponentTwoWords) {}
 
+    /**
+     * One chain entry as a third party sees it: whoever played it is named
+     * outright, because a spectator has no {@code mine} and no {@code ally} of
+     * their own — {@link DuelMessages.SpectateChainEntry} with four possible
+     * speakers instead of two.
+     */
+    public record TeamSpectateChainEntry(String word, long playerId, int spentMs) {}
+
+    /**
+     * A 2v2 duel's state as a third party sees it: all four participants named
+     * by their roster slot, rather than the {@code partner}/{@code opponentOne}
+     * /{@code opponentTwo} shape {@link TeamDuelState} uses for the four people
+     * actually playing. The 2v2 counterpart to
+     * {@link DuelMessages.SpectateState}, and deliberately not that record: a
+     * spectator of a team duel has four people to draw, not two.
+     */
+    public record TeamSpectateState(
+            String duelId,
+            UserDto teamAOne,
+            UserDto teamATwo,
+            UserDto teamBOne,
+            UserDto teamBTwo,
+            List<TeamSpectateChainEntry> chain,
+            long turnPlayerId,
+            String needLetter,
+            String substitutedFrom,
+            int timeLeftMs,
+            int turnSeconds,
+            int teamAOneWords,
+            int teamATwoWords,
+            int teamBOneWords,
+            int teamBTwoWords) {}
+
     public record TeamFinished(
             String duelId,
             String result,

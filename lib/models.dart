@@ -39,6 +39,8 @@ enum WBScreen {
   teamQueue,
   /// The live 2v2 duel board.
   teamDuel,
+  /// Read-only: a friend's live 2v2 duel, watched rather than played.
+  teamSpectateDuel,
   teamWin,
   teamLose,
 }
