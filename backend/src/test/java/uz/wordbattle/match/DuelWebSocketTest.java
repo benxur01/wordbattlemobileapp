@@ -238,6 +238,19 @@ class DuelWebSocketTest {
         // The loser is handed three words for the letter they were stuck on.
         assertThat(loser.path("stuckLetter").asText()).isNotEmpty();
         assertThat(loser.path("hints")).hasSize(3);
+
+        // Each side is told who they actually played, so a rematch can target
+        // that person rather than whoever matchmaking hands them next.
+        long moverOpponentId = alphaStarts
+                ? alphaMatch.path("opponent").path("id").asLong()
+                : betaMatch.path("opponent").path("id").asLong();
+        long waiterOpponentId = alphaStarts
+                ? betaMatch.path("opponent").path("id").asLong()
+                : alphaMatch.path("opponent").path("id").asLong();
+        assertThat(winner.path("opponentId").asLong()).isEqualTo(moverOpponentId);
+        assertThat(winner.path("opponentIsBot").asBoolean()).isFalse();
+        assertThat(loser.path("opponentId").asLong()).isEqualTo(waiterOpponentId);
+        assertThat(loser.path("opponentIsBot").asBoolean()).isFalse();
     }
 
     /**

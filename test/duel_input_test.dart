@@ -223,6 +223,8 @@ void main() {
               streakDays: 8,
               stuckLetter: null,
               hints: [],
+              opponentId: 2,
+              opponentIsBot: false,
             ),
             onRematch: () {},
             onHome: () {},

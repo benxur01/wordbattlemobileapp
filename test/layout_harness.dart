@@ -135,6 +135,8 @@ const _win = FinishedDuel(
   streakDays: 8,
   stuckLetter: null,
   hints: [],
+  opponentId: 2,
+  opponentIsBot: false,
 );
 
 const _lose = FinishedDuel(
@@ -152,6 +154,8 @@ const _lose = FinishedDuel(
   streakDays: 7,
   stuckLetter: 'Y',
   hints: ['yellow', 'yesterday', 'young'],
+  opponentId: 2,
+  opponentIsBot: false,
 );
 
 final _profile = ProfileDto(

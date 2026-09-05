@@ -1578,7 +1578,32 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   /// the only feedback the sender needs.
   void sendDuelReaction(String emoji) => _socket.send('duel.reaction', {'emoji': emoji});
 
-  void challenge(FriendDto friend) => _socket.send('invite.send', {'userId': friend.user.id});
+  void challenge(FriendDto friend) => _challengeUserId(friend.user.id);
+
+  void _challengeUserId(int userId) => _socket.send('invite.send', {'userId': userId});
+
+  /// A rematch challenges the exact person just played, when that is
+  /// possible. `InviteService.send` only ever lets a challenge through
+  /// between friends, so this only ever manages a real rematch when the
+  /// opponent already is one — an unrated bot or a stranger from
+  /// matchmaking falls back to today's "find someone new" instead of
+  /// tapping a button that would just come back `not_friends`.
+  void rematch(FinishedDuel result) {
+    final opponentId = result.opponentId;
+    final opponent = result.opponentIsBot || opponentId == null ? null : _friendById(opponentId);
+    if (opponent != null) {
+      _challengeUserId(opponent.user.id);
+    } else {
+      startMatchmaking();
+    }
+  }
+
+  FriendDto? _friendById(int userId) {
+    for (final friend in friends) {
+      if (friend.user.id == userId) return friend;
+    }
+    return null;
+  }
 
   void acceptIncoming() {
     final invite = incomingInvite;
@@ -1807,12 +1832,18 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         ),
       WBScreen.win => WinScreen(
           result: finished,
-          onRematch: startMatchmaking,
+          onRematch: () {
+            final result = finished;
+            result == null ? startMatchmaking() : rematch(result);
+          },
           onHome: () => go(WBScreen.lobby),
         ),
       WBScreen.lose => LoseScreen(
           result: finished,
-          onRematch: startMatchmaking,
+          onRematch: () {
+            final result = finished;
+            result == null ? startMatchmaking() : rematch(result);
+          },
           onPractice: () => go(WBScreen.practice),
         ),
       WBScreen.board => BoardScreen(

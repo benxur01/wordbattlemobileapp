@@ -803,6 +803,8 @@ public class DuelService {
 
         DuelMessages.Finished frame = new DuelMessages.Finished(
                 session.id(),
+                session.opponentOf(playerId),
+                session.botOpponent(),
                 won ? "win" : "lose",
                 reason.name().toLowerCase(),
                 !session.botOpponent(),

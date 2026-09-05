@@ -60,6 +60,8 @@ public final class DuelMessages {
 
     public record Finished(
             String duelId,
+            long opponentId,
+            boolean opponentIsBot,
             String result,
             String reason,
             boolean rated,

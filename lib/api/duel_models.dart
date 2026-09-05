@@ -190,6 +190,8 @@ class FinishedDuel {
     required this.streakDays,
     required this.stuckLetter,
     required this.hints,
+    required this.opponentId,
+    required this.opponentIsBot,
   });
 
   factory FinishedDuel.fromJson(Map<String, dynamic> json) => FinishedDuel(
@@ -207,6 +209,8 @@ class FinishedDuel {
         streakDays: (json['streakDays'] as num?)?.toInt() ?? 0,
         stuckLetter: json['stuckLetter'] as String?,
         hints: ((json['hints'] as List?) ?? const []).map((e) => e as String).toList(),
+        opponentId: (json['opponentId'] as num?)?.toInt(),
+        opponentIsBot: json['opponentIsBot'] as bool? ?? false,
       );
 
   /// Which duel this is the result of — the one thing that tells a result
@@ -228,6 +232,16 @@ class FinishedDuel {
   final int streakDays;
   final String? stuckLetter;
   final List<String> hints;
+
+  /// Who was actually played, so a rematch can challenge that person rather
+  /// than whoever matchmaking hands out next. Null only for a server old
+  /// enough not to send it.
+  final int? opponentId;
+
+  /// Whether [opponentId] was the bot rather than a real player — the bot has
+  /// a real, fixed id ([opponentId] is never null for it), so this is the
+  /// only way to tell the two apart.
+  final bool opponentIsBot;
 
   String get averageLabel => '${(averageMs / 1000).toStringAsFixed(1)}s';
 }
