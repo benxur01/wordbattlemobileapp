@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 class WBColors {
   WBColors._();
 
-  static const bg = Color(0xFF08080D);
-  static const bgPanel = Color(0xFF0A0A11);
-  /// The phone body colour behind the screens (`#050508`), used where the
+  static const bg = Color(0xFF262626);
+  static const bgPanel = Color(0xFF2C2C2A);
+  /// The phone body colour behind the screens (`#1F1F1E`), used where the
   /// design punches a ring out of a badge.
-  static const bgDeep = Color(0xFF050508);
-  static const text = Color(0xFFF4F3F8);
+  static const bgDeep = Color(0xFF1F1F1E);
+  static const text = Color(0xFFEDEBE4);
 
   static const amber = Color(0xFFF7B733);
   static const amberDark = Color(0xFFE0921A);
@@ -72,8 +72,8 @@ class WBColors {
   static Color indigoA(double a) => indigo.withValues(alpha: a);
   static Color blueA(double a) => blue.withValues(alpha: a);
 
-  static const cardFill = Color.fromRGBO(255, 255, 255, .045);
-  static const cardBorder = Color.fromRGBO(255, 255, 255, .09);
+  static const cardFill = Color.fromRGBO(237, 235, 228, .045);
+  static const cardBorder = Color.fromRGBO(237, 235, 228, .09);
 }
 
 class WBText {
