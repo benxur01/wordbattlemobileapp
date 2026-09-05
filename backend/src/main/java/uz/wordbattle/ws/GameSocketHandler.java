@@ -18,6 +18,10 @@ import uz.wordbattle.friend.PresenceService;
 import uz.wordbattle.match.DuelService;
 import uz.wordbattle.match.InviteService;
 import uz.wordbattle.match.MatchmakingService;
+import uz.wordbattle.match.TeamDuelService;
+import uz.wordbattle.match.TeamInviteService;
+import uz.wordbattle.match.TeamMatchmakingService;
+import uz.wordbattle.match.TeamService;
 import uz.wordbattle.tournament.TournamentService;
 import uz.wordbattle.user.UserDto;
 import uz.wordbattle.user.UserService;
@@ -42,6 +46,10 @@ public class GameSocketHandler extends TextWebSocketHandler {
     private final FriendService friends;
     private final AppProperties props;
     private final TournamentService tournaments;
+    private final TeamInviteService teamInvites;
+    private final TeamMatchmakingService teamMatchmaking;
+    private final TeamDuelService teamDuels;
+    private final TeamService teams;
 
     public GameSocketHandler(
             ObjectMapper mapper,
@@ -54,7 +62,11 @@ public class GameSocketHandler extends TextWebSocketHandler {
             UserService users,
             FriendService friends,
             AppProperties props,
-            TournamentService tournaments) {
+            TournamentService tournaments,
+            TeamInviteService teamInvites,
+            TeamMatchmakingService teamMatchmaking,
+            TeamDuelService teamDuels,
+            TeamService teams) {
         this.mapper = mapper;
         this.sockets = sockets;
         this.rateLimiter = rateLimiter;
@@ -66,6 +78,10 @@ public class GameSocketHandler extends TextWebSocketHandler {
         this.friends = friends;
         this.props = props;
         this.tournaments = tournaments;
+        this.teamInvites = teamInvites;
+        this.teamMatchmaking = teamMatchmaking;
+        this.teamDuels = teamDuels;
+        this.teams = teams;
     }
 
     private Long userIdOf(WebSocketSession session) {
@@ -83,6 +99,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
         sockets.register(userId, session);
         // Back inside the grace window: the drop must not cost them the duel.
         duels.connectionRestored(userId);
+        teamDuels.connectionRestored(userId);
         users.markSeen(userId);
         log.info("Socket connected: user={} online={}", userId, presence.onlineCount());
 
@@ -114,6 +131,14 @@ public class GameSocketHandler extends TextWebSocketHandler {
                     duels.sendState(duel, userId);
                 },
                 () -> duels.sendMissedFinish(userId));
+        // Same reconnect handling for a 2v2 duel — a player is never in both
+        // at once, so at most one of these two branches ever does anything.
+        teamDuels.teamDuelOf(userId).ifPresentOrElse(
+                duel -> {
+                    presence.battleStarted(userId);
+                    teamDuels.sendState(duel, userId);
+                },
+                () -> teamDuels.sendMissedFinish(userId));
     }
 
     @Override
@@ -154,6 +179,14 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 case "tournament.accept" -> tournaments.accept(userId, longValue(envelope, "tournamentId"));
                 case "tournament.decline" -> tournaments.decline(userId, longValue(envelope, "tournamentId"));
                 case "tournament.match_start" -> tournaments.startMatch(userId, longValue(envelope, "tournamentMatchId"));
+                case "team_invite.send" -> teamInvites.send(userId, longValue(envelope, "userId"));
+                case "team_invite.accept" -> teamInvites.accept(userId, text(envelope, "inviteId"));
+                case "team_invite.decline" -> teamInvites.decline(userId, text(envelope, "inviteId"));
+                case "team.cancel" -> teams.disbandFor(userId, "cancelled");
+                case "team.queue.join" -> teamMatchmaking.join(userId);
+                case "team.queue.leave" -> teamMatchmaking.leave(userId);
+                case "team_duel.submit" -> teamDuels.submit(userId, text(envelope, "word"));
+                case "team_duel.forfeit" -> teamDuels.forfeit(userId);
                 default -> sockets.sendError(userId, "unknown_type", "Noma'lum xabar turi: " + type);
             }
         } catch (ApiException e) {
@@ -202,6 +235,12 @@ public class GameSocketHandler extends TextWebSocketHandler {
         // a grace period rather than landing on every flaky-network blip.
         duels.connectionLost(userId);
         duels.stopSpectating(userId);
+        // Same teardown for everything 2v2: the team queue, any pending team
+        // invite, a formed-but-not-yet-queued team, and a live team duel.
+        teamMatchmaking.leave(userId);
+        teamInvites.cancelAllFor(userId);
+        teams.cancelAllFor(userId);
+        teamDuels.connectionLost(userId);
         presence.disconnected(userId);
         users.markSeen(userId);
         log.info("Socket closed: user={} status={}", userId, status);

@@ -23,6 +23,7 @@ class FriendsScreen extends StatelessWidget {
     required this.onDecline,
     required this.onChallenge,
     required this.onSpectate,
+    required this.onTeamInvite,
     required this.onHome,
     required this.onBoard,
     required this.onProfile,
@@ -47,6 +48,10 @@ class FriendsScreen extends StatelessWidget {
   /// Watches whichever live duel an `inBattle` friend is currently in — the
   /// slot the (disabled) challenge action occupies for everyone else.
   final ValueChanged<FriendDto> onSpectate;
+
+  /// Invites a friend to form a 2v2 team — offered alongside the ordinary
+  /// challenge for anyone online and not already busy.
+  final ValueChanged<FriendDto> onTeamInvite;
   final VoidCallback onHome;
   final VoidCallback onBoard;
   final VoidCallback onProfile;
@@ -428,7 +433,7 @@ class FriendsScreen extends StatelessWidget {
               ],
             ),
           ),
-          if (challengeable)
+          if (challengeable) ...[
             Pressable(
               onTap: () => onChallenge(friend),
               pressScale: .96,
@@ -440,8 +445,25 @@ class FriendsScreen extends StatelessWidget {
                   style: WBText.grotesk(size: 13.5, weight: FontWeight.w600, color: WBColors.accentInk),
                 ),
               ),
-            )
-          else if (friend.inBattle)
+            ),
+            const SizedBox(width: 8),
+            Pressable(
+              onTap: () => onTeamInvite(friend),
+              pressScale: .96,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: WBColors.accentA(.1),
+                  border: Border.all(color: WBColors.accentA(.3)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.group_add_outlined, size: 18, color: WBColors.accent),
+              ),
+            ),
+          ] else if (friend.inBattle)
             Pressable(
               onTap: () => onSpectate(friend),
               pressScale: .96,

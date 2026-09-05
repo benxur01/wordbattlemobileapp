@@ -233,6 +233,12 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `invite.accept` / `invite.decline` | `{inviteId}` | chaqiruvga javob |
 | `tournament.accept` / `tournament.decline` | `{tournamentId}` | turnir taklifiga javob |
 | `tournament.match_start` | `{tournamentMatchId}` | tayyor turnir jangini boshlaydi — ikkala tomondan biri bossa yetarli |
+| `team_invite.send` | `{userId}` | do'stni jamoa tuzishga chaqiradi (2v2) |
+| `team_invite.accept` / `team_invite.decline` | `{inviteId}` | jamoa taklifiga javob |
+| `team.cancel` | — | tuzilgan (hali navbatga qo'yilmagan yoki qo'yilgan) jamoani tarqatadi |
+| `team.queue.join` / `team.queue.leave` | — | jamoa nomidan raqib jamoa qidirishni boshlaydi/bekor qiladi — ikkala a'zodan biri yuborsa kifoya |
+| `team_duel.submit` | `{word}` | 2v2 jangida so'z yuboradi |
+| `team_duel.forfeit` | — | 2v2 jangdan chiqadi (jamoasi mag'lub bo'ladi) |
 | `ping` | — | `pong` qaytadi |
 
 ### Server → mijoz
@@ -253,6 +259,15 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `tournament.match_ready` | `tournamentMatchId, tournamentId, tournamentName, round, totalRounds, opponent` — ikkala joy ham to'lganda |
 | `tournament.bracket_update` | `tournamentId` — bracket o'zgardi, ochiq bo'lsa mijoz `GET /tournaments/{id}` bilan qayta yuklaydi |
 | `tournament.cancelled` | `tournamentId, name` — turnir bekor qilindi (tashkilotchi yoki admin tomonidan) |
+| `team_invite.sent` / `team_invite.incoming` / `team_invite.declined` / `team_invite.expired` | `inviteId`, `from`/`to`, `expiresInSeconds` |
+| `team.formed` | `teamId, partner` — ikkala a'zoga ham, taklif qabul qilinganda |
+| `team.disbanded` | `teamId, reason` (`cancelled`/`disconnected`/`stale`) — jamoa tarqatilganda, boshqa a'zoga |
+| `team.queue.joined` / `team.queue.left` | `since` / — |
+| `team_duel.match_found` | `duelId, partner, opponentOne, opponentTwo, rated, yourTurn, turnPlayerId, seedWord, needLetter, substitutedFrom?, turnSeconds, chain[]` |
+| `team_duel.update` | `chain[{word,playerId,mine,ally,spentMs}], yourTurn, turnPlayerId, needLetter, substitutedFrom?, timeLeftMs, yourWords, partnerWords, opponentOneWords, opponentTwoWords` |
+| `team_duel.rejected` | `code, message` — `duel.rejected` bilan bir xil kodlar |
+| `team_duel.finished` | `result(win/lose), reason, delta, ratingBefore, ratingAfter, chainLength, yourWords, averageMs, newWords, streakDays, stuckLetter, hints[], partner, opponentOne, opponentTwo` |
+| `team_duel.aborted` | `duelId, message` — server o'chmoqda |
 | `error` | `code, message` |
 
 `duel.rejected` kodlari: `letters_only`, `too_short`, `wrong_letter`,
@@ -261,6 +276,28 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 Uzilish = mag'lubiyat: soket yopilsa server jangni raqib foydasiga tugatadi
 (aks holda simni sug'urish bepul qochish yo'li bo'lardi). Qayta ulanganda
 server jangning joriy holatini o'zi yuboradi.
+
+### 2v2 ("jamoa") rejimi
+
+1v1 bilan bir qatorda, unga hech narsani o'zgartirmasdan qo'shilgan alohida
+rejim: ikki juft do'st jamoa tuzadi (`team_invite.*`), navbatga qo'yiladi
+(`team.queue.join` — buni ikkala a'zodan biri yuborsa kifoya, ikkalasi ham
+navbatga tushadi), va ikkita jamoa topilganda 4 kishilik janga tushadi.
+
+Navbat qat'iy aylanma tartibda: **A-jamoa 1-a'zosi → B-jamoa 1-a'zosi →
+A-jamoa 2-a'zosi → B-jamoa 2-a'zosi**, so'ng yana boshidan. "1-a'zo" — taklifni
+yuborgan, "2-a'zo" — uni qabul qilgan o'yinchi; qaysi jamoa "A" bo'lishi
+o'zboshimchalik bilan — navbatga birinchi qo'yilgan jamoa. So'z zanjiri qoidasi
+1v1 bilan aynan bir xil (kamdan-kam harflar, taymer, lug'at) — farqi shuki,
+kimdir navbatini yutqazsa (vaqt tugashi, taslim bo'lish), butun jamoasi
+mag'lub bo'ladi, faqat o'sha o'yinchi emas.
+
+Reyting: har bir o'yinchi alohida, Glicko-2 orqali, lekin **haqiqiy shaxs
+emas, balki qarama-qarshi jamoaning ikkala a'zosining reytingi/og'ish
+o'rtachasidan tuzilgan "virtual raqib"ga qarshi** hisoblanadi. 2v2 janglari
+hozircha har doim reytingli — botga tushish yoki reytingsiz rejim yo'q.
+Jamoa tuzish va navbat xotirada saqlanadi (1v1dagi kabi); faqat yakuniy
+natija (`team_matches`, `team_match_words`) bazaga yoziladi.
 
 ---
 

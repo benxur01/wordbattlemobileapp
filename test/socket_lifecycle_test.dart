@@ -178,10 +178,35 @@ void main() {
       expect(exitFrameFor(WBScreen.match, WBScreen.match), isNull);
     });
 
+    test('leaving a team duel is a forfeit', () {
+      expect(exitFrameFor(WBScreen.teamDuel, WBScreen.lobby), 'team_duel.forfeit');
+    });
+
+    test('leaving the team search gives up the queue', () {
+      expect(exitFrameFor(WBScreen.teamQueue, WBScreen.lobby), 'team.queue.leave');
+    });
+
+    test('the team-duel screen is left by a forfeit wherever it is left for', () {
+      for (final next in WBScreen.values.where((s) => s != WBScreen.teamDuel)) {
+        expect(
+          exitFrameFor(WBScreen.teamDuel, next),
+          'team_duel.forfeit',
+          reason: 'teamDuel -> $next is still a forfeit',
+        );
+      }
+    });
+
+    test('staying put on a team screen owes nothing', () {
+      expect(exitFrameFor(WBScreen.teamDuel, WBScreen.teamDuel), isNull);
+      expect(exitFrameFor(WBScreen.teamQueue, WBScreen.teamQueue), isNull);
+    });
+
     test('every other screen owes nothing', () {
-      // Only the duel and the search are standing claims on the server. Sending
-      // a forfeit from the leaderboard would end a duel nobody left.
-      for (final from in WBScreen.values.where((s) => s != WBScreen.duel && s != WBScreen.match)) {
+      // Only the duel and the search — 1v1 or team — are standing claims on
+      // the server. Sending a forfeit from the leaderboard would end a duel
+      // nobody left.
+      final claims = {WBScreen.duel, WBScreen.match, WBScreen.teamDuel, WBScreen.teamQueue};
+      for (final from in WBScreen.values.where((s) => !claims.contains(s))) {
         expect(exitFrameFor(from, WBScreen.lobby), isNull, reason: '$from is not a claim on the server');
       }
     });

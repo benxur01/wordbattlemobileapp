@@ -45,8 +45,18 @@ void main() {
     });
   }
 
-  // The three screens with a text field, with the keyboard covering 320dp.
-  for (final key in ['onb2-idle', 'onb2-taken', 'duel', 'duel-error', 'duel-substituted', 'friends']) {
+  // The screens with a text field, with the keyboard covering 320dp.
+  for (final key in [
+    'onb2-idle',
+    'onb2-taken',
+    'duel',
+    'duel-error',
+    'duel-substituted',
+    'friends',
+    'team-duel',
+    'team-duel-error',
+    'team-duel-substituted',
+  ]) {
     testWidgets('$key lays out with the keyboard open', (tester) async {
       tester.view.physicalSize = const Size(1080, 2352);
       tester.view.devicePixelRatio = 3;

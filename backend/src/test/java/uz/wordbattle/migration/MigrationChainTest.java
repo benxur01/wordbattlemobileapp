@@ -47,11 +47,11 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(14);
+        assertThat(result.migrationsExecuted).isEqualTo(15);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -75,7 +75,9 @@ class MigrationChainTest {
                         "admin_audit_log",
                         "tournaments",
                         "tournament_participants",
-                        "tournament_matches");
+                        "tournament_matches",
+                        "team_matches",
+                        "team_match_words");
 
         // Where the chain leaves the table everything else edits: V3 traded the
         // Telegram identity for Google's, V4 added the deletion marker, V5 the
@@ -156,7 +158,7 @@ class MigrationChainTest {
                 where a.nickname = 'aziza_m' and b.nickname = 'bekzod_99'
                 """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(12);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(13);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -238,6 +240,10 @@ class MigrationChainTest {
         // V12 only adds columns and relaxes a constraint — nothing to backfill
         // on a table that upgraded with no rows in it.
         assertThat(columnsOf("upgrade", "tournaments")).contains("visibility", "kind", "min_rating");
+
+        // V15 adds two tables and nothing else — the 2v2 mode existed for no
+        // upgraded server either, the same shape V11 is above.
+        assertThat(tables("upgrade")).contains("team_matches", "team_match_words");
     }
 
     // --------------------------------------------------------------- helpers

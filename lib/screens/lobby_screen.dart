@@ -32,6 +32,11 @@ class LobbyScreen extends StatelessWidget {
     this.onStartTournamentMatch,
     this.onOpenTournamentBracket,
     this.onOpenTournamentsBrowse,
+    this.teamPartner,
+    this.onStartTeamQueue,
+    this.onCancelTeam,
+    this.incomingTeam,
+    this.onIncomingTeam,
     this.previousTab,
   });
 
@@ -70,6 +75,20 @@ class LobbyScreen extends StatelessWidget {
   /// always reachable, whether or not any of the three banners above is
   /// showing.
   final VoidCallback? onOpenTournamentsBrowse;
+
+  /// The friend this player has formed a 2v2 team with — null whenever no
+  /// team is currently formed. Shown as its own banner, independent of the
+  /// tournament ones above: a team can be ready at the same time a tournament
+  /// invite is waiting.
+  final UserDto? teamPartner;
+  final VoidCallback? onStartTeamQueue;
+  final VoidCallback? onCancelTeam;
+
+  /// A team-duel invite that could not open its own screen the moment it
+  /// arrived — the player was mid-duel, the one case `team_invite.incoming`
+  /// does not force the screen over, same as [incoming] above.
+  final PendingTeamInvite? incomingTeam;
+  final VoidCallback? onIncomingTeam;
 
   @override
   Widget build(BuildContext context) {
@@ -364,6 +383,71 @@ class LobbyScreen extends StatelessWidget {
                 ),
               ),
             ),
+          if (incomingTeam != null)
+            Pressable(
+              onTap: onIncomingTeam,
+              hoverColor: WBColors.accentA(.14),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                decoration: BoxDecoration(
+                  color: WBColors.accentA(.09),
+                  border: Border.all(color: WBColors.accentA(.28)),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        gradient: wbTealGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        incomingTeam!.user.initial,
+                        style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
+                      ),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${incomingTeam!.user.label} jamoaga taklif qilmoqda',
+                            style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
+                          ),
+                          Text(
+                            "2v2 jamoa taklifi · javob ber",
+                            style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: WBColors.accent,
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: Text(
+                        "Ko'rish",
+                        style: WBText.grotesk(
+                          size: 12.5,
+                          weight: FontWeight.w600,
+                          color: WBColors.accentInk,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (teamPartner != null)
+            _TeamReadyBanner(partner: teamPartner!, onQueue: onStartTeamQueue, onCancel: onCancelTeam),
           if (tournamentInvite != null)
             _TournamentInviteBanner(invite: tournamentInvite!, onTap: onOpenTournamentInvite)
           else if (tournamentMatchReady != null)
@@ -420,6 +504,95 @@ class _StatChip extends StatelessWidget {
           Text(
             value,
             style: WBText.mono(size: 14, weight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "You've formed a 2v2 team" — shown from the moment `team.formed` lands
+/// until the team queues, plays and finishes, or is cancelled. Two actions
+/// rather than the one tap the tournament banners take, so both sit as their
+/// own [Pressable] rather than the whole strip being one: nesting a second tap
+/// target inside a tappable banner is the row the request cards in
+/// `friends_screen.dart` already avoid the same way.
+class _TeamReadyBanner extends StatelessWidget {
+  const _TeamReadyBanner({required this.partner, required this.onQueue, required this.onCancel});
+
+  final UserDto partner;
+  final VoidCallback? onQueue;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        color: WBColors.accentA(.09),
+        border: Border.all(color: WBColors.accentA(.28)),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(gradient: wbTealGradient, borderRadius: BorderRadius.circular(12)),
+            alignment: Alignment.center,
+            child: Text(
+              partner.initial,
+              style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${partner.label} bilan jamoa tayyor',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
+                ),
+                Text(
+                  '2v2 raqib jamoa qidirasiz',
+                  style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
+                ),
+              ],
+            ),
+          ),
+          Pressable(
+            onTap: onCancel,
+            hoverColor: WBColors.whiteA(.08),
+            borderRadius: BorderRadius.circular(11),
+            child: Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: WBColors.whiteA(.05),
+                border: Border.all(color: WBColors.whiteA(.12)),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Text('×', style: WBText.grotesk(size: 16, color: WBColors.textA(.5))),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Pressable(
+            onTap: onQueue,
+            pressScale: .96,
+            borderRadius: BorderRadius.circular(11),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+              decoration: BoxDecoration(color: WBColors.accent, borderRadius: BorderRadius.circular(11)),
+              child: Text(
+                'Navbat',
+                style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.accentInk),
+              ),
+            ),
           ),
         ],
       ),

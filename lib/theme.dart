@@ -71,6 +71,7 @@ class WBColors {
   static Color whiteA(double a) => Colors.white.withValues(alpha: a);
   static Color indigoA(double a) => indigo.withValues(alpha: a);
   static Color blueA(double a) => blue.withValues(alpha: a);
+  static Color tealA(double a) => teal.withValues(alpha: a);
 
   static const cardFill = Color.fromRGBO(237, 235, 228, .045);
   static const cardBorder = Color.fromRGBO(237, 235, 228, .09);

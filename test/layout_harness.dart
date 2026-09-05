@@ -18,6 +18,12 @@ import 'package:word_battle/screens/onboarding1_screen.dart';
 import 'package:word_battle/screens/onboarding2_screen.dart';
 import 'package:word_battle/screens/practice_screen.dart';
 import 'package:word_battle/screens/profile_screen.dart';
+import 'package:word_battle/screens/team_duel_screen.dart';
+import 'package:word_battle/screens/team_incoming_screen.dart';
+import 'package:word_battle/screens/team_invite_screen.dart';
+import 'package:word_battle/screens/team_lose_screen.dart';
+import 'package:word_battle/screens/team_queue_screen.dart';
+import 'package:word_battle/screens/team_win_screen.dart';
 import 'package:word_battle/screens/win_screen.dart';
 
 /// The test phone: Infinix X6833B, 1080×2460 @480dpi → 360×784dp logical,
@@ -211,6 +217,105 @@ final _requests = [
 ];
 
 final _invite = PendingInvite(inviteId: 'inv-1', user: _user(6, 'otabek_z', rating: 1188), secondsLeft: 12);
+
+// ---- team-duel fixtures ----
+
+final _partner = _user(20, 'sherik_a', rating: 1350, city: 'Buxoro');
+final _oppOne = _user(21, 'raqib_bir', rating: 1290);
+final _oppTwo = _user(22, 'raqib_ikki', rating: 1410);
+
+TeamDuelView _teamDuel({bool yourTurn = true, int timeLeftMs = 12000}) => TeamDuelView(
+      duelId: 'team-duel-1',
+      partner: _partner,
+      opponentOne: _oppOne,
+      opponentTwo: _oppTwo,
+      rated: true,
+      seedWord: 'battle',
+      chain: [
+        TeamChainWord(word: 'elephant', playerId: _oppOne.id, mine: false, ally: false, spentMs: 1800),
+        TeamChainWord(word: 'tomorrow', playerId: _me.id, mine: true, ally: false, spentMs: 2200),
+        TeamChainWord(word: 'wildlife', playerId: _partner.id, mine: false, ally: true, spentMs: 1900),
+      ],
+      yourTurn: yourTurn,
+      turnPlayerId: yourTurn ? _me.id : _oppTwo.id,
+      needLetter: 'E',
+      substitutedFrom: null,
+      timeLeftMs: timeLeftMs,
+      turnSeconds: 15,
+      yourWords: 1,
+      partnerWords: 1,
+      opponentOneWords: 1,
+      opponentTwoWords: 0,
+    );
+
+/// The tallest the team-duel input bar gets: a rare-letter substitution note
+/// stacked with a rejection banner, same pairing as [_substitutedDuel] above.
+final _teamSubstitutedDuel = TeamDuelView(
+  duelId: 'team-duel-1',
+  partner: _partner,
+  opponentOne: _oppOne,
+  opponentTwo: _oppTwo,
+  rated: true,
+  seedWord: 'battle',
+  chain: [
+    TeamChainWord(word: 'elephant', playerId: _oppOne.id, mine: false, ally: false, spentMs: 1800),
+    TeamChainWord(word: 'tomorrow', playerId: _me.id, mine: true, ally: false, spentMs: 2200),
+    TeamChainWord(word: 'wildlife', playerId: _partner.id, mine: false, ally: true, spentMs: 1900),
+    TeamChainWord(word: 'expect', playerId: _me.id, mine: true, ally: false, spentMs: 2100),
+  ],
+  yourTurn: false,
+  turnPlayerId: _oppTwo.id,
+  needLetter: 'A',
+  substitutedFrom: 'X',
+  timeLeftMs: 9000,
+  turnSeconds: 15,
+  yourWords: 2,
+  partnerWords: 1,
+  opponentOneWords: 1,
+  opponentTwoWords: 0,
+);
+
+final _teamInvite = PendingTeamInvite(inviteId: 'team-inv-1', user: _partner, secondsLeft: 12);
+
+final _teamWin = TeamFinishedDuel(
+  duelId: 'team-duel-1',
+  won: true,
+  reason: 'words_limit',
+  rated: true,
+  delta: 22,
+  ratingBefore: 1284,
+  ratingAfter: 1306,
+  chainLength: 11,
+  yourWords: 4,
+  averageMs: 2500,
+  newWords: 2,
+  streakDays: 8,
+  stuckLetter: null,
+  hints: const [],
+  partner: _partner,
+  opponentOne: _oppOne,
+  opponentTwo: _oppTwo,
+);
+
+final _teamLose = TeamFinishedDuel(
+  duelId: 'team-duel-1',
+  won: false,
+  reason: 'timeout',
+  rated: true,
+  delta: -16,
+  ratingBefore: 1284,
+  ratingAfter: 1268,
+  chainLength: 7,
+  yourWords: 3,
+  averageMs: 3900,
+  newWords: 1,
+  streakDays: 7,
+  stuckLetter: 'Q',
+  hints: const ['quiet', 'quick', 'question'],
+  partner: _partner,
+  opponentOne: _oppOne,
+  opponentTwo: _oppTwo,
+);
 
 /// An opponent who has since deleted their account, exactly as the server sends
 /// one: the row is anonymised, so there is no nickname left and the name it
@@ -442,6 +547,7 @@ Map<String, Widget> buildScreens() => {
         onDecline: (_) {},
         onChallenge: (_) {},
         onSpectate: (_) {},
+        onTeamInvite: (_) {},
         onHome: () {},
         onBoard: () {},
         onProfile: () {},
@@ -459,6 +565,7 @@ Map<String, Widget> buildScreens() => {
         onDecline: (_) {},
         onChallenge: (_) {},
         onSpectate: (_) {},
+        onTeamInvite: (_) {},
         onHome: () {},
         onBoard: () {},
         onProfile: () {},
@@ -478,4 +585,41 @@ Map<String, Widget> buildScreens() => {
         onAccept: () {},
         onDismiss: () {},
       ),
+      'team-invite': TeamInviteScreen(
+        me: _me,
+        invite: _teamInvite,
+        clock: '0:07',
+        onCancel: () {},
+      ),
+      'team-incoming': TeamIncomingScreen(
+        invite: _teamInvite,
+        secondsLeft: 9,
+        progress: .75,
+        onAccept: () {},
+        onDismiss: () {},
+      ),
+      'team-queue': TeamQueueScreen(user: _me, partner: _partner, matchClock: '0:04', onCancel: () {}),
+      'team-duel': TeamDuelScreen(
+        duel: _teamDuel(),
+        me: _me,
+        error: '',
+        scrollController: ScrollController(),
+        onSubmit: (_) {},
+      ),
+      'team-duel-error': TeamDuelScreen(
+        duel: _teamDuel(yourTurn: false, timeLeftMs: 3000),
+        me: _me,
+        error: '«Y» harfi bilan boshlanishi kerak',
+        scrollController: ScrollController(),
+        onSubmit: (_) {},
+      ),
+      'team-duel-substituted': TeamDuelScreen(
+        duel: _teamSubstitutedDuel,
+        me: _me,
+        error: '«A» harfi bilan boshlanishi kerak',
+        scrollController: ScrollController(),
+        onSubmit: (_) {},
+      ),
+      'team-win': TeamWinScreen(me: _me, result: _teamWin, onHome: () {}),
+      'team-lose': TeamLoseScreen(me: _me, result: _teamLose, onHome: () {}, onPractice: () {}),
     };

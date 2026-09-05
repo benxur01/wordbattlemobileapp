@@ -4,6 +4,10 @@ import org.springframework.stereotype.Component;
 import uz.wordbattle.match.DuelService;
 import uz.wordbattle.match.InviteService;
 import uz.wordbattle.match.MatchmakingService;
+import uz.wordbattle.match.TeamDuelService;
+import uz.wordbattle.match.TeamInviteService;
+import uz.wordbattle.match.TeamMatchmakingService;
+import uz.wordbattle.match.TeamService;
 import uz.wordbattle.user.AccountDeletionService;
 
 /**
@@ -18,13 +22,28 @@ public class SocketSessionEnder implements AccountDeletionService.SessionEnder {
     private final MatchmakingService matchmaking;
     private final DuelService duels;
     private final InviteService invites;
+    private final TeamMatchmakingService teamMatchmaking;
+    private final TeamInviteService teamInvites;
+    private final TeamService teams;
+    private final TeamDuelService teamDuels;
 
     public SocketSessionEnder(
-            SocketRegistry sockets, MatchmakingService matchmaking, DuelService duels, InviteService invites) {
+            SocketRegistry sockets,
+            MatchmakingService matchmaking,
+            DuelService duels,
+            InviteService invites,
+            TeamMatchmakingService teamMatchmaking,
+            TeamInviteService teamInvites,
+            TeamService teams,
+            TeamDuelService teamDuels) {
         this.sockets = sockets;
         this.matchmaking = matchmaking;
         this.duels = duels;
         this.invites = invites;
+        this.teamMatchmaking = teamMatchmaking;
+        this.teamInvites = teamInvites;
+        this.teams = teams;
+        this.teamDuels = teamDuels;
     }
 
     @Override
@@ -57,5 +76,10 @@ public class SocketSessionEnder implements AccountDeletionService.SessionEnder {
         // about to erase this player's rows, and a settlement landing after it
         // would write their learned words and rating history back in.
         duels.forfeitAndAwaitSettlement(userId);
+        // Same teardown, and the same wait, for the 2v2 mode.
+        teamMatchmaking.leave(userId);
+        teamInvites.cancelAllFor(userId);
+        teams.cancelAllFor(userId);
+        teamDuels.forfeitAndAwaitSettlement(userId);
     }
 }

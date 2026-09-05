@@ -30,6 +30,12 @@ import 'screens/friends_screen.dart';
 import 'screens/spectate_duel_screen.dart';
 import 'screens/invite_screen.dart';
 import 'screens/incoming_screen.dart';
+import 'screens/team_invite_screen.dart';
+import 'screens/team_incoming_screen.dart';
+import 'screens/team_queue_screen.dart';
+import 'screens/team_duel_screen.dart';
+import 'screens/team_win_screen.dart';
+import 'screens/team_lose_screen.dart';
 import 'screens/loading_screen.dart';
 import 'screens/tournament_invite_screen.dart';
 import 'screens/tournament_bracket_screen.dart';
@@ -62,7 +68,7 @@ enum QueueAction { none, leave, rejoin }
 /// which are not backgrounding, and dropping the queue for those would make
 /// the search restart constantly.
 QueueAction queueActionFor(AppLifecycleState state, WBScreen screen) {
-  if (screen != WBScreen.match) return QueueAction.none;
+  if (screen != WBScreen.match && screen != WBScreen.teamQueue) return QueueAction.none;
   return switch (state) {
     AppLifecycleState.paused || AppLifecycleState.detached || AppLifecycleState.hidden => QueueAction.leave,
     AppLifecycleState.resumed => QueueAction.rejoin,
@@ -160,7 +166,15 @@ InviteSentAction inviteSentActionFor({
 }) {
   if (inviteId == settledInviteId) return InviteSentAction.drop;
   return switch (screen) {
-    WBScreen.duel || WBScreen.match || WBScreen.win || WBScreen.lose => InviteSentAction.withdraw,
+    WBScreen.duel ||
+    WBScreen.match ||
+    WBScreen.win ||
+    WBScreen.lose ||
+    WBScreen.teamDuel ||
+    WBScreen.teamQueue ||
+    WBScreen.teamWin ||
+    WBScreen.teamLose =>
+      InviteSentAction.withdraw,
     _ => InviteSentAction.open,
   };
 }
@@ -207,6 +221,8 @@ String? exitFrameFor(WBScreen from, WBScreen next) {
   return switch (from) {
     WBScreen.duel => 'duel.forfeit',
     WBScreen.match => 'queue.leave',
+    WBScreen.teamDuel => 'team_duel.forfeit',
+    WBScreen.teamQueue => 'team.queue.leave',
     _ => null,
   };
 }
@@ -278,6 +294,27 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   SpectateState? spectating;
   final ScrollController spectateScrollController = ScrollController();
 
+  // ---- team duels ----
+  /// The friend this player has formed a 2v2 team with — null whenever no
+  /// team is currently formed. Set by `team.formed`, cleared by
+  /// `team.disbanded` or this player's own `team.cancel`. Outlives a single
+  /// duel: the team can queue again without being re-formed.
+  UserDto? teamPartner;
+  TeamDuelView? teamDuel;
+  TeamFinishedDuel? teamFinished;
+  String teamDuelError = '';
+  PendingTeamInvite? outgoingTeamInvite;
+  PendingTeamInvite? incomingTeamInvite;
+  DateTime? teamQueuedAt;
+  DateTime? _teamInviteStartedAt;
+  int _teamInviteSecondsLeft = 0;
+
+  /// Mirrors [_settledInviteId], for the team-invite channel — see
+  /// [inviteSentActionFor] and [inviteFrameApplies], which serve both.
+  String? _settledTeamInviteId;
+
+  final ScrollController teamChainScrollController = ScrollController();
+
   // ---- tournaments ----
   TournamentInvite? tournamentInvite;
   TournamentMatchPrompt? tournamentMatchReady;
@@ -337,6 +374,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     _api.close();
     chainScrollController.dispose();
     spectateScrollController.dispose();
+    teamChainScrollController.dispose();
     super.dispose();
   }
 
@@ -344,7 +382,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (queueActionFor(state, screen)) {
       case QueueAction.leave:
-        _socket.send('queue.leave');
+        _socket.send(screen == WBScreen.teamQueue ? 'team.queue.leave' : 'queue.leave');
       case QueueAction.rejoin:
         _rejoinQueue();
       case QueueAction.none:
@@ -356,8 +394,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   /// when they are already in it: the server keeps the wait they had served
   /// rather than starting the rating window over.
   void _rejoinQueue() {
-    if (screen != WBScreen.match) return;
-    _socket.send('queue.join');
+    if (screen == WBScreen.match) {
+      _socket.send('queue.join');
+    } else if (screen == WBScreen.teamQueue) {
+      _socket.send('team.queue.join');
+    }
   }
 
   // -------------------------------------------------------------- bootstrap
@@ -572,6 +613,14 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       _settledInviteId = null;
       _inviteStartedAt = null;
       queuedAt = null;
+      teamPartner = null;
+      teamDuel = null;
+      teamFinished = null;
+      outgoingTeamInvite = null;
+      incomingTeamInvite = null;
+      _settledTeamInviteId = null;
+      _teamInviteStartedAt = null;
+      teamQueuedAt = null;
       tournamentInvite = null;
       tournamentMatchReady = null;
       activeTournament = null;
@@ -1348,13 +1397,127 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           );
           _inviteStartedAt = DateTime.now();
           _inviteSecondsLeft = incomingInvite!.secondsLeft;
-          // Never interrupt a live duel with a challenge sheet.
-          if (screen != WBScreen.duel) screen = WBScreen.incoming;
+          // Never interrupt a live duel — 1v1 or team — with a challenge sheet.
+          if (screen != WBScreen.duel && screen != WBScreen.teamDuel) screen = WBScreen.incoming;
         });
       case 'invite.declined':
         _settleInvite(event.payload['inviteId'] as String?, refused: true);
       case 'invite.expired':
         _settleInvite(event.payload['inviteId'] as String?, refused: false);
+      case 'team.formed':
+        setState(() {
+          teamPartner = UserDto.fromJson(event.payload['partner'] as Map<String, dynamic>);
+          // Either slot might have held the invite this just answered,
+          // depending on which side of it this player was on.
+          outgoingTeamInvite = null;
+          incomingTeamInvite = null;
+          if (screen == WBScreen.teamInvite || screen == WBScreen.teamIncoming) screen = WBScreen.lobby;
+        });
+      case 'team.disbanded':
+        final reason = event.payload['reason'] as String?;
+        setState(() {
+          final partner = teamPartner;
+          teamPartner = null;
+          teamQueuedAt = null;
+          if (screen == WBScreen.teamQueue) screen = WBScreen.lobby;
+          banner = reason == 'disconnected'
+              ? "${partner?.label ?? 'Sherigingiz'} aloqadan uzildi — jamoa tarqadi"
+              : "${partner?.label ?? 'Sherigingiz'} jamoani bekor qildi";
+        });
+      case 'team_invite.sent':
+        final sentId = event.payload['inviteId'] as String;
+        switch (inviteSentActionFor(
+          screen: screen,
+          inviteId: sentId,
+          settledInviteId: _settledTeamInviteId,
+        )) {
+          case InviteSentAction.drop:
+            _settledTeamInviteId = null;
+          case InviteSentAction.withdraw:
+            _socket.send('team_invite.decline', {'inviteId': sentId});
+          case InviteSentAction.open:
+            setState(() {
+              final invite = PendingTeamInvite(
+                inviteId: sentId,
+                user: UserDto.fromJson(event.payload['to'] as Map<String, dynamic>),
+                secondsLeft: (event.payload['expiresInSeconds'] as num?)?.toInt() ?? 12,
+              );
+              outgoingTeamInvite = invite;
+              _teamInviteStartedAt = DateTime.now();
+              _teamInviteSecondsLeft = invite.secondsLeft;
+              screen = WBScreen.teamInvite;
+            });
+        }
+      case 'team_invite.incoming':
+        setState(() {
+          incomingTeamInvite = PendingTeamInvite(
+            inviteId: event.payload['inviteId'] as String,
+            user: UserDto.fromJson(event.payload['from'] as Map<String, dynamic>),
+            secondsLeft: (event.payload['expiresInSeconds'] as num?)?.toInt() ?? 12,
+          );
+          _teamInviteStartedAt = DateTime.now();
+          _teamInviteSecondsLeft = incomingTeamInvite!.secondsLeft;
+          if (screen != WBScreen.duel && screen != WBScreen.teamDuel) screen = WBScreen.teamIncoming;
+        });
+      case 'team_invite.declined':
+        _settleTeamInvite(event.payload['inviteId'] as String?, refused: true);
+      case 'team_invite.expired':
+        _settleTeamInvite(event.payload['inviteId'] as String?, refused: false);
+      case 'team.queue.joined':
+        setState(() => teamQueuedAt = DateTime.tryParse(event.payload['since'] as String? ?? '')?.toLocal()
+            ?? teamQueuedAt
+            ?? DateTime.now());
+      case 'team.queue.left':
+        setState(() => teamQueuedAt = null);
+      case 'team_duel.match_found':
+        final found = TeamDuelView.fromMatchFound(event.payload);
+        if (found == null) {
+          // See the long note on `match.found` above — the same half-a-frame
+          // problem, on the team channel.
+          _onBadFrame();
+          return;
+        }
+        setState(() {
+          teamDuel = found;
+          teamDuelError = '';
+          teamFinished = null;
+          teamQueuedAt = null;
+          outgoingTeamInvite = null;
+          incomingTeamInvite = null;
+          screen = WBScreen.teamDuel;
+        });
+        _scrollTeamChainToBottom();
+      case 'team_duel.update':
+        final current = teamDuel;
+        if (current == null) {
+          // The relaunch case — see [_resumeDuel] — on the team channel.
+          _resumeTeamDuel(event.payload);
+          return;
+        }
+        if (!duelFrameApplies(current.duelId, event.payload['duelId'] as String?)) return;
+        setState(() {
+          teamDuel = current.applyUpdate(event.payload);
+          teamDuelError = '';
+        });
+        _scrollTeamChainToBottom();
+      case 'team_duel.rejected':
+        setState(() => teamDuelError = event.payload['message'] as String? ?? "So'z qabul qilinmadi");
+      case 'team_duel.finished':
+        final result = TeamFinishedDuel.fromJson(event.payload);
+        if (!duelFrameApplies(teamDuel?.duelId, result.duelId)) return;
+        setState(() {
+          teamFinished = result;
+          teamDuel = null;
+          screen = result.won ? WBScreen.teamWin : WBScreen.teamLose;
+        });
+        unawaited(_refreshSocial());
+      case 'team_duel.aborted':
+        setState(() {
+          teamDuel = null;
+          teamFinished = null;
+          banner = event.payload['message'] as String? ?? 'Jamoa jangi bekor qilindi';
+          if (screen == WBScreen.teamDuel) screen = WBScreen.lobby;
+        });
       case 'tournament.invite':
         setState(() => tournamentInvite = TournamentInvite.fromJson(event.payload));
       case 'tournament.match_ready':
@@ -1443,6 +1606,28 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     });
   }
 
+  /// Mirrors [_settleInvite], for the team-invite channel.
+  void _settleTeamInvite(String? inviteId, {required bool refused}) {
+    final settlesOutgoing = inviteFrameApplies(outgoingTeamInvite?.inviteId, inviteId);
+    final settlesIncoming = inviteFrameApplies(incomingTeamInvite?.inviteId, inviteId);
+
+    setState(() {
+      if (settlesOutgoing) {
+        outgoingTeamInvite = null;
+        if (screen == WBScreen.teamInvite) screen = WBScreen.friends;
+      }
+      if (settlesIncoming) {
+        incomingTeamInvite = null;
+        if (screen == WBScreen.teamIncoming) screen = WBScreen.lobby;
+      }
+      if (!settlesOutgoing && !settlesIncoming) _settledTeamInviteId = inviteId;
+      if (refused) {
+        banner = settlesIncoming && !settlesOutgoing ? 'Jamoa taklifi bekor qilindi' : 'Jamoa taklifi rad etildi';
+      }
+      if (outgoingTeamInvite == null && incomingTeamInvite == null) _teamInviteStartedAt = null;
+    });
+  }
+
   /// Puts a player back on the board after the app process itself went away.
   ///
   /// Everything else survives a relaunch through the stored token: the session
@@ -1483,6 +1668,25 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     _scrollChainToBottom();
   }
 
+  /// Mirrors [_resumeDuel], for the team channel.
+  void _resumeTeamDuel(Map<String, dynamic> payload) {
+    final resumed = TeamDuelView.fromDuelUpdate(payload);
+    if (resumed == null) {
+      _onBadFrame();
+      return;
+    }
+    setState(() {
+      teamDuel = resumed;
+      teamDuelError = '';
+      teamFinished = null;
+      teamQueuedAt = null;
+      outgoingTeamInvite = null;
+      incomingTeamInvite = null;
+      screen = WBScreen.teamDuel;
+    });
+    _scrollTeamChainToBottom();
+  }
+
   void _onTick() {
     final now = DateTime.now();
     final elapsed = now.difference(_lastTick).inMilliseconds;
@@ -1490,15 +1694,22 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     if (!mounted) return;
 
     final current = duel;
+    final currentTeam = teamDuel;
     final watched = spectating;
     if (screen == WBScreen.duel && current != null && current.timeLeftMs > 0) {
       setState(() => duel = current.tick(elapsed));
+    } else if (screen == WBScreen.teamDuel && currentTeam != null && currentTeam.timeLeftMs > 0) {
+      setState(() => teamDuel = currentTeam.tick(elapsed));
     } else if (screen == WBScreen.spectateDuel && watched != null && watched.timeLeftMs > 0) {
       setState(() => spectating = watched.tick(elapsed));
     } else if (screen == WBScreen.match && queuedAt != null) {
       setState(() {}); // redraw the elapsed clock
+    } else if (screen == WBScreen.teamQueue && teamQueuedAt != null) {
+      setState(() {}); // redraw the elapsed clock
     } else if (screen == WBScreen.invite || screen == WBScreen.incoming) {
       _tickInvite();
+    } else if (screen == WBScreen.teamInvite || screen == WBScreen.teamIncoming) {
+      _tickTeamInvite();
     }
   }
 
@@ -1541,6 +1752,34 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     });
   }
 
+  /// Mirrors [_tickInvite], for the team-invite channel.
+  void _tickTeamInvite() {
+    final invite = screen == WBScreen.teamInvite ? outgoingTeamInvite : incomingTeamInvite;
+    final left = invite == null
+        ? null
+        : inviteSecondsLeftAt(_teamInviteStartedAt, invite.secondsLeft, DateTime.now());
+    if (left == null) {
+      _giveUpOnTeamInvite();
+      return;
+    }
+    setState(() => _teamInviteSecondsLeft = left);
+  }
+
+  /// Mirrors [_giveUpOnInvite], for the team-invite channel.
+  void _giveUpOnTeamInvite() {
+    setState(() {
+      _teamInviteSecondsLeft = 0;
+      if (screen == WBScreen.teamInvite) {
+        outgoingTeamInvite = null;
+        screen = WBScreen.friends;
+      } else if (screen == WBScreen.teamIncoming) {
+        incomingTeamInvite = null;
+        screen = WBScreen.lobby;
+      }
+      if (outgoingTeamInvite == null && incomingTeamInvite == null) _teamInviteStartedAt = null;
+    });
+  }
+
   /// Brings a word that has just joined the chain into view.
   ///
   /// Runs after the frame that added the row, so the extent it aims at counts
@@ -1566,6 +1805,19 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       if (!spectateScrollController.hasClients) return;
       spectateScrollController.animateTo(
         spectateScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  /// The same courtesy [_scrollChainToBottom] pays a played 1v1 duel, paid to
+  /// a team one.
+  void _scrollTeamChainToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!teamChainScrollController.hasClients) return;
+      teamChainScrollController.animateTo(
+        teamChainScrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
       );
@@ -1685,6 +1937,58 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     go(WBScreen.friends);
   }
 
+  // --------------------------------------------------------------- team duels
+
+  /// The friends screen's "jamoa taklif qilish" — mirrors [challenge] exactly.
+  void inviteToTeam(FriendDto friend) => _socket.send('team_invite.send', {'userId': friend.user.id});
+
+  void acceptIncomingTeamInvite() {
+    final invite = incomingTeamInvite;
+    if (invite == null) return;
+    _socket.send('team_invite.accept', {'inviteId': invite.inviteId});
+  }
+
+  void declineIncomingTeamInvite() {
+    final invite = incomingTeamInvite;
+    if (invite != null) _socket.send('team_invite.decline', {'inviteId': invite.inviteId});
+    setState(() => incomingTeamInvite = null);
+    go(WBScreen.lobby);
+  }
+
+  void cancelOutgoingTeamInvite() {
+    final invite = outgoingTeamInvite;
+    if (invite != null) _socket.send('team_invite.decline', {'inviteId': invite.inviteId});
+    setState(() => outgoingTeamInvite = null);
+    go(WBScreen.friends);
+  }
+
+  /// Disbands the currently-formed team — the lobby banner's "×".
+  void cancelTeam() {
+    _socket.send('team.cancel');
+    setState(() => teamPartner = null);
+  }
+
+  void startTeamQueue() {
+    setState(() {
+      teamQueuedAt = DateTime.now();
+      teamFinished = null;
+      screen = WBScreen.teamQueue;
+    });
+    _socket.send('team.queue.join');
+  }
+
+  void cancelTeamQueue() {
+    // `go` already sends `team.queue.leave` when leaving the team-queue
+    // screen — see [cancelMatchmaking] for the same reasoning.
+    setState(() => teamQueuedAt = null);
+    go(WBScreen.lobby);
+  }
+
+  void submitTeamWord(String word) {
+    if (word.trim().isEmpty) return;
+    _socket.send('team_duel.submit', {'word': word.trim()});
+  }
+
   // ------------------------------------------------------------- navigation
 
   static WBTab? _tabOf(WBScreen screen) => switch (screen) {
@@ -1719,6 +2023,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       // So the app says what happened and lets that run.
       banner = delivered ? null : "Aloqa yo'q — server bundan xabarsiz";
       duelError = '';
+      teamDuelError = '';
       // The chat and reactions belong to the duel just left, not whatever
       // comes next — same as the rest of this duel's state, none of which
       // outlives the screen it was shown on. `exit` names this move as a
@@ -1764,6 +2069,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         cancelOutgoingInvite();
       case WBScreen.incoming:
         declineIncoming();
+      case WBScreen.teamInvite:
+        cancelOutgoingTeamInvite();
+      case WBScreen.teamIncoming:
+        declineIncomingTeamInvite();
       case WBScreen.spectateDuel:
         leaveSpectating();
       case WBScreen.organizeTournamentSetup:
@@ -1874,6 +2183,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onStartTournamentMatch: startReadyTournamentMatch,
           onOpenTournamentBracket: () => openTournamentBracket(activeTournament!.id),
           onOpenTournamentsBrowse: openTournamentsBrowse,
+          teamPartner: teamPartner,
+          onStartTeamQueue: startTeamQueue,
+          onCancelTeam: cancelTeam,
+          incomingTeam: incomingTeamInvite,
+          onIncomingTeam: () => go(WBScreen.teamIncoming),
           previousTab: previousNavTab,
         ),
       WBScreen.match => MatchmakingScreen(
@@ -1906,6 +2220,30 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
             final result = finished;
             result == null ? startMatchmaking() : rematch(result);
           },
+          onPractice: () => go(WBScreen.practice),
+        ),
+      WBScreen.teamQueue => TeamQueueScreen(
+          user: user,
+          partner: teamPartner,
+          matchClock: _clock(teamQueuedAt),
+          onCancel: cancelTeamQueue,
+        ),
+      WBScreen.teamDuel => TeamDuelScreen(
+          duel: teamDuel,
+          me: user,
+          error: teamDuelError,
+          scrollController: teamChainScrollController,
+          onSubmit: submitTeamWord,
+        ),
+      WBScreen.teamWin => TeamWinScreen(
+          me: user,
+          result: teamFinished,
+          onHome: () => go(WBScreen.lobby),
+        ),
+      WBScreen.teamLose => TeamLoseScreen(
+          me: user,
+          result: teamFinished,
+          onHome: () => go(WBScreen.lobby),
           onPractice: () => go(WBScreen.practice),
         ),
       WBScreen.spectateDuel => SpectateDuelScreen(
@@ -1970,6 +2308,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onDecline: declineRequest,
           onChallenge: challenge,
           onSpectate: spectate,
+          onTeamInvite: inviteToTeam,
           onHome: () => go(WBScreen.lobby),
           onBoard: () => go(WBScreen.board),
           onProfile: () => go(WBScreen.profile),
@@ -1991,6 +2330,21 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
               : _inviteSecondsLeft / incomingInvite!.secondsLeft,
           onAccept: acceptIncoming,
           onDismiss: declineIncoming,
+        ),
+      WBScreen.teamInvite => TeamInviteScreen(
+          me: user,
+          invite: outgoingTeamInvite,
+          clock: '0:${_teamInviteSecondsLeft.toString().padLeft(2, '0')}',
+          onCancel: cancelOutgoingTeamInvite,
+        ),
+      WBScreen.teamIncoming => TeamIncomingScreen(
+          invite: incomingTeamInvite,
+          secondsLeft: _teamInviteSecondsLeft,
+          progress: incomingTeamInvite == null || incomingTeamInvite!.secondsLeft == 0
+              ? 0
+              : _teamInviteSecondsLeft / incomingTeamInvite!.secondsLeft,
+          onAccept: acceptIncomingTeamInvite,
+          onDismiss: declineIncomingTeamInvite,
         ),
       WBScreen.tournamentInvite => TournamentInviteScreen(
           invite: tournamentInvite,

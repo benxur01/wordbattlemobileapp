@@ -108,6 +108,15 @@ public class SocketRegistry implements PresenceService.ConnectedPlayers {
      * being written to swallowed the result, at DEBUG, and the duel ended with
      * the rating moved and the player never told which way. See {@code
      * DuelService.deliverFinish}.
+     *
+     * <p>{@code IllegalStateException} is caught the same way {@code IOException}
+     * is, and for the same closed-in-between reason: {@link WebSocketSession#isOpen()}
+     * above and Tomcat's own write are two separate checks, not one atomic
+     * step, and a session whose close has begun on another thread since this
+     * method's own {@code isOpen()} passed answers the write with this
+     * exception instead — two players' sockets closing in the same instant is
+     * exactly the shape a bulk disconnect (a test tearing down, or a browser
+     * tab closed with several tabs open) takes.
      */
     public boolean send(Long userId, String type, Object payload) {
         WebSocketSession session = sessions.get(userId);
@@ -118,7 +127,7 @@ public class SocketRegistry implements PresenceService.ConnectedPlayers {
                 session.sendMessage(new TextMessage(json));
             }
             return true;
-        } catch (IOException e) {
+        } catch (IOException | IllegalStateException e) {
             log.debug("Frame to {} dropped: {}", userId, e.getMessage());
             return false;
         }

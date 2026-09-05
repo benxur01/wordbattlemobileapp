@@ -25,8 +25,20 @@ void main() {
     expect(queueActionFor(AppLifecycleState.inactive, WBScreen.match), QueueAction.none);
   });
 
+  test('backgrounding the team-queue screen gives up the queue', () {
+    // The 2v2 queue is a standing claim on the server the same way the 1v1
+    // one is — see `exitFrameFor`'s `team.queue.leave`.
+    expect(queueActionFor(AppLifecycleState.paused, WBScreen.teamQueue), QueueAction.leave);
+    expect(queueActionFor(AppLifecycleState.hidden, WBScreen.teamQueue), QueueAction.leave);
+    expect(queueActionFor(AppLifecycleState.detached, WBScreen.teamQueue), QueueAction.leave);
+  });
+
+  test('returning to the team-queue screen claims it back', () {
+    expect(queueActionFor(AppLifecycleState.resumed, WBScreen.teamQueue), QueueAction.rejoin);
+  });
+
   test('every other screen is left alone', () {
-    for (final screen in WBScreen.values.where((s) => s != WBScreen.match)) {
+    for (final screen in WBScreen.values.where((s) => s != WBScreen.match && s != WBScreen.teamQueue)) {
       for (final state in AppLifecycleState.values) {
         expect(queueActionFor(state, screen), QueueAction.none,
             reason: '$state on $screen must not touch the queue');

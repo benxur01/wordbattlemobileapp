@@ -31,6 +31,16 @@ enum WBScreen {
   /// Every tournament worth discovering, paginated — the lobby's "Barchasini
   /// ko'rish".
   tournamentsBrowse,
+  /// A team-duel invite waiting for a friend's answer.
+  teamInvite,
+  /// A team-duel invite waiting for this player's own Accept/Decline.
+  teamIncoming,
+  /// The 2v2 queue: both teammates searching together.
+  teamQueue,
+  /// The live 2v2 duel board.
+  teamDuel,
+  teamWin,
+  teamLose,
 }
 
 enum NickState { idle, checking, free, taken, bad }
