@@ -4,10 +4,13 @@ import '../api/models.dart';
 import '../theme.dart';
 import '../widgets/primary_button.dart';
 
-/// The friends screen's "Turnir tashkil qilish": pick a bracket size, then
-/// pick exactly that many friends to invite. Everything past this screen —
-/// the invite itself, and who may be invited — is enforced by the server; this
-/// only collects the two choices and hands them back.
+/// The friends screen's "Turnir tashkil qilish": choose whether strangers may
+/// join themselves or only invited friends may, pick a bracket size, then —
+/// for a friends-only tournament — pick exactly that many friends to invite.
+/// A public tournament has no invitees at all; anyone self-joins later from
+/// the browse screen. Everything past this screen — the invite itself, and
+/// who may be invited — is enforced by the server; this only collects the
+/// choices and hands them back.
 class OrganizeTournamentScreen extends StatefulWidget {
   const OrganizeTournamentScreen({
     super.key,
@@ -21,8 +24,10 @@ class OrganizeTournamentScreen extends StatefulWidget {
   final bool busy;
   final VoidCallback onBack;
 
-  /// Fired once with exactly [size] invitees, never more, never fewer.
-  final void Function(int size, List<UserDto> invitees) onSubmit;
+  /// Fired once — with exactly [size] invitees, never more, never fewer, when
+  /// [isPublic] is false; with no invitees at all when it's true, since a
+  /// public tournament is joined by strangers, not invited by the organizer.
+  final void Function(int size, List<UserDto> invitees, bool isPublic) onSubmit;
 
   @override
   State<OrganizeTournamentScreen> createState() => _OrganizeTournamentScreenState();
@@ -30,6 +35,9 @@ class OrganizeTournamentScreen extends StatefulWidget {
 
 class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
   static const _sizes = [4, 8, 16, 32];
+
+  /// Null while the visibility step is showing.
+  bool? _isPublic;
 
   /// Null while the size step is showing.
   int? _size;
@@ -62,17 +70,32 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPublic = _isPublic;
     final size = _size;
+    Widget step;
+    if (isPublic == null) {
+      step = _visibilityStep();
+    } else if (size == null) {
+      step = _sizeStep();
+    } else if (isPublic) {
+      step = _publicConfirmStep(size);
+    } else {
+      step = _friendStep(size);
+    }
     return Column(
       children: [
         _header(),
-        Expanded(child: size == null ? _sizeStep() : _friendStep(size)),
+        Expanded(child: step),
       ],
     );
   }
 
   Widget _header() {
-    final onStepBack = _size == null ? widget.onBack : () => setState(() => _size = null);
+    final onStepBack = _size != null
+        ? () => setState(() => _size = null)
+        : _isPublic != null
+            ? () => setState(() => _isPublic = null)
+            : widget.onBack;
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 16, 22, 13),
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color.fromRGBO(255, 255, 255, .07)))),
@@ -106,24 +129,98 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
     );
   }
 
+  Widget _visibilityStep() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      children: [
+        Text('Turnir qanday bo\'lsin?', style: WBText.grotesk(size: 20, weight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text(
+          "Do'stlaringizni o'zingiz taklif qilasizmi, yoki istalgan o'yinchi o'zi qo'shilsinmi?",
+          style: WBText.grotesk(size: 13.5, color: WBColors.textA(.55), height: 1.4),
+        ),
+        const SizedBox(height: 20),
+        _visibilityRow(
+          isPublic: false,
+          icon: Icons.group_outlined,
+          title: "Do'stlar bilan",
+          subtitle: "Faqat siz taklif qilgan do'stlaringiz qatnasha oladi",
+        ),
+        const SizedBox(height: 10),
+        _visibilityRow(
+          isPublic: true,
+          icon: Icons.public,
+          title: 'Ommaviy',
+          subtitle: "Istalgan o'yinchi o'zi qo'shilishi mumkin",
+        ),
+      ],
+    );
+  }
+
+  Widget _visibilityRow({
+    required bool isPublic,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Pressable(
+      onTap: () => setState(() => _isPublic = isPublic),
+      pressScale: .98,
+      borderRadius: BorderRadius.circular(17),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: WBColors.whiteA(.045),
+          border: Border.all(color: WBColors.whiteA(.09)),
+          borderRadius: BorderRadius.circular(17),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(gradient: wbAccentGradient, borderRadius: BorderRadius.circular(13)),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 20, color: WBColors.accentInk),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: WBText.grotesk(size: 15, weight: FontWeight.w600)),
+                  Text(subtitle, style: WBText.grotesk(size: 11.5, color: WBColors.textA(.45))),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: WBColors.textA(.4)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _sizeStep() {
+    final isPublic = _isPublic ?? false;
     return ListView(
       padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
       children: [
         Text("Necha kishilik bo'lsin?", style: WBText.grotesk(size: 20, weight: FontWeight.w700)),
         const SizedBox(height: 8),
         Text(
-          "O'lchamni tanlang — keyingi qadamda shuncha do'stingizni taklif qilasiz.",
+          isPublic
+              ? "O'lchamni tanlang — to'lgach turnir avtomatik boshlanadi."
+              : "O'lchamni tanlang — keyingi qadamda shuncha do'stingizni taklif qilasiz.",
           style: WBText.grotesk(size: 13.5, color: WBColors.textA(.55), height: 1.4),
         ),
         const SizedBox(height: 20),
-        for (final option in _sizes) ...[_sizeRow(option), const SizedBox(height: 10)],
+        for (final option in _sizes) ...[_sizeRow(option, isPublic), const SizedBox(height: 10)],
       ],
     );
   }
 
-  Widget _sizeRow(int option) {
-    final enoughFriends = widget.friends.length >= option;
+  Widget _sizeRow(int option, bool isPublic) {
+    final enoughFriends = isPublic || widget.friends.length >= option;
     return Pressable(
       onTap: () => setState(() => _size = option),
       pressScale: .98,
@@ -162,6 +259,45 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// The public-tournament path's last step — no friends to pick, just a
+  /// confirmation, since anyone self-joins later from the browse screen.
+  Widget _publicConfirmStep(int size) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+            children: [
+              Text('Ommaviy turnir', style: WBText.grotesk(size: 20, weight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              Text(
+                "$size kishilik turnir yaratiladi. Kimni taklif qilish shart emas — istalgan o'yinchi o'zi qo'shilishi mumkin bo'ladi.",
+                style: WBText.grotesk(size: 13.5, color: WBColors.textA(.55), height: 1.4),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 22),
+          child: Pressable(
+            onTap: widget.busy ? null : () => widget.onSubmit(size, const [], true),
+            pressScale: .98,
+            child: Container(
+              width: double.infinity,
+              height: 58,
+              decoration: BoxDecoration(gradient: wbAccentGradient, borderRadius: BorderRadius.circular(19)),
+              alignment: Alignment.center,
+              child: Text(
+                widget.busy ? 'Yaratilmoqda…' : 'Turnir yaratish',
+                style: WBText.grotesk(size: 16, weight: FontWeight.w600, color: WBColors.accentInk),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -228,7 +364,7 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 22),
           child: Pressable(
-            onTap: widget.busy || !ready ? null : () => widget.onSubmit(size, _selectedUsers()),
+            onTap: widget.busy || !ready ? null : () => widget.onSubmit(size, _selectedUsers(), false),
             pressScale: .98,
             child: Container(
               width: double.infinity,

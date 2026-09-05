@@ -60,6 +60,7 @@ class FrameRateLimiterTest {
                 new AppProperties.Cors(List.of()),
                 new AppProperties.Limits(framesPerSecond, burst, 64),
                 new AppProperties.Admin(""),
+                new AppProperties.Tournament(new AppProperties.Tournament.Global("0 0 20 * * SUN", 32)),
                 ZoneId.of("Asia/Tashkent"),
                 false);
         return new FrameRateLimiter(props);

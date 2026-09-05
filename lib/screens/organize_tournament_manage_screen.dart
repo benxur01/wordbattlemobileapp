@@ -88,24 +88,7 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 8, 22, 12),
-          child: Pressable(
-            onTap: !ready || widget.busy ? null : widget.onStart,
-            pressScale: .98,
-            child: Container(
-              width: double.infinity,
-              height: 58,
-              decoration: BoxDecoration(
-                gradient: ready ? wbAccentGradient : null,
-                color: ready ? null : WBColors.whiteA(.06),
-                borderRadius: BorderRadius.circular(19),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                widget.busy ? 'Boshlanmoqda…' : 'Turnirni boshlash',
-                style: WBText.grotesk(size: 16, weight: FontWeight.w600, color: ready ? WBColors.accentInk : WBColors.textA(.4)),
-              ),
-            ),
-          ),
+          child: t?.visibility == 'public' ? _autoStartNotice(t!, accepted) : _startButton(ready),
         ),
         if (cancellable)
           Padding(
@@ -113,6 +96,51 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
             child: _cancelSection(),
           ),
       ],
+    );
+  }
+
+  /// The manual "Turnirni boshlash" — unchanged from before `visibility`
+  /// existed, and still the only way an invite-only, `private` tournament
+  /// ever seeds its bracket.
+  Widget _startButton(bool ready) {
+    return Pressable(
+      onTap: !ready || widget.busy ? null : widget.onStart,
+      pressScale: .98,
+      child: Container(
+        width: double.infinity,
+        height: 58,
+        decoration: BoxDecoration(
+          gradient: ready ? wbAccentGradient : null,
+          color: ready ? null : WBColors.whiteA(.06),
+          borderRadius: BorderRadius.circular(19),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          widget.busy ? 'Boshlanmoqda…' : 'Turnirni boshlash',
+          style: WBText.grotesk(size: 16, weight: FontWeight.w600, color: ready ? WBColors.accentInk : WBColors.textA(.4)),
+        ),
+      ),
+    );
+  }
+
+  /// A `public` tournament seeds itself the instant it fills — see
+  /// `TournamentService#join` — so there is no button to press here, only a
+  /// live readout of how close it is.
+  Widget _autoStartNotice(TournamentSummary t, int accepted) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: WBColors.whiteA(.04),
+        border: Border.all(color: WBColors.whiteA(.09)),
+        borderRadius: BorderRadius.circular(19),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        "$accepted/${t.size} qo'shildi · to'lgach avtomatik boshlanadi",
+        textAlign: TextAlign.center,
+        style: WBText.grotesk(size: 13.5, weight: FontWeight.w600, color: WBColors.textA(.6)),
+      ),
     );
   }
 

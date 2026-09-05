@@ -136,7 +136,7 @@ class DuelWebSocketTest {
         return mapper.readTree(body).get("id").asLong();
     }
 
-    /** Moves an account off the 1200 every fresh one starts on. */
+    /** Moves an account off the 400 every fresh one starts on. */
     private long rate(String token, double rating) throws Exception {
         long id = userId(token);
         User user = users.findById(id).orElseThrow();
@@ -147,8 +147,8 @@ class DuelWebSocketTest {
 
     /**
      * An account the ladder already knows — a deviation of 60 rather than a new
-     * player's 350 — whose last rated duel was {@code idlePeriods} rating
-     * periods ago. A fresh account is capped at 350 and could not be inflated
+     * player's 180 — whose last rated duel was {@code idlePeriods} rating
+     * periods ago. A fresh account is capped at 180 and could not be inflated
      * at all, so a settled one is the only way to see the growth happen.
      */
     private long settled(String token, double deviation, int idlePeriods) throws Exception {
@@ -285,7 +285,7 @@ class DuelWebSocketTest {
      * and the duel that reads them — rather than the arithmetic on its own,
      * which {@code Glicko2Test} already pins.
      *
-     * <p>Two players on 1200 that the ladder knows equally well, except that
+     * <p>Two players on 400 that the ladder knows equally well, except that
      * one of them has not settled a rated duel in two hundred rating periods.
      * That used to make no difference whatsoever: they met on a deviation of 60
      * each and moved ten points in opposite directions, however long one had

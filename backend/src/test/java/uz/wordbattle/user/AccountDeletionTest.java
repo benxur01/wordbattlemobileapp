@@ -294,7 +294,7 @@ class AccountDeletionTest {
         assertThat(shell.getBattles()).isZero();
         assertThat(shell.getWins()).isZero();
         assertThat(shell.getStreakDays()).isZero();
-        assertThat(shell.getRating()).isEqualTo(1200);
+        assertThat(shell.getRating()).isEqualTo(400);
         assertThat(ratingHistory.findByUserIdAndRecordedAtAfterOrderByRecordedAtAsc(leavingId, Instant.EPOCH))
                 .isEmpty();
         assertThat(userWords.countByUserId(leavingId)).isZero();

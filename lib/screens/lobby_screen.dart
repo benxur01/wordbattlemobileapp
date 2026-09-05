@@ -31,6 +31,7 @@ class LobbyScreen extends StatelessWidget {
     this.onOpenTournamentInvite,
     this.onStartTournamentMatch,
     this.onOpenTournamentBracket,
+    this.onOpenTournamentsBrowse,
     this.previousTab,
   });
 
@@ -64,6 +65,11 @@ class LobbyScreen extends StatelessWidget {
   final VoidCallback? onOpenTournamentInvite;
   final VoidCallback? onStartTournamentMatch;
   final VoidCallback? onOpenTournamentBracket;
+
+  /// The lobby's own entry point into the full paginated tournament list —
+  /// always reachable, whether or not any of the three banners above is
+  /// showing.
+  final VoidCallback? onOpenTournamentsBrowse;
 
   @override
   Widget build(BuildContext context) {
@@ -373,6 +379,7 @@ class LobbyScreen extends StatelessWidget {
               _TournamentReadyBanner(prompt: tournamentMatchReady!, onTap: onStartTournamentMatch)
             else if (activeTournament != null)
               _TournamentDiscoveryBanner(tournament: activeTournament!, onTap: onOpenTournamentBracket),
+            _TournamentsBrowseLink(onTap: onOpenTournamentsBrowse),
             BottomNav(
               active: WBTab.home,
               previous: previousTab,
@@ -604,6 +611,47 @@ class _TournamentDiscoveryBanner extends StatelessWidget {
               style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.textA(.55)),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "See every tournament" — unlike the discovery banner above it, it does not
+/// depend on one being live to be worth tapping, since the browse list it
+/// opens also shows every finished bracket and every one still open to join.
+class _TournamentsBrowseLink extends StatelessWidget {
+  const _TournamentsBrowseLink({required this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 10),
+      child: Pressable(
+        onTap: onTap,
+        hoverColor: WBColors.whiteA(.06),
+        borderRadius: BorderRadius.circular(15),
+        child: Container(
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: WBColors.accentA(.1),
+            border: Border.all(color: WBColors.accentA(.3)),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.emoji_events_outlined, size: 18, color: WBColors.accent),
+              const SizedBox(width: 10),
+              Text(
+                'Barchasini ko\'rish',
+                style: WBText.grotesk(size: 14, weight: FontWeight.w600, color: WBColors.accent),
+              ),
+            ],
+          ),
         ),
       ),
     );

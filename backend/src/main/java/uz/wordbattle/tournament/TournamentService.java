@@ -12,6 +12,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,20 +28,25 @@ import uz.wordbattle.user.UserService;
 import uz.wordbattle.ws.SocketRegistry;
 
 /**
- * Single-elimination tournaments, curated either by the admin panel or by an
- * ordinary player organizing one among their own friends: no self-registration
- * by strangers either way, no payment — that scope was cut deliberately — and
- * every rule enforced here rather than trusted from the client, the same way
- * {@link DuelService} owns every duel rule.
+ * Single-elimination tournaments, curated by the admin panel, by an ordinary
+ * player organizing one among their own friends, or — since {@link #join} —
+ * by nobody at all: a {@code PUBLIC} tournament lets a stranger seat
+ * themselves, no invitation required. No payment anywhere near any of the
+ * three — that scope was cut deliberately — and every rule enforced here
+ * rather than trusted from the client, the same way {@link DuelService} owns
+ * every duel rule.
  *
- * <p>The two paths share every rule except who may be invited and who is told
- * about it: the admin path may invite anyone and is logged to
- * {@link AdminAuditService}; the self-service path — {@link #createByUser},
- * {@link #inviteByUser}, {@link #startByUser} — may only invite the
- * organizer's own friends and is not audited, since it is not an admin acting
- * on somebody else's account.
+ * <p>The admin and self-service paths share every rule except who may be
+ * invited and who is told about it: the admin path may invite anyone and is
+ * logged to {@link AdminAuditService}; the self-service path — {@link
+ * #createByUser}, {@link #inviteByUser}, {@link #startByUser} — may only
+ * invite the organizer's own friends and is not audited, since it is not an
+ * admin acting on somebody else's account. {@link #join} is audited by
+ * neither, for the same reason: a player joining themselves is not anybody
+ * acting on anybody else's account either.
  *
- * <p>A bracket is seeded once, when its organizer starts it, and from then on
+ * <p>A bracket is seeded once, when it fills — its organizer starting it by
+ * hand, or the last open seat of a public one being claimed — and from then on
  * advances itself: {@link #onDuelFinished} is {@link DuelService}'s hook for a
  * duel tagged as a tournament match, and it is the only thing that ever moves
  * a winner into the next round.
@@ -49,6 +55,12 @@ import uz.wordbattle.ws.SocketRegistry;
 public class TournamentService {
 
     private static final Set<Integer> ALLOWED_SIZES = Set.of(4, 8, 16, 32);
+
+    /** The lobby's discovery banner never scans further back than this. */
+    private static final int ACTIVE_LIMIT = 20;
+
+    /** Big enough for a screenful, small enough that a typo cannot ask for the table. */
+    private static final int MAX_BROWSE_PAGE_SIZE = 100;
 
     private final TournamentRepository tournaments;
     private final TournamentParticipantRepository participants;
@@ -61,14 +73,18 @@ public class TournamentService {
     private final DuelService duels;
 
     /**
-     * One lock per tournament, guarding the read-modify-write that advances a
-     * winner into the next round's match. Two round-1 duels can finish within
-     * the same instant and feed the same round-2 slot pair, and without this
-     * both settlements could read that match before either had written to it —
-     * a lost update that would leave the match missing a player forever. A
-     * plain Java lock is enough because the server this runs on is meant to be
-     * a single instance — see the README — the same assumption {@code
-     * PresenceService} and {@code MatchmakingService} already make.
+     * One lock per tournament, guarding every read-modify-write that could
+     * otherwise race: {@link #onDuelFinished} advancing a winner into the next
+     * round's match, and {@link #join} seating the last player a public
+     * tournament has room for. Two round-1 duels can finish within the same
+     * instant and feed the same round-2 slot pair — and two strangers can
+     * just as easily race for the very last open seat — and without this each
+     * pair could both read the state before either had written to it: a lost
+     * update that leaves a match missing a player, or seats one more player
+     * than the bracket has room for. A plain Java lock is enough because the
+     * server this runs on is meant to be a single instance — see the README —
+     * the same assumption {@code PresenceService} and {@code
+     * MatchmakingService} already make.
      */
     private final Map<Long, Object> tournamentLocks = new ConcurrentHashMap<>();
 
@@ -97,30 +113,63 @@ public class TournamentService {
 
     @Transactional
     public TournamentEntity create(long adminId, String name, int size) {
-        TournamentEntity tournament = createEntity(adminId, name, size);
+        TournamentEntity tournament =
+                createEntity(adminId, name, size, TournamentEntity.Kind.ADMIN, TournamentEntity.Visibility.PRIVATE);
         audit.record(adminId, AdminAuditService.TOURNAMENT_CREATE, null, tournament.getName() + " (" + size + ")");
         return tournament;
     }
 
-    /** The friends-screen "Turnir tashkil qilish" flow — otherwise identical to {@link #create}, minus the audit log. */
+    /**
+     * The friends-screen "Turnir tashkil qilish" flow — otherwise identical to
+     * {@link #create}, minus the audit log. Defaults to {@code PRIVATE}, the
+     * same as an admin's, but lets the organizer ask for {@code PUBLIC}
+     * instead so a stranger may seat themselves through {@link #join} rather
+     * than waiting on an invite.
+     */
     @Transactional
-    public TournamentEntity createByUser(long userId, String name, int size) {
-        return createEntity(userId, name, size);
+    public TournamentEntity createByUser(long userId, String name, int size, TournamentEntity.Visibility visibility) {
+        return createEntity(userId, name, size, TournamentEntity.Kind.FRIEND, visibility);
     }
 
-    private TournamentEntity createEntity(long creatorId, String name, int size) {
+    /**
+     * Parses the create request's {@code visibility} field — {@code "private"}
+     * (the default when absent or blank) or {@code "public"} — refusing
+     * anything else the same way {@code invalid_size} refuses a bad size.
+     */
+    public TournamentEntity.Visibility parseVisibility(String raw) {
+        if (raw == null || raw.isBlank()) return TournamentEntity.Visibility.PRIVATE;
+        try {
+            return TournamentEntity.Visibility.valueOf(raw.strip().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw ApiException.badRequest("invalid_visibility", "Ko'rinish private yoki public bo'lishi kerak");
+        }
+    }
+
+    /** {@code GlobalTournamentScheduler}'s own creation path — no organizer to audit, since nobody is acting on anybody's behalf here. */
+    @Transactional
+    public TournamentEntity createGlobalTournament(int size, double minRating) {
+        return tournaments.save(TournamentEntity.global("Global turnir", size, minRating));
+    }
+
+    private TournamentEntity createEntity(
+            long creatorId, String name, int size, TournamentEntity.Kind kind, TournamentEntity.Visibility visibility) {
         String trimmed = name == null ? "" : name.strip();
         if (trimmed.isEmpty()) throw ApiException.badRequest("name_required", "Turnir nomini kiriting");
         if (trimmed.length() > 64) throw ApiException.badRequest("name_too_long", "Ko'pi bilan 64 ta belgi");
         if (!ALLOWED_SIZES.contains(size)) {
             throw ApiException.badRequest("invalid_size", "O'lcham 4, 8, 16 yoki 32 bo'lishi kerak");
         }
-        return tournaments.save(new TournamentEntity(trimmed, size, creatorId));
+        return tournaments.save(new TournamentEntity(trimmed, size, creatorId, kind, visibility));
     }
 
-    /** Refuses anyone but the organizer who created this tournament — the self-service path's only gate the admin path skips. */
+    /**
+     * Refuses anyone but the organizer who created this tournament — the
+     * self-service path's only gate the admin path skips. A {@code GLOBAL}
+     * tournament has no organizer at all, so this refuses everyone for one —
+     * there is nobody it could ever let through.
+     */
     private void requireOrganizer(TournamentEntity tournament, long userId) {
-        if (tournament.getCreatedByAdminId() != userId) {
+        if (tournament.getCreatedByAdminId() == null || tournament.getCreatedByAdminId() != userId) {
             throw ApiException.forbidden("not_organizer", "Bu turnirni faqat tashkilotchisi boshqara oladi");
         }
     }
@@ -278,6 +327,52 @@ public class TournamentService {
         }
         broadcastBracketUpdate(tournamentId);
         return saved;
+    }
+
+    // ------------------------------------------------------------------------ public: self-join
+
+    /**
+     * A stranger's own way into a {@code PUBLIC} tournament — nobody has to
+     * invite them. A {@code GLOBAL} one asks one more thing: their rating has
+     * to clear the floor {@code GlobalTournamentScheduler} computed the moment
+     * it opened the bracket. Joining twice costs nothing, the same way
+     * accepting twice does not in {@link #inviteInternal}.
+     *
+     * <p>The whole thing runs under this tournament's lock, the same one
+     * {@link #onDuelFinished} uses: two players racing for the last open slot
+     * must not both see room and both get seated, which an unguarded
+     * check-then-insert would allow.
+     */
+    @Transactional
+    public TournamentEntity join(long userId, long tournamentId) {
+        User user = userService.require(userId);
+        synchronized (tournamentLocks.computeIfAbsent(tournamentId, id -> new Object())) {
+            TournamentEntity tournament = require(tournamentId);
+            if (tournament.getStatus() != TournamentEntity.Status.OPEN
+                    || tournament.getVisibility() != TournamentEntity.Visibility.PUBLIC) {
+                throw ApiException.badRequest("tournament_not_joinable", "Bu turnirga o'zingiz qo'shila olmaysiz");
+            }
+            if (tournament.getKind() == TournamentEntity.Kind.GLOBAL && user.getRating() < tournament.getMinRating()) {
+                throw ApiException.badRequest("rating_too_low", "Reytingingiz bu turnir uchun yetarli emas");
+            }
+
+            TournamentParticipant existing =
+                    participants.findByTournamentIdAndUserId(tournamentId, userId).orElse(null);
+            if (existing != null && existing.getStatus() == TournamentParticipant.Status.ACCEPTED) {
+                return tournament;
+            }
+            if (existing == null) {
+                participants.save(TournamentParticipant.selfJoined(tournamentId, userId));
+            } else {
+                existing.accept();
+                participants.save(existing);
+            }
+
+            long acceptedCount = participants
+                    .findByTournamentIdAndStatus(tournamentId, TournamentParticipant.Status.ACCEPTED)
+                    .size();
+            return acceptedCount == tournament.getSize() ? startInternal(tournament) : tournament;
+        }
     }
 
     // ---------------------------------------------------------------------------- admin: cancel
@@ -488,8 +583,9 @@ public class TournamentService {
                 participant.getStatus().name().toLowerCase(), organizerOf(tournament));
     }
 
-    /** Null only if the organizer's account has since been deleted — see {@link UserService#allByIds}. */
+    /** Null if the organizer's account has since been deleted, or if there never was one — see {@link UserService#allByIds}. */
     private UserDto organizerOf(TournamentEntity tournament) {
+        if (tournament.getCreatedByAdminId() == null) return null;
         return userService.allByIds(Set.of(tournament.getCreatedByAdminId())).stream()
                 .findFirst()
                 .map(UserDto::of)
@@ -540,11 +636,35 @@ public class TournamentService {
 
     public record Mine(List<TournamentInviteDto> invites, List<TournamentMatchPromptDto> readyMatches) {}
 
-    /** Discoverable by anyone signed in — the opt-in spectator entry point. */
+    /** Discoverable by anyone signed in — the opt-in spectator entry point. Bounded to the most recent handful. */
     public List<TournamentSummaryDto> active() {
-        return tournaments.findActive().stream()
-                .map(t -> new TournamentSummaryDto(t.getId(), t.getName(), t.getSize(), t.getStatus().name().toLowerCase()))
-                .toList();
+        return tournaments.findActive(PageRequest.of(0, ACTIVE_LIMIT)).stream().map(this::summaryOf).toList();
+    }
+
+    /**
+     * The browse screen's discoverable list — see {@link
+     * TournamentRepository#findBrowsable} for exactly which tournaments that
+     * is.
+     */
+    public List<TournamentSummaryDto> browse(int page, int size) {
+        PageRequest pageRequest = PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, MAX_BROWSE_PAGE_SIZE)));
+        return tournaments.findBrowsable(pageRequest).stream().map(this::summaryOf).toList();
+    }
+
+    /** The row every write below hands back — including the accepted headcount a "12/32" reads off of. */
+    public TournamentSummaryDto summaryOf(TournamentEntity tournament) {
+        int acceptedCount = participants
+                .findByTournamentIdAndStatus(tournament.getId(), TournamentParticipant.Status.ACCEPTED)
+                .size();
+        return new TournamentSummaryDto(
+                tournament.getId(),
+                tournament.getName(),
+                tournament.getSize(),
+                tournament.getStatus().name().toLowerCase(),
+                tournament.getVisibility().name().toLowerCase(),
+                tournament.getKind().name().toLowerCase(),
+                acceptedCount,
+                tournament.getMinRating());
     }
 
     /**
@@ -556,7 +676,7 @@ public class TournamentService {
         List<TournamentMatch> all = matches.findByTournamentIdOrderByRoundAscSlotAsc(tournamentId);
 
         Set<Long> ids = new HashSet<>();
-        ids.add(tournament.getCreatedByAdminId());
+        if (tournament.getCreatedByAdminId() != null) ids.add(tournament.getCreatedByAdminId());
         for (TournamentMatch match : all) {
             if (match.getPlayerOneUserId() != null) ids.add(match.getPlayerOneUserId());
             if (match.getPlayerTwoUserId() != null) ids.add(match.getPlayerTwoUserId());
@@ -580,6 +700,7 @@ public class TournamentService {
                 .toList();
 
         UserDto champion = tournament.getChampionUserId() == null ? null : byId.get(tournament.getChampionUserId());
+        UserDto organizer = tournament.getCreatedByAdminId() == null ? null : byId.get(tournament.getCreatedByAdminId());
 
         return new TournamentDetailDto(
                 tournament.getId(),
@@ -589,7 +710,10 @@ public class TournamentService {
                 tournament.rounds(),
                 rounds,
                 champion,
-                byId.get(tournament.getCreatedByAdminId()));
+                organizer,
+                tournament.getVisibility().name().toLowerCase(),
+                tournament.getKind().name().toLowerCase(),
+                tournament.getMinRating());
     }
 
     /**

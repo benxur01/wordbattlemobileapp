@@ -6,21 +6,63 @@ library;
 
 import 'models.dart';
 
-/// The lobby's "an active tournament exists" discovery card.
+/// The lobby's "an active tournament exists" discovery card, and the browse
+/// screen's own row.
 class TournamentSummary {
-  const TournamentSummary({required this.id, required this.name, required this.size, required this.status});
+  const TournamentSummary({
+    required this.id,
+    required this.name,
+    required this.size,
+    required this.status,
+    required this.visibility,
+    required this.kind,
+    required this.acceptedCount,
+    required this.minRating,
+  });
 
   factory TournamentSummary.fromJson(Map<String, dynamic> json) => TournamentSummary(
         id: (json['id'] as num).toInt(),
         name: json['name'] as String? ?? '',
         size: (json['size'] as num?)?.toInt() ?? 0,
         status: json['status'] as String? ?? '',
+        visibility: json['visibility'] as String? ?? 'private',
+        kind: json['kind'] as String? ?? 'friend',
+        acceptedCount: (json['acceptedCount'] as num?)?.toInt() ?? 0,
+        minRating: (json['minRating'] as num?)?.toDouble(),
       );
 
   final int id;
   final String name;
   final int size;
   final String status;
+
+  /// `"private"` (invite-only) or `"public"` (a stranger may self-join while
+  /// it's open) — see `TournamentEntity.Visibility` on the server.
+  final String visibility;
+
+  /// `"friend"`, `"admin"`, or `"global"` — who runs it.
+  final String kind;
+
+  /// How many participants have joined/accepted so far — compare against
+  /// [size] for the browse list's "x/y".
+  final int acceptedCount;
+
+  /// The rating floor to self-join — set only when [kind] is `"global"`.
+  final double? minRating;
+
+  bool get isPublic => visibility == 'public';
+  bool get isGlobal => kind == 'global';
+
+  /// Whether a stranger may tap "Qo'shilish" on this row right now.
+  bool get isJoinable => status == 'open' && (isPublic || isGlobal);
+
+  String get statusLabel => switch (status) {
+        'open' => 'Ochiq',
+        'in_progress' => 'Jonli',
+        'completed' => 'Yakunlangan',
+        'cancelled' => 'Bekor qilindi',
+        _ => status,
+      };
 }
 
 /// A tournament invite waiting for an answer — pushed live as
@@ -145,6 +187,9 @@ class TournamentDetail {
     required this.rounds,
     required this.champion,
     required this.organizer,
+    required this.visibility,
+    required this.kind,
+    required this.minRating,
   });
 
   factory TournamentDetail.fromJson(Map<String, dynamic> json) => TournamentDetail(
@@ -158,6 +203,9 @@ class TournamentDetail {
             .toList(),
         champion: json['champion'] == null ? null : UserDto.fromJson(json['champion'] as Map<String, dynamic>),
         organizer: json['organizer'] == null ? null : UserDto.fromJson(json['organizer'] as Map<String, dynamic>),
+        visibility: json['visibility'] as String? ?? 'private',
+        kind: json['kind'] as String? ?? 'friend',
+        minRating: (json['minRating'] as num?)?.toDouble(),
       );
 
   final int id;
@@ -169,8 +217,18 @@ class TournamentDetail {
   final UserDto? champion;
 
   /// Whoever created this tournament. Null only if that account has since
-  /// been deleted.
+  /// been deleted, or if this is a `"global"` tournament, which has no human
+  /// organizer at all.
   final UserDto? organizer;
+
+  /// `"private"` or `"public"` — see [TournamentSummary.visibility].
+  final String visibility;
+
+  /// `"friend"`, `"admin"`, or `"global"`.
+  final String kind;
+
+  /// The rating floor to self-join — set only when [kind] is `"global"`.
+  final double? minRating;
 
   bool get isCompleted => status == 'completed';
 

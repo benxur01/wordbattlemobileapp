@@ -1,4 +1,17 @@
 package uz.wordbattle.tournament;
 
-/** The lobby's "an active tournament exists" discovery card — anyone signed in may open it. */
-public record TournamentSummaryDto(Long id, String name, int size, String status) {}
+/**
+ * The lobby's "an active tournament exists" discovery card, and the browse
+ * list's row — anyone signed in may read either. {@code acceptedCount}/{@code
+ * size} is the "12/32" a stranger reads before deciding whether to join;
+ * {@code minRating} is set only on a {@code GLOBAL} row.
+ */
+public record TournamentSummaryDto(
+        Long id,
+        String name,
+        int size,
+        String status,
+        String visibility,
+        String kind,
+        int acceptedCount,
+        Double minRating) {}

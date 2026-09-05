@@ -47,11 +47,11 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(11);
+        assertThat(result.migrationsExecuted).isEqualTo(14);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11");
+                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -99,6 +99,12 @@ class MigrationChainTest {
         // V8 put the same optimistic lock on the other table two calls can
         // settle at once — a friend request answered by a double tap.
         assertThat(columnsOf("fresh", "friend_requests")).contains("version");
+
+        // V12 lets a tournament open itself to strangers: visibility gates
+        // TournamentService#join, kind tells a scheduler-opened GLOBAL bracket
+        // apart from the two a human already starts, and created_by_admin_id
+        // can no longer be not-null now that a GLOBAL tournament has none.
+        assertThat(columnsOf("fresh", "tournaments")).contains("visibility", "kind", "min_rating");
 
         // Partial indexes are the reason this test needs PostgreSQL at all:
         // H2 accepts neither of these, so the H2 suite proves nothing about
@@ -150,7 +156,7 @@ class MigrationChainTest {
                 where a.nickname = 'aziza_m' and b.nickname = 'bekzod_99'
                 """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(9);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(12);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -228,6 +234,10 @@ class MigrationChainTest {
         // this feature shipped, so an upgraded server starts with none.
         assertThat(tables("upgrade")).contains("tournaments", "tournament_participants", "tournament_matches");
         assertThat(query("upgrade", "select count(*) from tournaments")).containsExactly("0");
+
+        // V12 only adds columns and relaxes a constraint — nothing to backfill
+        // on a table that upgraded with no rows in it.
+        assertThat(columnsOf("upgrade", "tournaments")).contains("visibility", "kind", "min_rating");
     }
 
     // --------------------------------------------------------------- helpers

@@ -43,6 +43,7 @@ public record AppProperties(
         @DefaultValue Cors cors,
         @DefaultValue Limits limits,
         @DefaultValue Admin admin,
+        @DefaultValue Tournament tournament,
         /**
          * The zone every "which day is it" decision is made in — daily streaks
          * and the practice word of the day. UTC would roll those over at 05:00
@@ -160,4 +161,17 @@ public record AppProperties(
      * of games" than a longer one would be.
      */
     public record Rating(@DefaultValue("PT24H") Duration periodDuration) {}
+
+    /**
+     * The weekly Global tournament {@code GlobalTournamentScheduler} opens —
+     * nobody has to run this one, so there is only ever the one nested section
+     * rather than a whole record of admin-shaped settings.
+     */
+    public record Tournament(@DefaultValue Global global) {
+        public record Global(
+                /** When a fresh bracket opens, in {@link AppProperties#timeZone()}. Sunday at 20:00 by default. */
+                @DefaultValue("0 0 20 * * SUN") String cron,
+                /** How many of the top-rated players clear the bar for this week's bracket. */
+                @DefaultValue("32") int size) {}
+    }
 }

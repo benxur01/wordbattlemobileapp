@@ -823,6 +823,7 @@ class AdminControllerTest {
                 props.cors(),
                 props.limits(),
                 new AppProperties.Admin(bootstrapUserId),
+                props.tournament(),
                 props.timeZone(),
                 props.devLoginEnabled());
         return new AdminBootstrap(users, configured, transactionManager);

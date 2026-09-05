@@ -6,10 +6,17 @@ import java.time.Instant;
 /**
  * A single-elimination bracket: a name, a fixed power-of-two size, and no
  * money anywhere near it — that was cut deliberately after a legal discussion
- * about real-money prizes. Curated either by the admin panel or, since
- * {@link TournamentService#createByUser}, by an ordinary player organizing one
- * among their own friends — {@link #createdByAdminId} names whichever of the
- * two it was, and the rest of this class does not care which.
+ * about real-money prizes. Curated by the admin panel, by an ordinary player
+ * organizing one among their own friends (since
+ * {@link TournamentService#createByUser}), or — since {@code
+ * GlobalTournamentScheduler} — by nobody at all: {@link #kind} tells the three
+ * apart, {@link #createdByAdminId} names whichever human ran it and is null
+ * only for the last one, and the rest of this class does not care which.
+ *
+ * <p>{@link #visibility} is the door {@link TournamentService#join} checks:
+ * {@code PRIVATE} is every admin- and friend-run bracket, invite-only exactly
+ * as before, and {@code PUBLIC} — always true of a {@code GLOBAL} one — lets a
+ * stranger seat themselves with nobody inviting them.
  */
 @Entity
 @Table(name = "tournaments")
@@ -26,6 +33,12 @@ public class TournamentEntity {
         CANCELLED
     }
 
+    /** Whether a stranger may join themselves — see {@link TournamentService#join}. */
+    public enum Visibility { PRIVATE, PUBLIC }
+
+    /** Who runs the bracket: the admin panel, a player among their own friends, or nobody — see {@link #kind}. */
+    public enum Kind { FRIEND, ADMIN, GLOBAL }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -41,9 +54,21 @@ public class TournamentEntity {
     @Column(name = "status", nullable = false, length = 16)
     private Status status;
 
-    /** The organizer — an admin, or a player who started this one among friends. */
-    @Column(name = "created_by_admin_id", nullable = false)
+    /** The organizer — an admin, or a player who started this one among friends. Null for a {@code GLOBAL} tournament. */
+    @Column(name = "created_by_admin_id")
     private Long createdByAdminId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 16)
+    private Visibility visibility;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false, length = 16)
+    private Kind kind;
+
+    /** The rating floor to self-join — set only on a {@code GLOBAL} tournament, null otherwise. */
+    @Column(name = "min_rating")
+    private Double minRating;
 
     /** Null until the final match is decided. */
     @Column(name = "champion_user_id")
@@ -60,11 +85,35 @@ public class TournamentEntity {
 
     protected TournamentEntity() {}
 
-    public TournamentEntity(String name, int size, Long createdByAdminId) {
+    private TournamentEntity(
+            String name, int size, Long createdByAdminId, Visibility visibility, Kind kind, Double minRating) {
         this.name = name;
         this.size = size;
         this.createdByAdminId = createdByAdminId;
+        this.visibility = visibility;
+        this.kind = kind;
+        this.minRating = minRating;
         this.status = Status.OPEN;
+    }
+
+    /** The friends screen's default — kept for whatever still calls it this way; always private and {@link Kind#FRIEND}. */
+    public TournamentEntity(String name, int size, Long createdByAdminId) {
+        this(name, size, createdByAdminId, Kind.FRIEND);
+    }
+
+    /** The admin panel and the friends screen, tagged apart only for the browse list's badge — both start private. */
+    public TournamentEntity(String name, int size, Long createdByAdminId, Kind kind) {
+        this(name, size, createdByAdminId, Visibility.PRIVATE, kind, null);
+    }
+
+    /** The friends screen's self-service create, when the organizer asks for {@code PUBLIC} instead of the private default. */
+    public TournamentEntity(String name, int size, Long createdByAdminId, Kind kind, Visibility visibility) {
+        this(name, size, createdByAdminId, visibility, kind, null);
+    }
+
+    /** {@code GlobalTournamentScheduler}'s own creation path — no organizer, public from the moment it exists. */
+    public static TournamentEntity global(String name, int size, double minRating) {
+        return new TournamentEntity(name, size, null, Visibility.PUBLIC, Kind.GLOBAL, minRating);
     }
 
     public Long getId() { return id; }
@@ -73,6 +122,9 @@ public class TournamentEntity {
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
     public Long getCreatedByAdminId() { return createdByAdminId; }
+    public Visibility getVisibility() { return visibility; }
+    public Kind getKind() { return kind; }
+    public Double getMinRating() { return minRating; }
     public Long getChampionUserId() { return championUserId; }
     public void setChampionUserId(Long championUserId) { this.championUserId = championUserId; }
     public Instant getCreatedAt() { return createdAt; }

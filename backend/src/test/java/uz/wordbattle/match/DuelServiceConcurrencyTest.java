@@ -147,7 +147,7 @@ class DuelServiceConcurrencyTest {
         assertThat(settled.getWins()).isEqualTo(SHARED_PLAYER_DUELS);
         // Every win moved the rating: a settlement that had been overwritten
         // would have taken its rating change with it.
-        assertThat(settled.getRating()).isGreaterThan(1200);
+        assertThat(settled.getRating()).isGreaterThan(400);
     }
 
     /**

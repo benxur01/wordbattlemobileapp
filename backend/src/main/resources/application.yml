@@ -106,9 +106,14 @@ wordbattle:
     bot-fallback-seconds: 35
   rating:
     # Glicko-2 step 6: a player who has not settled a rated duel for this long
-    # grows one period's worth of uncertainty back, up to the 350 a new account
+    # grows one period's worth of uncertainty back, up to the 180 a new account
     # carries. See AppProperties.Rating for why a day and not the paper's week.
     period-duration: PT24H
+  tournament:
+    global:
+      # Every Sunday at 20:00, in wordbattle.time-zone above.
+      cron: "0 0 20 * * SUN"
+      size: 32
   dev-login-enabled: ${DEV_LOGIN_ENABLED:false}
 
 logging:

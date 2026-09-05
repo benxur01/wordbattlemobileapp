@@ -16,6 +16,17 @@ public final class Glicko2 {
 
     private static final double EPSILON = 0.000001;
 
+    /**
+     * The deviation a brand-new account carries, and the ceiling nothing —
+     * neither a single result nor any amount of inactivity — is allowed to
+     * push a deviation back above. Tuned so two fresh, equally-rated accounts
+     * swing 50-75 rating points off a single result, matching what chess.com's
+     * own help center documents for a first game between two brand-new
+     * accounts; {@link uz.wordbattle.user.User#ratingDeviation} carries the
+     * same number as the starting value every account is created with.
+     */
+    public static final double MAX_DEVIATION = 180;
+
     private Glicko2() {}
 
     public record Rating(double rating, double deviation, double volatility) {}
@@ -54,7 +65,7 @@ public final class Glicko2 {
 
         // Keep the deviation inside sane bounds: never so small that a rating
         // freezes, never larger than a brand-new player's.
-        newDeviation = Math.min(350, Math.max(30, newDeviation));
+        newDeviation = Math.min(MAX_DEVIATION, Math.max(30, newDeviation));
         return new Rating(newRating, newDeviation, sigmaPrime);
     }
 
@@ -70,14 +81,15 @@ public final class Glicko2 {
      * rounding that to whole periods would make the growth depend on when the
      * game happened to finish rather than on how long the player was away.
      *
-     * <p>Clamped to the same 350 ceiling {@link #update} enforces, so no amount
-     * of absence leaves a player less known than a brand-new account.
+     * <p>Clamped to the same {@link #MAX_DEVIATION} ceiling {@link #update}
+     * enforces, so no amount of absence leaves a player less known than a
+     * brand-new account.
      */
     public static double inflateForInactivity(double deviation, double volatility, double periodsElapsed) {
         if (periodsElapsed <= 0) return deviation;
         double phi = deviation / SCALE;
         double phiStar = Math.sqrt(phi * phi + volatility * volatility * periodsElapsed);
-        return Math.min(350, SCALE * phiStar);
+        return Math.min(MAX_DEVIATION, SCALE * phiStar);
     }
 
     private static double g(double phi) {

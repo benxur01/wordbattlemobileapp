@@ -3,6 +3,7 @@ package uz.wordbattle.user;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.time.LocalDate;
+import uz.wordbattle.rating.Glicko2;
 
 @Entity
 @Table(name = "users")
@@ -81,10 +82,10 @@ public class User {
 
     // ---- Glicko-2 ----
     @Column(name = "rating", nullable = false)
-    private double rating = 1200;
+    private double rating = 400;
 
     @Column(name = "rating_deviation", nullable = false)
-    private double ratingDeviation = 350;
+    private double ratingDeviation = Glicko2.MAX_DEVIATION;
 
     @Column(name = "volatility", nullable = false)
     private double volatility = 0.06;

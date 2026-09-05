@@ -128,7 +128,7 @@ public class MatchResultService {
         if (one == null) return outcome;
 
         double oneBefore = one.getRating();
-        double twoBefore = two == null ? 1200 : two.getRating();
+        double twoBefore = two == null ? 400 : two.getRating();
 
         // ---- ratings (human duels only) ----
         if (two != null) {

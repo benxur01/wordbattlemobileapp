@@ -54,8 +54,10 @@ class TournamentSelfServiceTest {
         long[] friendIds = {createPlayer("selffr1"), createPlayer("selffr2"), createPlayer("selffr3"), createPlayer("selffr4")};
         for (long friendId : friendIds) befriend(organizerId, friendId);
 
-        TournamentEntity tournament = tournaments.createByUser(organizerId, "Do'stlar turniri", 4);
+        TournamentEntity tournament =
+                tournaments.createByUser(organizerId, "Do'stlar turniri", 4, TournamentEntity.Visibility.PRIVATE);
         assertThat(tournament.getCreatedByAdminId()).isEqualTo(organizerId);
+        assertThat(tournament.getVisibility()).isEqualTo(TournamentEntity.Visibility.PRIVATE);
 
         for (long friendId : friendIds) tournaments.inviteByUser(organizerId, tournament.getId(), friendId);
         for (long friendId : friendIds) tournaments.accept(friendId, tournament.getId());
@@ -77,7 +79,8 @@ class TournamentSelfServiceTest {
     void invitingSomeoneWhoIsNotAFriendIsRefused() {
         long organizerId = createPlayer("selfnf0");
         long strangerId = createPlayer("selfnf1");
-        TournamentEntity tournament = tournaments.createByUser(organizerId, "Yopiq davra", 4);
+        TournamentEntity tournament =
+                tournaments.createByUser(organizerId, "Yopiq davra", 4, TournamentEntity.Visibility.PRIVATE);
 
         assertThatThrownBy(() -> tournaments.inviteByUser(organizerId, tournament.getId(), strangerId))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("not_friends"));
@@ -89,7 +92,8 @@ class TournamentSelfServiceTest {
         long otherId = createPlayer("selfown1");
         long friendId = createPlayer("selfown2");
         befriend(otherId, friendId);
-        TournamentEntity tournament = tournaments.createByUser(organizerId, "Boshqasiniki", 4);
+        TournamentEntity tournament =
+                tournaments.createByUser(organizerId, "Boshqasiniki", 4, TournamentEntity.Visibility.PRIVATE);
 
         assertThatThrownBy(() -> tournaments.inviteByUser(otherId, tournament.getId(), friendId))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("not_organizer"));
@@ -106,7 +110,8 @@ class TournamentSelfServiceTest {
     void theOrganizerCanCancelTheirOwnTournamentButNobodyElsesCanBeCancelledThisWay() {
         long organizerId = createPlayer("selfcancel0");
         long strangerId = createPlayer("selfcancel1");
-        TournamentEntity tournament = tournaments.createByUser(organizerId, "O'zimniki", 4);
+        TournamentEntity tournament =
+                tournaments.createByUser(organizerId, "O'zimniki", 4, TournamentEntity.Visibility.PRIVATE);
 
         assertThatThrownBy(() -> tournaments.cancelByUser(strangerId, tournament.getId()))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("not_organizer"));
@@ -124,6 +129,56 @@ class TournamentSelfServiceTest {
                         .content("{\"name\":\"Noto'g'ri\",\"size\":6}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("invalid_size"));
+    }
+
+    @Test
+    void selfServiceCreationRefusesAnInvalidVisibility() throws Exception {
+        String player = login("SelfVisPlayer");
+        mvc.perform(post("/api/tournaments")
+                        .header("Authorization", "Bearer " + player)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Noto'g'ri\",\"size\":4,\"visibility\":\"nonsense\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_visibility"));
+    }
+
+    @Test
+    void selfServiceCreationDefaultsToPrivateButHonoursAnExplicitPublicRequest() throws Exception {
+        String player = login("SelfVisDefault");
+
+        JsonNode defaultCreated = json(post("/api/tournaments")
+                .header("Authorization", "Bearer " + player)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Standart\",\"size\":4}"));
+        assertThat(defaultCreated.get("visibility").asText()).isEqualTo("private");
+
+        JsonNode publicCreated = json(post("/api/tournaments")
+                .header("Authorization", "Bearer " + player)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Ommaviy\",\"size\":4,\"visibility\":\"public\"}"));
+        assertThat(publicCreated.get("visibility").asText()).isEqualTo("public");
+    }
+
+    /**
+     * The whole point of adding a {@code PUBLIC} choice to self-service create:
+     * a stranger nobody invited can seat themselves through {@link
+     * TournamentService#join}, the same way they could on a {@code GLOBAL}
+     * tournament.
+     */
+    @Test
+    void aStrangerCanJoinAPublicSelfServiceTournamentWithNoInvite() {
+        long organizerId = createPlayer("selfpub0");
+        long strangerId = createPlayer("selfpub1");
+        TournamentEntity tournament =
+                tournaments.createByUser(organizerId, "Ommaviy turnir", 4, TournamentEntity.Visibility.PUBLIC);
+
+        tournaments.join(strangerId, tournament.getId());
+
+        assertThat(tournaments.participantViews(tournament.getId()))
+                .anySatisfy(p -> {
+                    assertThat(p.userId()).isEqualTo(strangerId);
+                    assertThat(p.status()).isEqualTo("accepted");
+                });
     }
 
     @Test

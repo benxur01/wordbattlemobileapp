@@ -35,6 +35,7 @@ class JwtServiceTest {
                 new AppProperties.Cors(List.of()),
                 new AppProperties.Limits(20, 40, 64),
                 new AppProperties.Admin(""),
+                new AppProperties.Tournament(new AppProperties.Tournament.Global("0 0 20 * * SUN", 32)),
                 ZoneId.of("Asia/Tashkent"),
                 false);
         return new JwtService(props, generations);

@@ -9,8 +9,10 @@ import uz.wordbattle.user.UserDto;
  * meant to be watched, and nothing in it is worth hiding from a spectator who
  * only wants to look.
  *
- * <p>{@code organizer} is null only if that account has since been deleted —
- * see {@link TournamentInviteDto} for who it can be.
+ * <p>{@code organizer} is null if that account has since been deleted, or if
+ * there never was one — a {@code GLOBAL} tournament has nobody running it. See
+ * {@link TournamentInviteDto} for who it can otherwise be. {@code minRating}
+ * is set only when {@code kind} is {@code "global"}.
  */
 public record TournamentDetailDto(
         Long id,
@@ -20,7 +22,10 @@ public record TournamentDetailDto(
         int totalRounds,
         List<RoundView> rounds,
         UserDto champion,
-        UserDto organizer) {
+        UserDto organizer,
+        String visibility,
+        String kind,
+        Double minRating) {
 
     public record RoundView(int round, List<MatchView> matches) {}
 

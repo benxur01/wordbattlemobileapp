@@ -26,6 +26,9 @@ enum WBScreen {
   organizeTournamentSetup,
   /// The organizer's own view of a tournament they just created.
   organizeTournamentManage,
+  /// Every tournament worth discovering, paginated — the lobby's "Barchasini
+  /// ko'rish".
+  tournamentsBrowse,
 }
 
 enum NickState { idle, checking, free, taken, bad }

@@ -91,10 +91,10 @@ class Glicko2Test {
     }
 
     /**
-     * The same pinning, but against a duel two fresh accounts actually played
-     * on the live server rather than against a hand calculation: both started
-     * at 1200 with a deviation of 350, and one game took them to 1362.31 and
-     * 1037.69 with both deviations at 290.32.
+     * The same pinning, but at {@link Glicko2#MAX_DEVIATION}, the deviation
+     * every fresh account actually starts and is capped at, rather than the
+     * arbitrary 200/30 of the case above: both start at 1200, and one game
+     * takes them to 1267.53 and 1132.47 with both deviations at 164.38.
      *
      * <p>Worth keeping alongside the case above because it is the shape almost
      * every real first duel has — two unproven players, evenly matched — and
@@ -103,30 +103,48 @@ class Glicko2Test {
      * slipped into the update shows up here as free or vanishing rating.
      */
     @Test
-    void twoFreshPlayersMoveExactlyAsTheLiveServerMovedThem() {
-        Rating fresh = new Rating(1200, 350, 0.06);
+    void twoFreshPlayersMoveByTheHandCalculatedAmount() {
+        Rating fresh = new Rating(1200, Glicko2.MAX_DEVIATION, 0.06);
         Rating winner = Glicko2.update(fresh, fresh, Outcome.WIN);
         Rating loser = Glicko2.update(fresh, fresh, Outcome.LOSS);
 
-        assertThat(winner.rating()).isCloseTo(1362.3109, within(0.01));
-        assertThat(loser.rating()).isCloseTo(1037.6891, within(0.01));
-        assertThat(winner.deviation()).isCloseTo(290.3190, within(0.01));
-        assertThat(loser.deviation()).isCloseTo(290.3190, within(0.01));
+        assertThat(winner.rating()).isCloseTo(1267.5327, within(0.01));
+        assertThat(loser.rating()).isCloseTo(1132.4673, within(0.01));
+        assertThat(winner.deviation()).isCloseTo(164.3836, within(0.01));
+        assertThat(loser.deviation()).isCloseTo(164.3836, within(0.01));
 
         assertThat(winner.rating() - 1200).isCloseTo(1200 - loser.rating(), within(0.000001));
+    }
+
+    /**
+     * Chess.com's own help center: two brand-new, equally-rated accounts swing
+     * 50-75 rating points off a single result, before either has a settled
+     * rating. {@link Glicko2#MAX_DEVIATION} was tuned to land inside that
+     * range, and this pins the range itself rather than the exact number
+     * above so a future retune has one place that says what "close enough"
+     * means.
+     */
+    @Test
+    void freshAccountsSwingLikeChessDotComsFreshAccountsDo() {
+        Rating fresh = new Rating(1200, Glicko2.MAX_DEVIATION, 0.06);
+        Rating winner = Glicko2.update(fresh, fresh, Outcome.WIN);
+        Rating loser = Glicko2.update(fresh, fresh, Outcome.LOSS);
+
+        assertThat(winner.rating() - 1200).isBetween(50.0, 75.0);
+        assertThat(1200 - loser.rating()).isBetween(50.0, 75.0);
     }
 
     /**
      * Step 6, pinned the same way as the two above: φ* = √(φ² + σ²t) on the
      * internal scale, worked from the published formula rather than read back
      * out of this implementation. At σ = 0.06 the growth is deliberately slow —
-     * ten periods away add barely three points to a deviation of 200 — because
+     * ten periods away add barely three points to a deviation of 170 — because
      * the volatility is what says how erratic a player is, and a steady one
      * does not become a stranger over a fortnight.
      */
     @Test
     void sittingOutGrowsTheDeviationByTheHandCalculatedAmount() {
-        assertThat(Glicko2.inflateForInactivity(200, 0.06, 10)).isCloseTo(202.6978131735176, within(0.0001));
+        assertThat(Glicko2.inflateForInactivity(170, 0.06, 10)).isCloseTo(173.16582649393106, within(0.0001));
         assertThat(Glicko2.inflateForInactivity(60, 0.06, 30)).isCloseTo(82.82035013194958, within(0.0001));
     }
 
@@ -144,6 +162,6 @@ class Glicko2Test {
      */
     @Test
     void noAbsenceIsWorseThanNeverHavingPlayed() {
-        assertThat(Glicko2.inflateForInactivity(340, 0.06, 1000)).isEqualTo(350);
+        assertThat(Glicko2.inflateForInactivity(170, 0.06, 1000)).isEqualTo(Glicko2.MAX_DEVIATION);
     }
 }

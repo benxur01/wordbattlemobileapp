@@ -51,7 +51,7 @@ class MatchmakingScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 34),
+                const SizedBox(height: 72),
                 Text('Raqib qidirilmoqda', style: WBText.grotesk(size: 22, weight: FontWeight.w600)),
                 const SizedBox(height: 10),
                 ConstrainedBox(

@@ -144,6 +144,18 @@ class ApiClient {
     return list.map((e) => TournamentSummary.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// The browse screen's paginated list of every tournament worth discovering
+  /// — see `TournamentService#browse` on the server for what it skips.
+  Future<List<TournamentSummary>> listTournaments({int page = 0, int size = 20}) async {
+    final list = await _get('/tournaments', {'page': page, 'size': size}) as List;
+    return list.map((e) => TournamentSummary.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// A stranger's own way into a public or global tournament that's still
+  /// open — idempotent if already joined.
+  Future<TournamentSummary> joinTournament(int tournamentId) async =>
+      TournamentSummary.fromJson(await _post('/tournaments/$tournamentId/join') as Map<String, dynamic>);
+
   /// The whole bracket. Readable by any signed-in player — see
   /// `TournamentController` on the server for why this is not participant-only.
   Future<TournamentDetail> tournamentDetail(int id) async =>
@@ -154,9 +166,12 @@ class ApiClient {
   Future<void> declineTournamentInvite(int tournamentId) => _post('/tournaments/$tournamentId/decline');
 
   /// The friends screen's "Turnir tashkil qilish": any signed-in player may
-  /// organize a tournament of their own, no admin role needed.
-  Future<TournamentSummary> createTournament(String name, int size) async => TournamentSummary.fromJson(
-      await _post('/tournaments', {'name': name, 'size': size}) as Map<String, dynamic>);
+  /// organize a tournament of their own, no admin role needed. [isPublic]
+  /// lets strangers self-join through [joinTournament] instead of waiting on
+  /// an invite — see [TournamentSummary.visibility].
+  Future<TournamentSummary> createTournament(String name, int size, bool isPublic) async =>
+      TournamentSummary.fromJson(await _post('/tournaments',
+          {'name': name, 'size': size, 'visibility': isPublic ? 'public' : 'private'}) as Map<String, dynamic>);
 
   /// Restricted server-side to the organizer's own friends.
   Future<void> inviteToTournament(int tournamentId, int userId) =>

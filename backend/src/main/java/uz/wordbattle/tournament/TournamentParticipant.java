@@ -3,7 +3,12 @@ package uz.wordbattle.tournament;
 import jakarta.persistence.*;
 import java.time.Instant;
 
-/** One invited player, and how they answered — never self-registered. */
+/**
+ * One player's seat in a bracket, and how they came to hold it: invited by an
+ * admin or a friend and still waiting, accepted, or declined — or, since
+ * {@link #selfJoined}, seated directly into a public or global tournament with
+ * nothing to answer at all.
+ */
 @Entity
 @Table(name = "tournament_participants")
 public class TournamentParticipant {
@@ -44,6 +49,13 @@ public class TournamentParticipant {
         this.tournamentId = tournamentId;
         this.userId = userId;
         this.status = Status.INVITED;
+    }
+
+    /** A stranger joining a public or global tournament themselves — already accepted, since nobody invited them to answer. */
+    public static TournamentParticipant selfJoined(Long tournamentId, Long userId) {
+        TournamentParticipant participant = new TournamentParticipant(tournamentId, userId);
+        participant.accept();
+        return participant;
     }
 
     public Long getId() { return id; }

@@ -34,6 +34,7 @@ import 'screens/tournament_invite_screen.dart';
 import 'screens/tournament_bracket_screen.dart';
 import 'screens/organize_tournament_screen.dart';
 import 'screens/organize_tournament_manage_screen.dart';
+import 'screens/tournaments_browse_screen.dart';
 import 'widgets/bottom_nav.dart';
 
 /// Drives the whole app off the backend: REST for anything that can wait, and
@@ -282,6 +283,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   /// up, and who has answered so far.
   TournamentSummary? organizingTournament;
   List<TournamentParticipantView>? organizingParticipants;
+
+  /// The lobby's "Barchasini ko'rish": every tournament worth discovering,
+  /// paginated.
+  List<TournamentSummary> tournamentBrowseList = const [];
+  bool _tournamentBrowseLoading = false;
+  bool _tournamentBrowseLoadingMore = false;
+  bool _tournamentBrowseHasMore = true;
+  int _tournamentBrowsePage = 0;
+  static const _tournamentBrowsePageSize = 20;
 
   /// An invite the app was told about only by its ending. It is always one we
   /// sent — see [_settleInvite] — and holding its id is what lets the
@@ -562,6 +572,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       _viewingTournamentId = null;
       organizingTournament = null;
       organizingParticipants = null;
+      tournamentBrowseList = const [];
+      _tournamentBrowseLoading = false;
+      _tournamentBrowseLoadingMore = false;
+      _tournamentBrowseHasMore = true;
+      _tournamentBrowsePage = 0;
       nickname = '';
       nickState = NickState.idle;
       busy = false;
@@ -908,21 +923,25 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
   void openOrganizeTournament() => go(WBScreen.organizeTournamentSetup);
 
-  /// The organize screen's "Taklif yuborish": creates the tournament, then
-  /// invites every chosen friend one by one — the server checks each against
-  /// the friend list itself, so a friend removed in the meantime is simply
-  /// skipped rather than failing the whole batch.
-  Future<void> createAndInviteTournament(int size, List<UserDto> invitees) async {
+  /// The organize screen's "Taklif yuborish"/"Turnir yaratish": creates the
+  /// tournament, then — for a friends-only one — invites every chosen friend
+  /// one by one, the server checking each against the friend list itself so a
+  /// friend removed in the meantime is simply skipped rather than failing the
+  /// whole batch. A public tournament has no invitees to loop over — strangers
+  /// self-join later from the browse screen instead.
+  Future<void> createAndInviteTournament(int size, List<UserDto> invitees, bool isPublic) async {
     if (busy) return;
     setState(() => busy = true);
     try {
-      final created = await _api.createTournament("${me?.label ?? "O'yinchi"} turniri", size);
+      final created = await _api.createTournament("${me?.label ?? "O'yinchi"} turniri", size, isPublic);
       var failed = 0;
-      for (final invitee in invitees) {
-        try {
-          await _api.inviteToTournament(created.id, invitee.id);
-        } on ApiException {
-          failed++;
+      if (!isPublic) {
+        for (final invitee in invitees) {
+          try {
+            await _api.inviteToTournament(created.id, invitee.id);
+          } on ApiException {
+            failed++;
+          }
         }
       }
       if (!mounted) return;
@@ -1013,6 +1032,87 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       organizingParticipants = null;
     });
     go(WBScreen.lobby);
+  }
+
+  // ------------------------------------------------------- tournaments: browse
+
+  /// The lobby's "Barchasini ko'rish".
+  void openTournamentsBrowse() {
+    setState(() {
+      tournamentBrowseList = const [];
+      _tournamentBrowsePage = 0;
+      _tournamentBrowseHasMore = true;
+    });
+    go(WBScreen.tournamentsBrowse);
+    unawaited(_loadTournamentsBrowse(0));
+  }
+
+  /// Loads page 0 fresh, replacing whatever the list already held; loads any
+  /// later page onto the end of it instead — the browse screen's own "Yana
+  /// ko'rsatish".
+  Future<void> _loadTournamentsBrowse(int page) async {
+    final loadingMore = page > 0;
+    setState(() {
+      if (loadingMore) {
+        _tournamentBrowseLoadingMore = true;
+      } else {
+        _tournamentBrowseLoading = true;
+      }
+    });
+    try {
+      final rows = await _api.listTournaments(page: page, size: _tournamentBrowsePageSize);
+      if (!mounted) return;
+      setState(() {
+        _tournamentBrowseLoading = false;
+        _tournamentBrowseLoadingMore = false;
+        _tournamentBrowsePage = page;
+        _tournamentBrowseHasMore = rows.length == _tournamentBrowsePageSize;
+        tournamentBrowseList = page == 0 ? rows : [...tournamentBrowseList, ...rows];
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _tournamentBrowseLoading = false;
+        _tournamentBrowseLoadingMore = false;
+      });
+      _onApiError(e);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _tournamentBrowseLoading = false;
+        _tournamentBrowseLoadingMore = false;
+      });
+      _onLoadFailure();
+    }
+  }
+
+  void loadMoreTournamentsBrowse() {
+    if (_tournamentBrowseLoading || _tournamentBrowseLoadingMore || !_tournamentBrowseHasMore) return;
+    unawaited(_loadTournamentsBrowse(_tournamentBrowsePage + 1));
+  }
+
+  /// The browse screen's "Qo'shilish": self-joins a public or global
+  /// tournament that's still open. `tournament_not_joinable` and
+  /// `rating_too_low` arrive with their own Uzbek message from the server,
+  /// same as every other failure this class only ever shows as a banner.
+  Future<void> joinTournament(int tournamentId) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      final joined = await _api.joinTournament(tournamentId);
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        tournamentBrowseList = [for (final t in tournamentBrowseList) t.id == joined.id ? joined : t];
+      });
+      openTournamentBracket(joined.id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        banner = e.message;
+      });
+    }
   }
 
   // ----------------------------------------------------------------- social
@@ -1686,6 +1786,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onOpenTournamentInvite: openTournamentInvite,
           onStartTournamentMatch: startReadyTournamentMatch,
           onOpenTournamentBracket: () => openTournamentBracket(activeTournament!.id),
+          onOpenTournamentsBrowse: openTournamentsBrowse,
           previousTab: previousNavTab,
         ),
       WBScreen.match => MatchmakingScreen(
@@ -1817,6 +1918,18 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onRefresh: () => unawaited(_loadOrganizingParticipants()),
           onStart: startOrganizedTournament,
           onCancel: cancelOrganizedTournament,
+        ),
+      WBScreen.tournamentsBrowse => TournamentsBrowseScreen(
+          tournaments: tournamentBrowseList,
+          loading: _tournamentBrowseLoading,
+          loadingMore: _tournamentBrowseLoadingMore,
+          busy: busy,
+          meRating: user?.rating,
+          onBack: () => go(WBScreen.lobby),
+          onRefresh: () => unawaited(_loadTournamentsBrowse(0)),
+          onLoadMore: _tournamentBrowseLoadingMore || !_tournamentBrowseHasMore ? null : loadMoreTournamentsBrowse,
+          onSpectate: openTournamentBracket,
+          onJoin: joinTournament,
         ),
     };
   }

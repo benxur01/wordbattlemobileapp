@@ -286,7 +286,7 @@ class InviteWebSocketTest {
             host.send("invite.send", Map.of("userId", userId(guestToken)));
             String inviteId = guest.await("invite.incoming", 5).path("inviteId").asText();
 
-            // Both are fresh accounts on 1200, so the queue pairs them at once.
+            // Both are fresh accounts on 400, so the queue pairs them at once.
             third.send("queue.join", Map.of());
             host.send("queue.join", Map.of());
             host.await("match.found", 10);
@@ -322,7 +322,7 @@ class InviteWebSocketTest {
         host.await("hello", 5);
         guest.await("hello", 5);
 
-        // Only the guest searches. Two fresh accounts both sit on 1200, so
+        // Only the guest searches. Two fresh accounts both sit on 400, so
         // queueing the host as well would have the band pair them to each other
         // before the invite was ever answered.
         guest.send("queue.join", Map.of());
