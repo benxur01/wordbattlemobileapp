@@ -22,6 +22,7 @@ class FriendsScreen extends StatelessWidget {
     required this.onAccept,
     required this.onDecline,
     required this.onChallenge,
+    required this.onSpectate,
     required this.onHome,
     required this.onBoard,
     required this.onProfile,
@@ -42,6 +43,10 @@ class FriendsScreen extends StatelessWidget {
   final ValueChanged<FriendRequestDto> onAccept;
   final ValueChanged<FriendRequestDto> onDecline;
   final ValueChanged<FriendDto> onChallenge;
+
+  /// Watches whichever live duel an `inBattle` friend is currently in — the
+  /// slot the (disabled) challenge action occupies for everyone else.
+  final ValueChanged<FriendDto> onSpectate;
   final VoidCallback onHome;
   final VoidCallback onBoard;
   final VoidCallback onProfile;
@@ -436,6 +441,23 @@ class FriendsScreen extends StatelessWidget {
                 ),
               ),
             )
+          else if (friend.inBattle)
+            Pressable(
+              onTap: () => onSpectate(friend),
+              pressScale: .96,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+                decoration: BoxDecoration(
+                  color: WBColors.accentA(.1),
+                  border: Border.all(color: WBColors.accentA(.3)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  'Kuzatish',
+                  style: WBText.grotesk(size: 13, weight: FontWeight.w600, color: WBColors.accent),
+                ),
+              ),
+            )
           else
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
@@ -445,7 +467,7 @@ class FriendsScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
-                friend.inBattle ? 'Jangda' : 'Oflayn',
+                'Oflayn',
                 style: WBText.grotesk(size: 13, color: WBColors.textA(.5)),
               ),
             ),

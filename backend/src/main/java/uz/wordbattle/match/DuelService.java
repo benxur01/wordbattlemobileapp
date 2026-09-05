@@ -26,6 +26,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import uz.wordbattle.config.AppProperties;
 import uz.wordbattle.dictionary.DictionaryService;
+import uz.wordbattle.friend.FriendService;
 import uz.wordbattle.friend.PresenceService;
 import uz.wordbattle.match.DuelMessages.ChainEntry;
 import uz.wordbattle.match.MatchEntity.EndReason;
@@ -128,6 +129,18 @@ public class DuelService {
     private final Map<String, Long> tournamentMatchByDuel = new ConcurrentHashMap<>();
 
     /**
+     * Who is watching each live duel, keyed by duel id — and the reverse
+     * lookup, so a spectator's own disconnect (or a switch to watching someone
+     * else) can find their entry without a scan. A spectator is not a player:
+     * neither map is touched by {@link #start} or {@link #deregister}'s player
+     * bookkeeping, only by {@link #spectate}, {@link #stopSpectating} and the
+     * two places a duel actually ends.
+     */
+    private final Map<String, Set<Long>> spectatorsByDuelId = new ConcurrentHashMap<>();
+
+    private final Map<Long, String> spectatingDuelByUser = new ConcurrentHashMap<>();
+
+    /**
      * Guards the check-and-register in {@link #start} — see there for why the
      * two halves cannot stand apart. Nothing else takes it: every other writer
      * of the registries above only ever <em>frees</em> a player, and does so
@@ -156,6 +169,7 @@ public class DuelService {
     private final PresenceService presence;
     private final MatchResultService results;
     private final TournamentService tournaments;
+    private final FriendService friends;
 
     /**
      * {@code tournaments} is {@code @Lazy}: {@link TournamentService} starts a
@@ -171,7 +185,8 @@ public class DuelService {
             UserService users,
             PresenceService presence,
             MatchResultService results,
-            @Lazy TournamentService tournaments) {
+            @Lazy TournamentService tournaments,
+            FriendService friends) {
         this.props = props;
         this.dictionary = dictionary;
         this.sockets = sockets;
@@ -179,6 +194,7 @@ public class DuelService {
         this.presence = presence;
         this.results = results;
         this.tournaments = tournaments;
+        this.friends = friends;
     }
 
     /**
@@ -514,6 +530,121 @@ public class DuelService {
         return true;
     }
 
+    // ------------------------------------------------------------ spectate
+
+    /**
+     * Starts watching a friend's live duel — read-only, and pushed the same
+     * {@code duel.spectate_state} frame every player's own state is rebuilt
+     * from, only naming both sides instead of speaking of "mine". Whoever
+     * calls this already knows who they want to watch, not which duel it is:
+     * that is looked up here, from {@link #duelOf}, the same lookup every
+     * other "is this player playing" question in this class already answers
+     * with.
+     *
+     * <p>Watching somebody else drops whatever this caller was already
+     * watching first, so a spectator is never left in two duels' sets at
+     * once with only the last one ever hearing from them again.
+     */
+    public void spectate(long callerId, long targetUserId) {
+        if (callerId == targetUserId) {
+            sockets.sendError(callerId, "self_spectate", "O'zingizni tomosha qila olmaysiz");
+            return;
+        }
+        if (!friends.areFriends(callerId, targetUserId)) {
+            sockets.sendError(callerId, "not_friends", "Avval do'st bo'lish kerak");
+            return;
+        }
+        // Cheap first: no duel lookup is worth doing for someone who is not
+        // even flagged as fighting.
+        if (!presence.isInBattle(targetUserId)) {
+            sockets.sendError(callerId, "not_in_duel", "Do'stingiz hozir jangda emas");
+            return;
+        }
+        DuelSession session = duelOf(targetUserId).orElse(null);
+        if (session == null) {
+            sockets.sendError(callerId, "not_in_duel", "Do'stingiz hozir jangda emas");
+            return;
+        }
+
+        stopSpectating(callerId);
+
+        DuelMessages.SpectateState state;
+        synchronized (session) {
+            // The lookup above and this lock are not one step, so the duel
+            // can have finished in between — the same gap sendState guards
+            // against for a reconnecting player.
+            if (session.finished()) {
+                sockets.sendError(callerId, "not_in_duel", "Do'stingiz hozir jangda emas");
+                return;
+            }
+            spectatorsByDuelId.computeIfAbsent(session.id(), id -> ConcurrentHashMap.newKeySet()).add(callerId);
+            spectatingDuelByUser.put(callerId, session.id());
+            state = spectateState(session);
+        }
+        sockets.send(callerId, "duel.spectate_state", state);
+    }
+
+    /** Stops watching whatever duel this caller was spectating, if any. */
+    public void stopSpectating(long callerId) {
+        String duelId = spectatingDuelByUser.remove(callerId);
+        if (duelId == null) return;
+        Set<Long> spectators = spectatorsByDuelId.get(duelId);
+        if (spectators == null) return;
+        spectators.remove(callerId);
+        // Only if it is still the same (now empty) set: a duel this id was
+        // reused for since — it never is, ids are random, but the pattern
+        // this class uses elsewhere costs nothing to repeat — must not lose
+        // spectators that just joined it.
+        if (spectators.isEmpty()) spectatorsByDuelId.remove(duelId, spectators);
+    }
+
+    /** Every spectator still watching, pushed the same frame each player got. */
+    private void broadcastToSpectators(DuelSession session) {
+        Set<Long> spectatorIds = spectatorsByDuelId.get(session.id());
+        if (spectatorIds == null || spectatorIds.isEmpty()) return;
+        DuelMessages.SpectateState state;
+        synchronized (session) {
+            if (session.finished()) return;
+            state = spectateState(session);
+        }
+        for (Long spectatorId : spectatorIds) {
+            sockets.send(spectatorId, "duel.spectate_state", state);
+        }
+    }
+
+    /** Tells every spectator the duel they were watching is over, and drops them. */
+    private void endSpectating(DuelSession session, String reason) {
+        Set<Long> spectatorIds = spectatorsByDuelId.remove(session.id());
+        if (spectatorIds == null) return;
+        for (Long spectatorId : spectatorIds) {
+            spectatingDuelByUser.remove(spectatorId, session.id());
+            sockets.send(spectatorId, "duel.spectate_ended", Map.of("reason", reason));
+        }
+    }
+
+    /** Callers hold the session's monitor. */
+    private DuelMessages.SpectateState spectateState(DuelSession session) {
+        Players players = duelPlayers.get(session.id());
+        int elapsed = (int) Duration.between(session.turnStartedAt(), Instant.now()).toMillis();
+        int timeLeft = Math.max(0, props.duel().turnSeconds() * 1000 - elapsed);
+        List<DuelMessages.SpectateChainEntry> chain = new ArrayList<>();
+        for (DuelSession.ChainWord word : session.chain()) {
+            chain.add(new DuelMessages.SpectateChainEntry(word.word(), word.playerId(), word.spentMs()));
+        }
+        return new DuelMessages.SpectateState(
+                session.id(),
+                players == null ? null : players.one(),
+                players == null ? null : players.two(),
+                chain,
+                session.turn(),
+                String.valueOf(session.requiredLetter()),
+                substitutedFrom(session),
+                timeLeft,
+                props.duel().turnSeconds(),
+                session.wordsBy(session.playerOne()),
+                session.wordsBy(session.playerTwo()));
+    }
+
     // ---------------------------------------------------------- disconnects
 
     /**
@@ -646,6 +777,7 @@ public class DuelService {
     private Future<?> finish(DuelSession session, long winnerId, EndReason reason) {
         if (!session.finish()) return null;
         deregister(session);
+        endSpectating(session, "finished");
 
         // Recording a result is a database transaction, and every caller of
         // finish() holds this duel's monitor. Settling on the pool instead
@@ -732,6 +864,7 @@ public class DuelService {
     private void abort(DuelSession session) {
         if (!session.finish()) return;
         deregister(session);
+        endSpectating(session, "aborted");
         for (long playerId : session.botOpponent()
                 ? new long[] {session.playerOne()}
                 : new long[] {session.playerOne(), session.playerTwo()}) {
@@ -885,6 +1018,7 @@ public class DuelService {
     private void broadcastState(DuelSession session) {
         sendState(session, session.playerOne());
         if (!session.botOpponent()) sendState(session, session.playerTwo());
+        broadcastToSpectators(session);
     }
 
     /**

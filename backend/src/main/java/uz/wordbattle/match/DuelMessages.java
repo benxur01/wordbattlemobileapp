@@ -58,6 +58,26 @@ public final class DuelMessages {
 
     public record Rejected(String code, String message) {}
 
+    public record SpectateChainEntry(String word, long playerId, int spentMs) {}
+
+    /**
+     * A duel's state as a third party sees it: both players named outright,
+     * rather than the {@code mine}/{@code opponent} shape {@link DuelState}
+     * uses for the two people actually playing.
+     */
+    public record SpectateState(
+            String duelId,
+            UserDto playerOne,
+            UserDto playerTwo,
+            List<SpectateChainEntry> chain,
+            long turnPlayerId,
+            String needLetter,
+            String substitutedFrom,
+            int timeLeftMs,
+            int turnSeconds,
+            int playerOneWords,
+            int playerTwoWords) {}
+
     public record Finished(
             String duelId,
             long opponentId,

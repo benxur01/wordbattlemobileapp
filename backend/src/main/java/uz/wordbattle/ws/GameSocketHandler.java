@@ -146,6 +146,8 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 case "duel.forfeit" -> duels.forfeit(userId);
                 case "duel.chat" -> duels.sendChat(userId, text(envelope, "text"));
                 case "duel.reaction" -> duels.sendReaction(userId, text(envelope, "emoji"));
+                case "duel.spectate" -> duels.spectate(userId, longValue(envelope, "userId"));
+                case "duel.unspectate" -> duels.stopSpectating(userId);
                 case "invite.send" -> invites.send(userId, longValue(envelope, "userId"));
                 case "invite.accept" -> invites.accept(userId, text(envelope, "inviteId"));
                 case "invite.decline" -> invites.decline(userId, text(envelope, "inviteId"));
@@ -199,6 +201,7 @@ public class GameSocketHandler extends TextWebSocketHandler {
         // The app reconnects by itself though, so the forfeit is held back for
         // a grace period rather than landing on every flaky-network blip.
         duels.connectionLost(userId);
+        duels.stopSpectating(userId);
         presence.disconnected(userId);
         users.markSeen(userId);
         log.info("Socket closed: user={} status={}", userId, status);

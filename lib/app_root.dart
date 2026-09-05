@@ -27,6 +27,7 @@ import 'screens/profile_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/practice_screen.dart';
 import 'screens/friends_screen.dart';
+import 'screens/spectate_duel_screen.dart';
 import 'screens/invite_screen.dart';
 import 'screens/incoming_screen.dart';
 import 'screens/loading_screen.dart';
@@ -272,6 +273,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   DuelReaction? duelReaction;
   int _reactionSeq = 0;
 
+  /// A friend's duel currently being watched, rebuilt whole from every
+  /// `duel.spectate_state` frame — null whenever nobody is being spectated.
+  SpectateState? spectating;
+  final ScrollController spectateScrollController = ScrollController();
+
   // ---- tournaments ----
   TournamentInvite? tournamentInvite;
   TournamentMatchPrompt? tournamentMatchReady;
@@ -330,6 +336,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     _socket.dispose();
     _api.close();
     chainScrollController.dispose();
+    spectateScrollController.dispose();
     super.dispose();
   }
 
@@ -1376,6 +1383,22 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           banner = event.payload['message'] as String? ?? 'Jang bekor qilindi';
           if (screen == WBScreen.duel) screen = WBScreen.lobby;
         });
+      case 'duel.spectate_state':
+        // Sent once right after a successful `duel.spectate`, then again on
+        // every move by either player — the full board each time, the same
+        // way `duel.update` restates a played duel rather than diffing it.
+        setState(() {
+          spectating = SpectateState.fromJson(event.payload);
+          screen = WBScreen.spectateDuel;
+        });
+        _scrollSpectateChainToBottom();
+      case 'duel.spectate_ended':
+        final reason = event.payload['reason'] as String?;
+        setState(() {
+          spectating = null;
+          if (screen == WBScreen.spectateDuel) screen = WBScreen.friends;
+          if (reason == 'aborted') banner = 'Kuzatilayotgan jang bekor qilindi';
+        });
       case 'error':
         setState(() => banner = event.payload['message'] as String? ?? 'Xatolik');
     }
@@ -1467,8 +1490,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     if (!mounted) return;
 
     final current = duel;
+    final watched = spectating;
     if (screen == WBScreen.duel && current != null && current.timeLeftMs > 0) {
       setState(() => duel = current.tick(elapsed));
+    } else if (screen == WBScreen.spectateDuel && watched != null && watched.timeLeftMs > 0) {
+      setState(() => spectating = watched.tick(elapsed));
     } else if (screen == WBScreen.match && queuedAt != null) {
       setState(() {}); // redraw the elapsed clock
     } else if (screen == WBScreen.invite || screen == WBScreen.incoming) {
@@ -1532,6 +1558,20 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     });
   }
 
+  /// The same courtesy [_scrollChainToBottom] pays a played duel, paid to a
+  /// watched one: a spectator whose chain keeps growing off the bottom of the
+  /// screen is watching the wrong half of it.
+  void _scrollSpectateChainToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!spectateScrollController.hasClients) return;
+      spectateScrollController.animateTo(
+        spectateScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   /// Leaving a pending invite behind used to be possible from the invite
   /// screen's "skip to matchmaking": the friend could then accept a challenge
   /// from someone already in another duel, which put one player in two duels at
@@ -1581,6 +1621,26 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   void challenge(FriendDto friend) => _challengeUserId(friend.user.id);
 
   void _challengeUserId(int userId) => _socket.send('invite.send', {'userId': userId});
+
+  /// The friends screen's "Kuzatish", for a friend currently `inBattle`. The
+  /// screen only changes once `duel.spectate_state` actually arrives — see
+  /// that case in [_applySocketEvent] — so a rejection (`self_spectate`,
+  /// `not_friends`, `not_in_duel`) just surfaces as the ordinary error banner
+  /// and leaves the player exactly where they were, the same way a refused
+  /// `invite.send` does.
+  void spectate(FriendDto friend) => _socket.send('duel.spectate', {'userId': friend.user.id});
+
+  void stopSpectating() => _socket.send('duel.unspectate');
+
+  /// The spectate screen's own exit. The backend also drops a spectator on
+  /// socket disconnect as a backstop, but one who is still connected and
+  /// simply walks away has to say so, or its registry keeps counting them as
+  /// watching a duel nobody is looking at any more.
+  void leaveSpectating() {
+    stopSpectating();
+    setState(() => spectating = null);
+    go(WBScreen.friends);
+  }
 
   /// A rematch challenges the exact person just played, when that is
   /// possible. `InviteService.send` only ever lets a challenge through
@@ -1704,6 +1764,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         cancelOutgoingInvite();
       case WBScreen.incoming:
         declineIncoming();
+      case WBScreen.spectateDuel:
+        leaveSpectating();
       case WBScreen.organizeTournamentSetup:
         go(WBScreen.friends);
       case WBScreen.organizeTournamentManage:
@@ -1846,6 +1908,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           },
           onPractice: () => go(WBScreen.practice),
         ),
+      WBScreen.spectateDuel => SpectateDuelScreen(
+          state: spectating,
+          scrollController: spectateScrollController,
+          onBack: leaveSpectating,
+        ),
       WBScreen.board => BoardScreen(
           board: board,
           tabGlobal: boardGlobal,
@@ -1902,6 +1969,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onAccept: acceptRequest,
           onDecline: declineRequest,
           onChallenge: challenge,
+          onSpectate: spectate,
           onHome: () => go(WBScreen.lobby),
           onBoard: () => go(WBScreen.board),
           onProfile: () => go(WBScreen.profile),

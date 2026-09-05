@@ -246,6 +246,105 @@ class FinishedDuel {
   String get averageLabel => '${(averageMs / 1000).toStringAsFixed(1)}s';
 }
 
+/// One word in a spectated duel's chain, as a third party sees it: the
+/// player who sent it is named outright rather than reduced to [ChainWord]'s
+/// `mine`.
+class SpectateChainWord {
+  const SpectateChainWord({required this.word, required this.playerId, required this.spentMs});
+
+  factory SpectateChainWord.fromJson(Map<String, dynamic> json) => SpectateChainWord(
+        word: json['word'] as String,
+        playerId: (json['playerId'] as num?)?.toInt() ?? 0,
+        spentMs: (json['spentMs'] as num?)?.toInt() ?? 0,
+      );
+
+  final String word;
+
+  /// Matches [SpectateState.playerOne]'s or [SpectateState.playerTwo]'s id —
+  /// except for the chain's opening word, which the server marks with 0,
+  /// an id that belongs to neither. See [isSeed].
+  final int playerId;
+  final int spentMs;
+
+  /// The chain's opening word, seeded by nobody rather than played by either
+  /// side — the one entry [playerId] cannot be used to attribute.
+  bool get isSeed => playerId == 0;
+
+  /// "1.8s" under the word, matching [ChainWord.spentLabel].
+  String get spentLabel => '${(spentMs / 1000).toStringAsFixed(1)}s';
+}
+
+/// A live duel as a third party watches it, rebuilt whole from every
+/// `duel.spectate_state` frame — both players named outright, rather than the
+/// `mine`/`opponent` shape [DuelView] uses for whoever is actually playing.
+class SpectateState {
+  const SpectateState({
+    required this.duelId,
+    required this.playerOne,
+    required this.playerTwo,
+    required this.chain,
+    required this.turnPlayerId,
+    required this.needLetter,
+    required this.substitutedFrom,
+    required this.timeLeftMs,
+    required this.turnSeconds,
+    required this.playerOneWords,
+    required this.playerTwoWords,
+  });
+
+  factory SpectateState.fromJson(Map<String, dynamic> json) => SpectateState(
+        duelId: json['duelId'] as String,
+        playerOne: UserDto.fromJson(json['playerOne'] as Map<String, dynamic>),
+        playerTwo: UserDto.fromJson(json['playerTwo'] as Map<String, dynamic>),
+        chain: ((json['chain'] as List?) ?? const [])
+            .map((e) => SpectateChainWord.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        turnPlayerId: (json['turnPlayerId'] as num?)?.toInt() ?? 0,
+        needLetter: (json['needLetter'] as String? ?? 'a').toUpperCase(),
+        substitutedFrom: (json['substitutedFrom'] as String?)?.toUpperCase(),
+        timeLeftMs: (json['timeLeftMs'] as num?)?.toInt() ?? 0,
+        turnSeconds: (json['turnSeconds'] as num?)?.toInt() ?? 15,
+        playerOneWords: (json['playerOneWords'] as num?)?.toInt() ?? 0,
+        playerTwoWords: (json['playerTwoWords'] as num?)?.toInt() ?? 0,
+      );
+
+  final String duelId;
+  final UserDto playerOne;
+  final UserDto playerTwo;
+  final List<SpectateChainWord> chain;
+
+  /// Whichever of [playerOne] or [playerTwo] is on turn right now.
+  final int turnPlayerId;
+  final String needLetter;
+
+  /// The rare letter the chain skipped past, when it did — null the rest of
+  /// the time, same as [DuelView.substitutedFrom].
+  final String? substitutedFrom;
+  final int timeLeftMs;
+  final int turnSeconds;
+  final int playerOneWords;
+  final int playerTwoWords;
+
+  bool get playerOneTurn => turnPlayerId == playerOne.id;
+
+  /// Local countdown between server frames, mirroring [DuelView.tick].
+  SpectateState tick(int elapsedMs) => SpectateState(
+        duelId: duelId,
+        playerOne: playerOne,
+        playerTwo: playerTwo,
+        chain: chain,
+        turnPlayerId: turnPlayerId,
+        needLetter: needLetter,
+        substitutedFrom: substitutedFrom,
+        timeLeftMs: timeLeftMs - elapsedMs < 0 ? 0 : timeLeftMs - elapsedMs,
+        turnSeconds: turnSeconds,
+        playerOneWords: playerOneWords,
+        playerTwoWords: playerTwoWords,
+      );
+
+  double get secondsLeft => timeLeftMs / 1000;
+}
+
 /// One line of the duel's chat — this duel only, never persisted. [mine]
 /// tells the bubble which side to render on, the same way [ChainWord.mine]
 /// does for the chain.

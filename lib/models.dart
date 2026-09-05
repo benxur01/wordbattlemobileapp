@@ -10,6 +10,8 @@ enum WBScreen {
   duel,
   win,
   lose,
+  /// Read-only: a friend's live duel, watched rather than played.
+  spectateDuel,
   board,
   profile,
   /// Finished battles, reached from the profile.
