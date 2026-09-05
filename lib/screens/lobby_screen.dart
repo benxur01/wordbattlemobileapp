@@ -77,324 +77,314 @@ class LobbyScreen extends StatelessWidget {
     final initial = user?.initial ?? '?';
     final rating = user?.rating ?? 0;
     final streak = user?.streakDays ?? 0;
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment(0, .12),
-          radius: 1,
-          colors: [Color.fromRGBO(247, 183, 51, .13), Colors.transparent],
-          stops: [0, .7],
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        gradient: wbPurpleGradient,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        initial,
-                        style: WBText.grotesk(size: 17, weight: FontWeight.w700, color: WBColors.purpleText),
-                      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: wbPurpleGradient,
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    const SizedBox(width: 11),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(label, style: WBText.grotesk(size: 15, weight: FontWeight.w600)),
-                        if (user?.city != null)
-                          Text(
-                            user!.city!,
-                            style: WBText.mono(
-                              size: 11.5,
-                              weight: FontWeight.w500,
-                              color: WBColors.textA(.45),
+                    alignment: Alignment.center,
+                    child: Text(
+                      initial,
+                      style: WBText.grotesk(size: 17, weight: FontWeight.w700, color: WBColors.purpleText),
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label, style: WBText.grotesk(size: 15, weight: FontWeight.w600)),
+                      if (user?.city != null)
+                        Text(
+                          user!.city!,
+                          style: WBText.mono(
+                            size: 11.5,
+                            weight: FontWeight.w500,
+                            color: WBColors.textA(.45),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  _StatChip(
+                    color: WBColors.blue,
+                    bg: WBColors.blueA(.1),
+                    border: WBColors.blueA(.28),
+                    icon: Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: WBColors.blue,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                      transform: Matrix4.rotationZ(math.pi / 4),
+                      // Without an explicit alignment the box turns around its
+                      // top-left corner and the diamond drifts off-centre.
+                      transformAlignment: Alignment.center,
+                    ),
+                    value: '$rating',
+                  ),
+                  const SizedBox(width: 7),
+                  _StatChip(
+                    color: WBColors.flameText,
+                    bg: const Color.fromRGBO(255, 92, 60, .09),
+                    border: const Color.fromRGBO(255, 120, 60, .26),
+                    icon: const FlameIcon(),
+                    value: '$streak',
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Transform.translate(
+                  offset: const Offset(0, -24),
+                  child: Text(
+                    'HOZIR ONLAYN · $onlineCount',
+                    style: WBText.mono(
+                      size: 11,
+                      weight: FontWeight.w500,
+                      color: WBColors.textA(.35),
+                      letterSpacing: .2,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                GlowOrb(
+                  glowColor: WBColors.accent,
+                  child: Pressable(
+                    onTap: onStartMatch,
+                    pressScale: .97,
+                    child: Container(
+                      width: 232,
+                      height: 232,
+                      decoration: const BoxDecoration(gradient: wbAccentGradient, shape: BoxShape.circle),
+                      alignment: Alignment.center,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // The margin has to sit outside the rotation: on the
+                          // Container it turns with the diamond and the gap
+                          // ends up pointing 45° off to the side.
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Transform.rotate(
+                              angle: math.pi / 4,
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: WBColors.accentInk.withValues(alpha: .75),
+                                    width: 3,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                      ],
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    _StatChip(
-                      color: WBColors.blue,
-                      bg: WBColors.blueA(.1),
-                      border: WBColors.blueA(.28),
-                      icon: Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          color: WBColors.blue,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                        transform: Matrix4.rotationZ(math.pi / 4),
-                        // Without an explicit alignment the box turns around its
-                        // top-left corner and the diamond drifts off-centre.
-                        transformAlignment: Alignment.center,
+                          Text(
+                            'JANG BOSHLASH',
+                            style: WBText.grotesk(
+                              size: 24,
+                              weight: FontWeight.w700,
+                              color: WBColors.accentInk,
+                              letterSpacing: -.01,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            "~8 s kutish",
+                            style: WBText.mono(
+                              size: 12,
+                              weight: FontWeight.w500,
+                              color: WBColors.accentInk.withValues(alpha: .62),
+                            ),
+                          ),
+                        ],
                       ),
-                      value: '$rating',
                     ),
-                    const SizedBox(width: 7),
-                    _StatChip(
-                      color: WBColors.flameText,
-                      bg: const Color.fromRGBO(255, 92, 60, .09),
-                      border: const Color.fromRGBO(255, 120, 60, .26),
-                      icon: const FlameIcon(),
-                      value: '$streak',
+                  ),
+                ),
+                const SizedBox(height: 48),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Pressable(
+                      onTap: onFriends,
+                      hoverColor: WBColors.whiteA(.08),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                        decoration: BoxDecoration(
+                          color: WBColors.whiteA(.05),
+                          border: Border.all(color: WBColors.whiteA(.1)),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: WBColors.green,
+                                shape: BoxShape.circle,
+                                boxShadow: [BoxShadow(color: WBColors.greenA(.8), blurRadius: 8)],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Do'stlar · $friendsOnlineCount onlayn",
+                              style: WBText.grotesk(
+                                size: 14.5,
+                                weight: FontWeight.w500,
+                                color: WBColors.textA(.82),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                    Pressable(
+                      onTap: onPractice,
+                      hoverColor: WBColors.whiteA(.08),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                        decoration: BoxDecoration(
+                          color: WBColors.whiteA(.05),
+                          border: Border.all(color: WBColors.whiteA(.1)),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: WBColors.indigo,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Mashq',
+                              style: WBText.grotesk(
+                                size: 14.5,
+                                weight: FontWeight.w500,
+                                color: WBColors.textA(.82),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Transform.translate(
-                    offset: const Offset(0, -24),
-                    child: Text(
-                      'HOZIR ONLAYN · $onlineCount',
-                      style: WBText.mono(
-                        size: 11,
-                        weight: FontWeight.w500,
-                        color: WBColors.textA(.35),
-                        letterSpacing: .2,
+          ),
+          if (incoming != null)
+            Pressable(
+              onTap: onIncoming,
+              hoverColor: WBColors.greenA(.14),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                decoration: BoxDecoration(
+                  color: WBColors.greenA(.09),
+                  border: Border.all(color: WBColors.greenA(.28)),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        gradient: wbTealGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        incoming!.user.initial,
+                        style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 22),
-                  GlowOrb(
-                    glowColor: WBColors.accent,
-                    child: Pressable(
-                      onTap: onStartMatch,
-                      pressScale: .97,
-                      child: Container(
-                        width: 232,
-                        height: 232,
-                        decoration: const BoxDecoration(gradient: wbAccentGradient, shape: BoxShape.circle),
-                        alignment: Alignment.center,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // The margin has to sit outside the rotation: on the
-                            // Container it turns with the diamond and the gap
-                            // ends up pointing 45° off to the side.
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Transform.rotate(
-                                angle: math.pi / 4,
-                                child: Container(
-                                  width: 34,
-                                  height: 34,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: WBColors.accentInk.withValues(alpha: .75),
-                                      width: 3,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Text(
-                              'JANG BOSHLASH',
-                              style: WBText.grotesk(
-                                size: 24,
-                                weight: FontWeight.w700,
-                                color: WBColors.accentInk,
-                                letterSpacing: -.01,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              "~8 s kutish",
-                              style: WBText.mono(
-                                size: 12,
-                                weight: FontWeight.w500,
-                                color: WBColors.accentInk.withValues(alpha: .62),
-                              ),
-                            ),
-                          ],
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${incoming!.user.label} seni chaqirmoqda',
+                            style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
+                          ),
+                          Text(
+                            "do'stlik jangi · javob ber",
+                            style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: WBColors.green,
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: Text(
+                        "Ko'rish",
+                        style: WBText.grotesk(
+                          size: 12.5,
+                          weight: FontWeight.w600,
+                          color: WBColors.greenInk,
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 48),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Pressable(
-                        onTap: onFriends,
-                        hoverColor: WBColors.whiteA(.08),
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                          decoration: BoxDecoration(
-                            color: WBColors.whiteA(.05),
-                            border: Border.all(color: WBColors.whiteA(.1)),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: WBColors.green,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [BoxShadow(color: WBColors.greenA(.8), blurRadius: 8)],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                "Do'stlar · $friendsOnlineCount onlayn",
-                                style: WBText.grotesk(
-                                  size: 14.5,
-                                  weight: FontWeight.w500,
-                                  color: WBColors.textA(.82),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Pressable(
-                        onTap: onPractice,
-                        hoverColor: WBColors.whiteA(.08),
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                          decoration: BoxDecoration(
-                            color: WBColors.whiteA(.05),
-                            border: Border.all(color: WBColors.whiteA(.1)),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                  color: WBColors.indigo,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Mashq',
-                                style: WBText.grotesk(
-                                  size: 14.5,
-                                  weight: FontWeight.w500,
-                                  color: WBColors.textA(.82),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            if (incoming != null)
-              Pressable(
-                onTap: onIncoming,
-                hoverColor: WBColors.greenA(.14),
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                  decoration: BoxDecoration(
-                    color: WBColors.greenA(.09),
-                    border: Border.all(color: WBColors.greenA(.28)),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          gradient: wbTealGradient,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          incoming!.user.initial,
-                          style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
-                        ),
-                      ),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${incoming!.user.label} seni chaqirmoqda',
-                              style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
-                            ),
-                            Text(
-                              "do'stlik jangi · javob ber",
-                              style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: WBColors.green,
-                          borderRadius: BorderRadius.circular(11),
-                        ),
-                        child: Text(
-                          "Ko'rish",
-                          style: WBText.grotesk(
-                            size: 12.5,
-                            weight: FontWeight.w600,
-                            color: WBColors.greenInk,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
-            if (tournamentInvite != null)
-              _TournamentInviteBanner(invite: tournamentInvite!, onTap: onOpenTournamentInvite)
-            else if (tournamentMatchReady != null)
-              _TournamentReadyBanner(prompt: tournamentMatchReady!, onTap: onStartTournamentMatch)
-            else if (activeTournament != null)
-              _TournamentDiscoveryBanner(tournament: activeTournament!, onTap: onOpenTournamentBracket),
-            _TournamentsBrowseLink(onTap: onOpenTournamentsBrowse),
-            BottomNav(
-              active: WBTab.home,
-              previous: previousTab,
-              // The lobby column is already padded 22px, and the design only
-              // adds 14px more here so the bar lines up with the other screens'
-              // 36px edge margin.
-              horizontalMargin: 14,
-              friendRequestCount: friendRequestCount,
-              onHome: () {},
-              onFriends: onFriends,
-              onBoard: onBoard,
-              onProfile: onProfile,
             ),
-          ],
-        ),
+          if (tournamentInvite != null)
+            _TournamentInviteBanner(invite: tournamentInvite!, onTap: onOpenTournamentInvite)
+          else if (tournamentMatchReady != null)
+            _TournamentReadyBanner(prompt: tournamentMatchReady!, onTap: onStartTournamentMatch)
+          else if (activeTournament != null)
+            _TournamentDiscoveryBanner(tournament: activeTournament!, onTap: onOpenTournamentBracket),
+          _TournamentsBrowseLink(onTap: onOpenTournamentsBrowse),
+          BottomNav(
+            active: WBTab.home,
+            previous: previousTab,
+            // The lobby column is already padded 22px, and the design only
+            // adds 14px more here so the bar lines up with the other screens'
+            // 36px edge margin.
+            horizontalMargin: 14,
+            friendRequestCount: friendRequestCount,
+            onHome: () {},
+            onFriends: onFriends,
+            onBoard: onBoard,
+            onProfile: onProfile,
+          ),
+        ],
       ),
     );
   }
