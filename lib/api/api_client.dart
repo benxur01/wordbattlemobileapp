@@ -168,14 +168,25 @@ class ApiClient {
   /// The friends screen's "Turnir tashkil qilish": any signed-in player may
   /// organize a tournament of their own, no admin role needed. [isPublic]
   /// lets strangers self-join through [joinTournament] instead of waiting on
-  /// an invite — see [TournamentSummary.visibility].
-  Future<TournamentSummary> createTournament(String name, int size, bool isPublic) async =>
-      TournamentSummary.fromJson(await _post('/tournaments',
-          {'name': name, 'size': size, 'visibility': isPublic ? 'public' : 'private'}) as Map<String, dynamic>);
+  /// an invite — see [TournamentSummary.visibility]. [format] is `'solo'` or
+  /// `'team'`, where each of the [size] seats is a pair — see
+  /// [TournamentSummary.format].
+  Future<TournamentSummary> createTournament(String name, int size, bool isPublic, {String format = 'solo'}) async =>
+      TournamentSummary.fromJson(await _post('/tournaments', {
+        'name': name,
+        'size': size,
+        'visibility': isPublic ? 'public' : 'private',
+        'format': format,
+      }) as Map<String, dynamic>);
 
   /// Restricted server-side to the organizer's own friends.
   Future<void> inviteToTournament(int tournamentId, int userId) =>
       _post('/tournaments/$tournamentId/invite', {'userId': userId});
+
+  /// The same for a `team` tournament, whose seat takes two — the organizer
+  /// has to be a friend of both, and each of them answers for themselves.
+  Future<void> inviteTeamToTournament(int tournamentId, int userId, int partnerUserId) =>
+      _post('/tournaments/$tournamentId/invite-team', {'userId': userId, 'partnerUserId': partnerUserId});
 
   Future<List<TournamentParticipantView>> tournamentParticipants(int tournamentId) async {
     final list = await _get('/tournaments/$tournamentId/participants') as List;

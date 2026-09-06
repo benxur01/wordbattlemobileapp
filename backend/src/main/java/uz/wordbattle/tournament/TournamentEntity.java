@@ -17,6 +17,11 @@ import java.time.Instant;
  * {@code PRIVATE} is every admin- and friend-run bracket, invite-only exactly
  * as before, and {@code PUBLIC} — always true of a {@code GLOBAL} one — lets a
  * stranger seat themselves with nobody inviting them.
+ *
+ * <p>{@link #format} decides what occupies a seat: one player ({@code SOLO},
+ * every bracket that existed before 2v2 tournaments) or a pair of them
+ * ({@code TEAM}). {@link #size} counts seats either way — a {@code TEAM}
+ * bracket of 4 is four teams and therefore eight people.
  */
 @Entity
 @Table(name = "tournaments")
@@ -38,6 +43,9 @@ public class TournamentEntity {
 
     /** Who runs the bracket: the admin panel, a player among their own friends, or nobody — see {@link #kind}. */
     public enum Kind { FRIEND, ADMIN, GLOBAL }
+
+    /** What holds a seat: one player, or a pair of them playing every match as a 2v2 duel. */
+    public enum Format { SOLO, TEAM }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -66,6 +74,10 @@ public class TournamentEntity {
     @Column(name = "kind", nullable = false, length = 16)
     private Kind kind;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "format", nullable = false, length = 16)
+    private Format format;
+
     /** The rating floor to self-join — set only on a {@code GLOBAL} tournament, null otherwise. */
     @Column(name = "min_rating")
     private Double minRating;
@@ -86,12 +98,19 @@ public class TournamentEntity {
     protected TournamentEntity() {}
 
     private TournamentEntity(
-            String name, int size, Long createdByAdminId, Visibility visibility, Kind kind, Double minRating) {
+            String name,
+            int size,
+            Long createdByAdminId,
+            Visibility visibility,
+            Kind kind,
+            Format format,
+            Double minRating) {
         this.name = name;
         this.size = size;
         this.createdByAdminId = createdByAdminId;
         this.visibility = visibility;
         this.kind = kind;
+        this.format = format;
         this.minRating = minRating;
         this.status = Status.OPEN;
     }
@@ -103,17 +122,22 @@ public class TournamentEntity {
 
     /** The admin panel and the friends screen, tagged apart only for the browse list's badge — both start private. */
     public TournamentEntity(String name, int size, Long createdByAdminId, Kind kind) {
-        this(name, size, createdByAdminId, Visibility.PRIVATE, kind, null);
+        this(name, size, createdByAdminId, Visibility.PRIVATE, kind, Format.SOLO, null);
     }
 
     /** The friends screen's self-service create, when the organizer asks for {@code PUBLIC} instead of the private default. */
     public TournamentEntity(String name, int size, Long createdByAdminId, Kind kind, Visibility visibility) {
-        this(name, size, createdByAdminId, visibility, kind, null);
+        this(name, size, createdByAdminId, visibility, kind, Format.SOLO, null);
+    }
+
+    /** The same, when the organizer also asks for a 2v2 bracket instead of the one-player-per-seat default. */
+    public TournamentEntity(String name, int size, Long createdByAdminId, Kind kind, Visibility visibility, Format format) {
+        this(name, size, createdByAdminId, visibility, kind, format, null);
     }
 
     /** {@code GlobalTournamentScheduler}'s own creation path — no organizer, public from the moment it exists. */
     public static TournamentEntity global(String name, int size, double minRating) {
-        return new TournamentEntity(name, size, null, Visibility.PUBLIC, Kind.GLOBAL, minRating);
+        return new TournamentEntity(name, size, null, Visibility.PUBLIC, Kind.GLOBAL, Format.SOLO, minRating);
     }
 
     public Long getId() { return id; }
@@ -124,6 +148,7 @@ public class TournamentEntity {
     public Long getCreatedByAdminId() { return createdByAdminId; }
     public Visibility getVisibility() { return visibility; }
     public Kind getKind() { return kind; }
+    public Format getFormat() { return format; }
     public Double getMinRating() { return minRating; }
     public Long getChampionUserId() { return championUserId; }
     public void setChampionUserId(Long championUserId) { this.championUserId = championUserId; }

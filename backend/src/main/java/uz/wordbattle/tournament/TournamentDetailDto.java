@@ -13,6 +13,10 @@ import uz.wordbattle.user.UserDto;
  * there never was one — a {@code GLOBAL} tournament has nobody running it. See
  * {@link TournamentInviteDto} for who it can otherwise be. {@code minRating}
  * is set only when {@code kind} is {@code "global"}.
+ *
+ * <p>Every {@code ...Partner} field below is filled only when {@code format}
+ * is {@code "team"}, and is the second member of the team the field beside it
+ * names — the pair a bracket screen draws as one seat.
  */
 public record TournamentDetailDto(
         Long id,
@@ -25,7 +29,9 @@ public record TournamentDetailDto(
         UserDto organizer,
         String visibility,
         String kind,
-        Double minRating) {
+        Double minRating,
+        String format,
+        UserDto championPartner) {
 
     public record RoundView(int round, List<MatchView> matches) {}
 
@@ -36,5 +42,7 @@ public record TournamentDetailDto(
             UserDto playerOne,
             UserDto playerTwo,
             Long winnerUserId,
-            String status) {}
+            String status,
+            UserDto playerOnePartner,
+            UserDto playerTwoPartner) {}
 }

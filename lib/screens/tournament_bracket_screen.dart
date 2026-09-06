@@ -57,9 +57,11 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
   static const _matchWidth = 132.0;
   // Tall enough for two player rows (avatar + name, each ~20dp with its own
   // padding) inside the card's border and padding — 60 clips a real two-line
-  // card by a few pixels, invisible until real match content is rendered.
-  static const _matchHeight = 68.0;
-  static const _rowPitch = 76.0;
+  // card by a few pixels, invisible until real match content is rendered. A
+  // 2v2 bracket stacks a second name under each side, so both its card and the
+  // gap below it grow by that extra line.
+  double get _matchHeight => _isTeam ? 86 : 68;
+  double get _rowPitch => _isTeam ? 94 : 76;
   static const _connectorWidth = 28.0;
   static const _colLabelHeight = 30.0;
   static const _centerWidth = 152.0;
@@ -105,6 +107,8 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
       _hScroll.jumpTo(_hScroll.position.maxScrollExtent / 2);
     });
   }
+
+  bool get _isTeam => widget.detail?.isTeam ?? false;
 
   /// Only the tournament's own organizer, and only while it is still live —
   /// a spectator or an ordinary participant never sees this, whatever
@@ -299,9 +303,10 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
   }
 
   String _subtitle(TournamentDetail d) {
-    if (d.isCompleted) return "${d.size} O'YINCHI · YAKUNLANDI";
+    final entrants = d.isTeam ? '${d.size} JAMOA' : "${d.size} O'YINCHI";
+    if (d.isCompleted) return '$entrants · YAKUNLANDI';
     final label = tournamentRoundLabel(d.currentRound.round, d.totalRounds);
-    return "${d.size} O'YINCHI · $label BOSQICHI";
+    return '$entrants · $label BOSQICHI';
   }
 
   Widget _hint() => Padding(
@@ -523,14 +528,16 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _playerRow(match, match.playerOne, isFirst: true),
-          _playerRow(match, match.playerTwo, isFirst: false),
+          _playerRow(match, match.playerOne, match.playerOnePartner, isFirst: true),
+          _playerRow(match, match.playerTwo, match.playerTwoPartner, isFirst: false),
         ],
       ),
     );
   }
 
-  Widget _playerRow(TournamentMatchView match, UserDto? player, {required bool isFirst}) {
+  /// One side of a match — a lone player, or, in a 2v2 bracket, the pair that
+  /// plays as one seat, stacked under a single avatar.
+  Widget _playerRow(TournamentMatchView match, UserDto? player, UserDto? partner, {required bool isFirst}) {
     final content = player == null
         ? Row(
             children: [
@@ -553,12 +560,31 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
               _avatar(player),
               const SizedBox(width: 7),
               Expanded(
-                child: Text(
-                  player.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: WBText.grotesk(size: 11, weight: FontWeight.w600, color: _nameColor(match, player)),
-                ),
+                child: partner == null
+                    ? Text(
+                        player.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: WBText.grotesk(size: 11, weight: FontWeight.w600, color: _nameColor(match, player)),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            player.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: WBText.grotesk(size: 10, weight: FontWeight.w600, color: _nameColor(match, player)),
+                          ),
+                          Text(
+                            '+ ${partner.label}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: WBText.grotesk(size: 10, weight: FontWeight.w600, color: _nameColor(match, player)),
+                          ),
+                        ],
+                      ),
               ),
               if (match.isDone && match.wonBy(player))
                 const Icon(Icons.check, size: 13, color: WBColors.green),
@@ -642,7 +668,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
                   left: 0,
                   width: _centerWidth,
                   height: _championHeight,
-                  child: _championBox(d.champion),
+                  child: _championBox(d.champion, d.championPartner),
                 ),
               ],
             ),
@@ -652,7 +678,12 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
     );
   }
 
-  Widget _championBox(UserDto? champion) {
+  Widget _championBox(UserDto? champion, UserDto? championPartner) {
+    final label = champion == null
+        ? 'ANIQLANMAGAN'
+        : championPartner == null
+            ? champion.label.toUpperCase()
+            : '${champion.label.toUpperCase()} + ${championPartner.label.toUpperCase()}';
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: WBColors.blueA(.45), width: 1.5),
@@ -672,8 +703,8 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
             Icon(Icons.star_border, size: 22, color: WBColors.blueText),
             const SizedBox(height: 4),
             Text(
-              champion?.label.toUpperCase() ?? 'ANIQLANMAGAN',
-              maxLines: 1,
+              label,
+              maxLines: championPartner == null ? 1 : 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: WBText.mono(
@@ -685,7 +716,11 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
             ),
             const SizedBox(height: 2),
             Text(
-              champion != null ? "turnir g'olibi" : 'final tugagach',
+              champion == null
+                  ? 'final tugagach'
+                  : championPartner == null
+                      ? "turnir g'olibi"
+                      : "g'olib jamoa",
               style: WBText.grotesk(size: 9.5, weight: FontWeight.w500, color: WBColors.textA(.35)),
             ),
           ],

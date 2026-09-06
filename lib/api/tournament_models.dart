@@ -18,6 +18,7 @@ class TournamentSummary {
     required this.kind,
     required this.acceptedCount,
     required this.minRating,
+    required this.format,
   });
 
   factory TournamentSummary.fromJson(Map<String, dynamic> json) => TournamentSummary(
@@ -29,6 +30,7 @@ class TournamentSummary {
         kind: json['kind'] as String? ?? 'friend',
         acceptedCount: (json['acceptedCount'] as num?)?.toInt() ?? 0,
         minRating: (json['minRating'] as num?)?.toDouble(),
+        format: json['format'] as String? ?? 'solo',
       );
 
   final int id;
@@ -50,11 +52,18 @@ class TournamentSummary {
   /// The rating floor to self-join — set only when [kind] is `"global"`.
   final double? minRating;
 
+  /// `"solo"` (1v1) or `"team"` (2v2), where every one of the [size] bracket
+  /// seats is held by a pair — see `TournamentEntity.Format` on the server.
+  final String format;
+
   bool get isPublic => visibility == 'public';
   bool get isGlobal => kind == 'global';
+  bool get isTeam => format == 'team';
 
-  /// Whether a stranger may tap "Qo'shilish" on this row right now.
-  bool get isJoinable => status == 'open' && (isPublic || isGlobal);
+  /// Whether a stranger may tap "Qo'shilish" on this row right now. Never a
+  /// team bracket: its seats take two people who both have to be named, so
+  /// `TournamentService#join` refuses one arriving alone.
+  bool get isJoinable => status == 'open' && (isPublic || isGlobal) && !isTeam;
 
   String get statusLabel => switch (status) {
         'open' => 'Ochiq',
@@ -74,6 +83,8 @@ class TournamentInvite {
     required this.size,
     required this.participantStatus,
     required this.organizer,
+    required this.format,
+    required this.teammate,
   });
 
   factory TournamentInvite.fromJson(Map<String, dynamic> json) => TournamentInvite(
@@ -82,17 +93,31 @@ class TournamentInvite {
         size: (json['size'] as num?)?.toInt() ?? 0,
         participantStatus: json['participantStatus'] as String? ?? '',
         organizer: json['organizer'] == null ? null : UserDto.fromJson(json['organizer'] as Map<String, dynamic>),
+        format: json['format'] as String? ?? 'solo',
+        teammate: json['teammate'] == null ? null : UserDto.fromJson(json['teammate'] as Map<String, dynamic>),
       );
 
   final int tournamentId;
   final String name;
   final int size;
+
+  /// This recipient's own answer, not their team's — the two people sharing a
+  /// team seat each answer for themselves.
   final String participantStatus;
 
   /// Whoever created this tournament — an admin or a player organizing one
   /// among friends, the same shape either way. Null only if that account has
   /// since been deleted.
   final UserDto? organizer;
+
+  /// `"solo"` or `"team"` — see [TournamentSummary.format].
+  final String format;
+
+  /// Whoever this invite asks the recipient to play alongside. Null when
+  /// [format] is `"solo"`.
+  final UserDto? teammate;
+
+  bool get isTeam => format == 'team';
 }
 
 /// "Your tournament match is ready" — the lobby's prompt to press start.
@@ -104,6 +129,9 @@ class TournamentMatchPrompt {
     required this.round,
     required this.totalRounds,
     required this.opponent,
+    required this.format,
+    required this.partner,
+    required this.opponentPartner,
   });
 
   factory TournamentMatchPrompt.fromJson(Map<String, dynamic> json) => TournamentMatchPrompt(
@@ -113,6 +141,11 @@ class TournamentMatchPrompt {
         round: (json['round'] as num?)?.toInt() ?? 1,
         totalRounds: (json['totalRounds'] as num?)?.toInt() ?? 1,
         opponent: json['opponent'] == null ? null : UserDto.fromJson(json['opponent'] as Map<String, dynamic>),
+        format: json['format'] as String? ?? 'solo',
+        partner: json['partner'] == null ? null : UserDto.fromJson(json['partner'] as Map<String, dynamic>),
+        opponentPartner: json['opponentPartner'] == null
+            ? null
+            : UserDto.fromJson(json['opponentPartner'] as Map<String, dynamic>),
       );
 
   final int tournamentMatchId;
@@ -120,7 +153,18 @@ class TournamentMatchPrompt {
   final String tournamentName;
   final int round;
   final int totalRounds;
+
+  /// The other side's primary member — its whole side when [format] is
+  /// `"solo"`.
   final UserDto? opponent;
+
+  /// `"solo"` or `"team"` — see [TournamentSummary.format].
+  final String format;
+
+  /// This player's own teammate, and the fourth player. Both null when
+  /// [format] is `"solo"`.
+  final UserDto? partner;
+  final UserDto? opponentPartner;
 
   String get roundLabel => tournamentRoundLabel(round, totalRounds);
 }
@@ -135,6 +179,8 @@ class TournamentMatchView {
     required this.playerTwo,
     required this.winnerUserId,
     required this.status,
+    required this.playerOnePartner,
+    required this.playerTwoPartner,
   });
 
   factory TournamentMatchView.fromJson(Map<String, dynamic> json) => TournamentMatchView(
@@ -144,6 +190,12 @@ class TournamentMatchView {
         playerTwo: json['playerTwo'] == null ? null : UserDto.fromJson(json['playerTwo'] as Map<String, dynamic>),
         winnerUserId: (json['winnerUserId'] as num?)?.toInt(),
         status: json['status'] as String? ?? 'pending',
+        playerOnePartner: json['playerOnePartner'] == null
+            ? null
+            : UserDto.fromJson(json['playerOnePartner'] as Map<String, dynamic>),
+        playerTwoPartner: json['playerTwoPartner'] == null
+            ? null
+            : UserDto.fromJson(json['playerTwoPartner'] as Map<String, dynamic>),
       );
 
   final int slot;
@@ -151,6 +203,11 @@ class TournamentMatchView {
   final UserDto? playerOne;
   final UserDto? playerTwo;
   final int? winnerUserId;
+
+  /// The second member of each side's team — filled only for a `"team"`
+  /// tournament, and only once the slot beside it is.
+  final UserDto? playerOnePartner;
+  final UserDto? playerTwoPartner;
 
   /// One of `pending`, `ready`, `live`, `done`.
   final String status;
@@ -190,6 +247,8 @@ class TournamentDetail {
     required this.visibility,
     required this.kind,
     required this.minRating,
+    required this.format,
+    required this.championPartner,
   });
 
   factory TournamentDetail.fromJson(Map<String, dynamic> json) => TournamentDetail(
@@ -206,6 +265,10 @@ class TournamentDetail {
         visibility: json['visibility'] as String? ?? 'private',
         kind: json['kind'] as String? ?? 'friend',
         minRating: (json['minRating'] as num?)?.toDouble(),
+        format: json['format'] as String? ?? 'solo',
+        championPartner: json['championPartner'] == null
+            ? null
+            : UserDto.fromJson(json['championPartner'] as Map<String, dynamic>),
       );
 
   final int id;
@@ -230,7 +293,15 @@ class TournamentDetail {
   /// The rating floor to self-join — set only when [kind] is `"global"`.
   final double? minRating;
 
+  /// `"solo"` or `"team"` — see [TournamentSummary.format].
+  final String format;
+
+  /// The champion team's second member — set only once a `"team"` bracket has
+  /// been won.
+  final UserDto? championPartner;
+
   bool get isCompleted => status == 'completed';
+  bool get isTeam => format == 'team';
 
   /// The earliest round that still has a match left to decide — the stage the
   /// header's "N O'YINCHI · ... BOSQICHI" line names. Every round is done once
@@ -246,13 +317,24 @@ class TournamentDetail {
 /// One invited player on the organizer's own setup screen — the friends-screen
 /// "Turnir tashkil qilish" flow's view of `GET /api/tournaments/{id}/participants`.
 class TournamentParticipantView {
-  const TournamentParticipantView({required this.userId, required this.user, required this.status, this.seed});
+  const TournamentParticipantView({
+    required this.userId,
+    required this.user,
+    required this.status,
+    this.seed,
+    this.partnerUserId,
+    this.partner,
+    this.partnerStatus,
+  });
 
   factory TournamentParticipantView.fromJson(Map<String, dynamic> json) => TournamentParticipantView(
         userId: (json['userId'] as num).toInt(),
         user: json['user'] == null ? null : UserDto.fromJson(json['user'] as Map<String, dynamic>),
         status: json['status'] as String? ?? 'invited',
         seed: (json['seed'] as num?)?.toInt(),
+        partnerUserId: (json['partnerUserId'] as num?)?.toInt(),
+        partner: json['partner'] == null ? null : UserDto.fromJson(json['partner'] as Map<String, dynamic>),
+        partnerStatus: json['partnerStatus'] as String?,
       );
 
   final int userId;
@@ -262,9 +344,23 @@ class TournamentParticipantView {
   final String status;
   final int? seed;
 
+  /// The second person holding this seat, and their own answer — set only for
+  /// a `"team"` tournament, where the two answer the invite independently.
+  final int? partnerUserId;
+  final UserDto? partner;
+  final String? partnerStatus;
+
   bool get accepted => status == 'accepted';
 
-  String get statusLabel => switch (status) {
+  /// Whether this seat counts towards the bracket: a team's does only once
+  /// both of its members have accepted.
+  bool get seatAccepted => accepted && (partnerUserId == null || partnerStatus == 'accepted');
+
+  String get statusLabel => _statusLabel(status);
+
+  String get partnerStatusLabel => _statusLabel(partnerStatus ?? 'invited');
+
+  static String _statusLabel(String status) => switch (status) {
         'accepted' => 'Qabul qildi',
         'declined' => 'Rad etdi',
         _ => 'Taklif qilindi',

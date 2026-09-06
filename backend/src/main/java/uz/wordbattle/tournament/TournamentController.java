@@ -74,16 +74,26 @@ public class TournamentController {
 
     // ----------------------------------------------------- self-service: organize among friends
 
-    /** {@code visibility} is {@code "private"} (the default, absent or blank) or {@code "public"} — see {@code TournamentService#parseVisibility}. */
-    public record CreateRequest(String name, int size, String visibility) {}
+    /**
+     * {@code visibility} is {@code "private"} (the default, absent or blank) or
+     * {@code "public"} — see {@code TournamentService#parseVisibility} — and
+     * {@code format} is {@code "solo"} (the same default) or {@code "team"} for
+     * a 2v2 bracket, where {@code size} counts teams rather than players.
+     */
+    public record CreateRequest(String name, int size, String visibility, String format) {}
 
     public record InviteRequest(Long userId) {}
+
+    /** {@code userId} is the team's primary member and {@code partnerUserId} the teammate — see {@code TournamentService#inviteTeamByUser}. */
+    public record InviteTeamRequest(Long userId, Long partnerUserId) {}
 
     /** The friends screen's "Turnir tashkil qilish" — any signed-in player, no admin role needed. */
     @PostMapping
     public TournamentSummaryDto create(@CurrentUser AuthPrincipal principal, @RequestBody CreateRequest request) {
         TournamentEntity.Visibility visibility = tournaments.parseVisibility(request.visibility());
-        TournamentEntity created = tournaments.createByUser(principal.userId(), request.name(), request.size(), visibility);
+        TournamentEntity.Format format = tournaments.parseFormat(request.format());
+        TournamentEntity created = tournaments.createByUser(
+                principal.userId(), request.name(), request.size(), visibility, format);
         return tournaments.summaryOf(created);
     }
 
@@ -97,6 +107,15 @@ public class TournamentController {
     @PostMapping("/{id}/invite")
     public void invite(@CurrentUser AuthPrincipal principal, @PathVariable("id") long id, @RequestBody InviteRequest request) {
         tournaments.inviteByUser(principal.userId(), id, request.userId());
+    }
+
+    /** The same for a {@code team} tournament, whose seats take two — and where the organizer must be a friend of both. */
+    @PostMapping("/{id}/invite-team")
+    public void inviteTeam(
+            @CurrentUser AuthPrincipal principal,
+            @PathVariable("id") long id,
+            @RequestBody InviteTeamRequest request) {
+        tournaments.inviteTeamByUser(principal.userId(), id, request.userId(), request.partnerUserId());
     }
 
     @PostMapping("/{id}/start")

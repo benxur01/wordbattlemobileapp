@@ -11,6 +11,12 @@ import '../widgets/primary_button.dart';
 /// the browse screen. Everything past this screen — the invite itself, and
 /// who may be invited — is enforced by the server; this only collects the
 /// choices and hands them back.
+///
+/// A friends-only tournament also picks a format: the ordinary 1v1 bracket, or
+/// a 2v2 one whose every seat is a pair of friends invited together. There is
+/// no public 2v2 — a stranger arriving alone has nobody to play alongside, so
+/// `TournamentService#join` refuses a team bracket and the format step is
+/// skipped entirely on the public path.
 class OrganizeTournamentScreen extends StatefulWidget {
   const OrganizeTournamentScreen({
     super.key,
@@ -18,6 +24,7 @@ class OrganizeTournamentScreen extends StatefulWidget {
     required this.busy,
     required this.onBack,
     required this.onSubmit,
+    required this.onSubmitTeams,
   });
 
   final List<FriendDto> friends;
@@ -29,6 +36,11 @@ class OrganizeTournamentScreen extends StatefulWidget {
   /// public tournament is joined by strangers, not invited by the organizer.
   final void Function(int size, List<UserDto> invitees, bool isPublic) onSubmit;
 
+  /// The 2v2 equivalent: fired once with exactly [size] pairs, each one a team
+  /// invited together. Always friends-only, so there is no visibility to hand
+  /// back with it.
+  final void Function(int size, List<(UserDto, UserDto)> teams) onSubmitTeams;
+
   @override
   State<OrganizeTournamentScreen> createState() => _OrganizeTournamentScreenState();
 }
@@ -39,9 +51,21 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
   /// Null while the visibility step is showing.
   bool? _isPublic;
 
+  /// Null while the format step is showing — never asked at all on the public
+  /// path, which is 1v1 by definition.
+  bool? _isTeam;
+
   /// Null while the size step is showing.
   int? _size;
   final Set<int> _selected = {};
+
+  /// The 2v2 path's teams, in the order they were built.
+  final List<(UserDto, UserDto)> _teams = [];
+
+  /// The friend tapped first for the team being built right now, waiting for
+  /// the tap that gives them a partner.
+  UserDto? _pending;
+
   final TextEditingController _search = TextEditingController();
   String _query = '';
 
@@ -71,14 +95,19 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
   @override
   Widget build(BuildContext context) {
     final isPublic = _isPublic;
+    final isTeam = _isTeam;
     final size = _size;
     Widget step;
     if (isPublic == null) {
       step = _visibilityStep();
+    } else if (!isPublic && isTeam == null) {
+      step = _formatStep();
     } else if (size == null) {
       step = _sizeStep();
     } else if (isPublic) {
       step = _publicConfirmStep(size);
+    } else if (isTeam == true) {
+      step = _teamStep(size);
     } else {
       step = _friendStep(size);
     }
@@ -93,9 +122,11 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
   Widget _header() {
     final onStepBack = _size != null
         ? () => setState(() => _size = null)
-        : _isPublic != null
-            ? () => setState(() => _isPublic = null)
-            : widget.onBack;
+        : _isTeam != null
+            ? () => setState(() => _isTeam = null)
+            : _isPublic != null
+                ? () => setState(() => _isPublic = null)
+                : widget.onBack;
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 16, 22, 13),
       decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color.fromRGBO(255, 255, 255, .07)))),
@@ -140,15 +171,15 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
           style: WBText.grotesk(size: 13.5, color: WBColors.textA(.55), height: 1.4),
         ),
         const SizedBox(height: 20),
-        _visibilityRow(
-          isPublic: false,
+        _choiceRow(
+          onTap: () => setState(() => _isPublic = false),
           icon: Icons.group_outlined,
           title: "Do'stlar bilan",
           subtitle: "Faqat siz taklif qilgan do'stlaringiz qatnasha oladi",
         ),
         const SizedBox(height: 10),
-        _visibilityRow(
-          isPublic: true,
+        _choiceRow(
+          onTap: () => setState(() => _isPublic = true),
           icon: Icons.public,
           title: 'Ommaviy',
           subtitle: "Istalgan o'yinchi o'zi qo'shilishi mumkin",
@@ -157,14 +188,42 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
     );
   }
 
-  Widget _visibilityRow({
-    required bool isPublic,
+  Widget _formatStep() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+      children: [
+        Text('Qanday format?', style: WBText.grotesk(size: 20, weight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text(
+          "Har bir o'yinchi o'zi uchun kurashadimi, yoki juftlikda o'ynaydimi?",
+          style: WBText.grotesk(size: 13.5, color: WBColors.textA(.55), height: 1.4),
+        ),
+        const SizedBox(height: 20),
+        _choiceRow(
+          onTap: () => setState(() => _isTeam = false),
+          icon: Icons.person_outline,
+          title: 'Yakka · 1v1',
+          subtitle: "Har bir o'yinchi yolg'iz o'ynaydi",
+        ),
+        const SizedBox(height: 10),
+        _choiceRow(
+          onTap: () => setState(() => _isTeam = true),
+          icon: Icons.groups_outlined,
+          title: 'Jamoaviy · 2v2',
+          subtitle: "Har bir o'rinni ikki do'stingiz birga egallaydi",
+        ),
+      ],
+    );
+  }
+
+  Widget _choiceRow({
+    required VoidCallback onTap,
     required IconData icon,
     required String title,
     required String subtitle,
   }) {
     return Pressable(
-      onTap: () => setState(() => _isPublic = isPublic),
+      onTap: onTap,
       pressScale: .98,
       borderRadius: BorderRadius.circular(17),
       child: Container(
@@ -202,25 +261,32 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
 
   Widget _sizeStep() {
     final isPublic = _isPublic ?? false;
+    final isTeam = _isTeam ?? false;
     return ListView(
       padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
       children: [
-        Text("Necha kishilik bo'lsin?", style: WBText.grotesk(size: 20, weight: FontWeight.w700)),
+        Text(
+          isTeam ? "Nechta jamoa bo'lsin?" : "Necha kishilik bo'lsin?",
+          style: WBText.grotesk(size: 20, weight: FontWeight.w700),
+        ),
         const SizedBox(height: 8),
         Text(
           isPublic
               ? "O'lchamni tanlang — to'lgach turnir avtomatik boshlanadi."
-              : "O'lchamni tanlang — keyingi qadamda shuncha do'stingizni taklif qilasiz.",
+              : isTeam
+                  ? "O'lchamni tanlang — keyingi qadamda shuncha juft do'stingizni taklif qilasiz."
+                  : "O'lchamni tanlang — keyingi qadamda shuncha do'stingizni taklif qilasiz.",
           style: WBText.grotesk(size: 13.5, color: WBColors.textA(.55), height: 1.4),
         ),
         const SizedBox(height: 20),
-        for (final option in _sizes) ...[_sizeRow(option, isPublic), const SizedBox(height: 10)],
+        for (final option in _sizes) ...[_sizeRow(option, isPublic, isTeam), const SizedBox(height: 10)],
       ],
     );
   }
 
-  Widget _sizeRow(int option, bool isPublic) {
-    final enoughFriends = isPublic || widget.friends.length >= option;
+  Widget _sizeRow(int option, bool isPublic, bool isTeam) {
+    final needed = isTeam ? option * 2 : option;
+    final enoughFriends = isPublic || widget.friends.length >= needed;
     return Pressable(
       onTap: () => setState(() => _size = option),
       pressScale: .98,
@@ -246,10 +312,13 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('$option kishi', style: WBText.grotesk(size: 15, weight: FontWeight.w600)),
+                  Text(
+                    isTeam ? '$option jamoa' : '$option kishi',
+                    style: WBText.grotesk(size: 15, weight: FontWeight.w600),
+                  ),
                   if (!enoughFriends)
                     Text(
-                      "Kamida $option ta do'st kerak — hozir ${widget.friends.length} ta bor",
+                      "Kamida $needed ta do'st kerak — hozir ${widget.friends.length} ta bor",
                       style: WBText.grotesk(size: 11.5, color: WBColors.textA(.45)),
                     ),
                 ],
@@ -320,40 +389,13 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
                 style: WBText.mono(size: 12, weight: FontWeight.w600, color: WBColors.accent, letterSpacing: .05),
               ),
               const SizedBox(height: 10),
-              Container(
-                height: 46,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                decoration: BoxDecoration(
-                  color: WBColors.whiteA(.05),
-                  border: Border.all(color: WBColors.whiteA(.11)),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.search, size: 17, color: WBColors.textA(.4)),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: TextField(
-                        controller: _search,
-                        onChanged: (value) => setState(() => _query = value),
-                        style: WBText.grotesk(size: 14),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          border: InputBorder.none,
-                          hintText: "do'stlaringiz orasidan qidiring",
-                          hintStyle: WBText.grotesk(size: 14, color: WBColors.textA(.4)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _searchField(),
             ],
           ),
         ),
         Expanded(
           child: !enough
-              ? _notEnoughFriends(size)
+              ? _notEnoughFriends("$size kishilik turnir uchun kamida $size ta do'st kerak")
               : filtered.isEmpty
                   ? Center(child: Text('Hech kim topilmadi', style: WBText.grotesk(size: 13.5, color: WBColors.textA(.45))))
                   : ListView(
@@ -386,10 +428,210 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
     );
   }
 
+  /// The 2v2 picker. One tap names the first half of a team and leaves them
+  /// waiting in the line above the list; the next tap gives them a partner and
+  /// closes that team, which then shows as a numbered row of its own at the
+  /// top — so every pair is spelled out before "Taklif yuborish" can be
+  /// pressed, and a wrong pair is undone as a whole rather than one member at
+  /// a time.
+  Widget _teamStep(int size) {
+    final query = _query.trim().toLowerCase();
+    final filtered =
+        query.isEmpty ? widget.friends : widget.friends.where((f) => f.user.label.toLowerCase().contains(query)).toList();
+    final needed = size * 2;
+    final enough = widget.friends.length >= needed;
+    final ready = _teams.length == size;
+    final pending = _pending;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 14, 22, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${_teams.length}/$size jamoa tanlandi',
+                style: WBText.mono(size: 12, weight: FontWeight.w600, color: WBColors.accent, letterSpacing: .05),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                pending == null
+                    ? "Har bir jamoa uchun ikki do'stingizni ketma-ket tanlang"
+                    : "${pending.label} kim bilan o'ynaydi?",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: WBText.grotesk(size: 12, color: WBColors.textA(.5)),
+              ),
+              const SizedBox(height: 10),
+              _searchField(),
+            ],
+          ),
+        ),
+        Expanded(
+          child: !enough
+              ? _notEnoughFriends("$size jamoali turnir uchun kamida $needed ta do'st kerak")
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(22, 0, 22, 12),
+                  children: [
+                    for (var i = 0; i < _teams.length; i++) ...[_teamRow(i + 1, _teams[i]), const SizedBox(height: 9)],
+                    if (filtered.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 24),
+                        child: Center(
+                          child: Text('Hech kim topilmadi', style: WBText.grotesk(size: 13.5, color: WBColors.textA(.45))),
+                        ),
+                      )
+                    else
+                      for (final friend in filtered) ...[_teamFriendRow(friend, size), const SizedBox(height: 9)],
+                  ],
+                ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 22),
+          child: Pressable(
+            onTap: widget.busy || !ready ? null : () => widget.onSubmitTeams(size, List.of(_teams)),
+            pressScale: .98,
+            child: Container(
+              width: double.infinity,
+              height: 58,
+              decoration: BoxDecoration(
+                gradient: ready ? wbAccentGradient : null,
+                color: ready ? null : WBColors.whiteA(.06),
+                borderRadius: BorderRadius.circular(19),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                widget.busy ? 'Yuborilmoqda…' : 'Taklif yuborish',
+                style: WBText.grotesk(size: 16, weight: FontWeight.w600, color: ready ? WBColors.accentInk : WBColors.textA(.4)),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Which team this friend is already on, numbered from 1 as the rows above
+  /// the list are — null while they are still free to be picked.
+  int? _teamIndexOf(int userId) {
+    for (var i = 0; i < _teams.length; i++) {
+      if (_teams[i].$1.id == userId || _teams[i].$2.id == userId) return i + 1;
+    }
+    return null;
+  }
+
+  Widget _teamRow(int index, (UserDto, UserDto) team) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: WBColors.accentA(.1),
+        border: Border.all(color: WBColors.accentA(.32)),
+        borderRadius: BorderRadius.circular(17),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(gradient: wbAccentGradient, borderRadius: BorderRadius.circular(11)),
+            alignment: Alignment.center,
+            child: Text('$index', style: WBText.mono(size: 12, weight: FontWeight.w700, color: WBColors.accentInk)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${team.$1.label} + ${team.$2.label}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: WBText.grotesk(size: 14, weight: FontWeight.w600),
+                ),
+                Text('jamoa', style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(.45))),
+              ],
+            ),
+          ),
+          Pressable(
+            onTap: () => setState(() => _teams.removeAt(index - 1)),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(color: WBColors.whiteA(.06), borderRadius: BorderRadius.circular(10)),
+              alignment: Alignment.center,
+              child: Icon(Icons.close, size: 15, color: WBColors.textA(.55)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _teamFriendRow(FriendDto friend, int size) {
+    final teamIndex = _teamIndexOf(friend.user.id);
+    final waiting = _pending;
+    final isPending = waiting?.id == friend.user.id;
+    final full = waiting == null && _teams.length >= size;
+    return _pickerRow(
+      friend: friend,
+      selected: isPending,
+      disabled: teamIndex != null || full,
+      onTap: () => setState(() {
+        if (isPending) {
+          _pending = null;
+        } else if (waiting == null) {
+          _pending = friend.user;
+        } else {
+          _teams.add((waiting, friend.user));
+          _pending = null;
+        }
+      }),
+      trailing: teamIndex != null
+          ? _pickTag('$teamIndex-jamoa', WBColors.textA(.5))
+          : isPending
+              ? _pickTag('juftini tanlang', WBColors.accent)
+              : _checkCircle(false),
+    );
+  }
+
   List<UserDto> _selectedUsers() =>
       widget.friends.where((f) => _selected.contains(f.user.id)).map((f) => f.user).toList();
 
-  Widget _notEnoughFriends(int size) => Center(
+  Widget _pickTag(String label, Color color) =>
+      Text(label, style: WBText.mono(size: 10.5, weight: FontWeight.w600, color: color, letterSpacing: .04));
+
+  Widget _searchField() => Container(
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: WBColors.whiteA(.05),
+          border: Border.all(color: WBColors.whiteA(.11)),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.search, size: 17, color: WBColors.textA(.4)),
+            const SizedBox(width: 9),
+            Expanded(
+              child: TextField(
+                controller: _search,
+                onChanged: (value) => setState(() => _query = value),
+                style: WBText.grotesk(size: 14),
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  hintText: "do'stlaringiz orasidan qidiring",
+                  hintStyle: WBText.grotesk(size: 14, color: WBColors.textA(.4)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _notEnoughFriends(String requirement) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -400,7 +642,7 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
               Text("Yetarli do'stingiz yo'q", style: WBText.grotesk(size: 16, weight: FontWeight.w600)),
               const SizedBox(height: 8),
               Text(
-                "$size kishilik turnir uchun kamida $size ta do'st kerak, hozir ${widget.friends.length} ta bor.",
+                "$requirement, hozir ${widget.friends.length} ta bor.",
                 textAlign: TextAlign.center,
                 style: WBText.grotesk(size: 13.5, color: WBColors.textA(.5), height: 1.4),
               ),
@@ -411,17 +653,32 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
 
   Widget _friendRow(FriendDto friend, int size) {
     final selected = _selected.contains(friend.user.id);
-    final disabled = !selected && _selected.length >= size;
+    return _pickerRow(
+      friend: friend,
+      selected: selected,
+      disabled: !selected && _selected.length >= size,
+      onTap: () => setState(() {
+        if (selected) {
+          _selected.remove(friend.user.id);
+        } else {
+          _selected.add(friend.user.id);
+        }
+      }),
+      trailing: _checkCircle(selected),
+    );
+  }
+
+  /// One tappable friend, shared by both pickers — only what its trailing
+  /// mark says about the tap differs between them.
+  Widget _pickerRow({
+    required FriendDto friend,
+    required bool selected,
+    required bool disabled,
+    required VoidCallback onTap,
+    required Widget trailing,
+  }) {
     return Pressable(
-      onTap: disabled
-          ? null
-          : () => setState(() {
-                if (selected) {
-                  _selected.remove(friend.user.id);
-                } else {
-                  _selected.add(friend.user.id);
-                }
-              }),
+      onTap: disabled ? null : onTap,
       borderRadius: BorderRadius.circular(17),
       child: Opacity(
         opacity: disabled ? .45 : 1,
@@ -454,23 +711,25 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
                   ],
                 ),
               ),
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: selected ? WBColors.accent : Colors.transparent,
-                  border: Border.all(color: selected ? WBColors.accent : WBColors.whiteA(.25), width: 2),
-                ),
-                alignment: Alignment.center,
-                child: selected ? Icon(Icons.check, size: 14, color: WBColors.accentInk) : null,
-              ),
+              trailing,
             ],
           ),
         ),
       ),
     );
   }
+
+  Widget _checkCircle(bool selected) => Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: selected ? WBColors.accent : Colors.transparent,
+          border: Border.all(color: selected ? WBColors.accent : WBColors.whiteA(.25), width: 2),
+        ),
+        alignment: Alignment.center,
+        child: selected ? Icon(Icons.check, size: 14, color: WBColors.accentInk) : null,
+      );
 
   Widget _avatar(UserDto user) {
     final gradient = _gradients[user.id.abs() % _gradients.length];

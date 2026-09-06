@@ -644,7 +644,9 @@ class _TournamentInviteBanner extends StatelessWidget {
                     style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
                   ),
                   Text(
-                    "turnir taklifi · ${invite.size} o'yinchi",
+                    invite.isTeam
+                        ? "2v2 turnir taklifi · ${invite.size} jamoa"
+                        : "turnir taklifi · ${invite.size} o'yinchi",
                     style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
                   ),
                 ],
@@ -676,6 +678,13 @@ class _TournamentReadyBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final opponent = prompt.opponent;
+    final opponentPartner = prompt.opponentPartner;
+    final partner = prompt.partner;
+    final opponentLabel = opponent == null
+        ? null
+        : opponentPartner == null
+            ? opponent.label
+            : '${opponent.label} + ${opponentPartner.label}';
     return Pressable(
       onTap: onTap,
       hoverColor: WBColors.greenA(.14),
@@ -706,7 +715,7 @@ class _TournamentReadyBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    opponent == null ? 'Turnir jangi tayyor' : '${opponent.label} bilan turnir jangi tayyor',
+                    opponentLabel == null ? 'Turnir jangi tayyor' : '$opponentLabel bilan turnir jangi tayyor',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
@@ -717,6 +726,13 @@ class _TournamentReadyBanner extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
                   ),
+                  if (partner != null)
+                    Text(
+                      'juftingiz: ${partner.label}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: WBText.grotesk(size: 11.5, color: WBColors.textA(.4)),
+                    ),
                 ],
               ),
             ),

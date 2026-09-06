@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../api/models.dart';
 import '../api/tournament_models.dart';
 import '../theme.dart';
 import '../widgets/primary_button.dart';
@@ -67,7 +68,7 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
   Widget build(BuildContext context) {
     final t = widget.tournament;
     final rows = widget.participants;
-    final accepted = rows?.where((p) => p.accepted).length ?? 0;
+    final accepted = rows?.where((p) => p.seatAccepted).length ?? 0;
     final ready = t != null && rows != null && accepted == t.size;
     final cancellable = t != null && (t.status == 'open' || t.status == 'in_progress');
 
@@ -80,7 +81,10 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
               : ListView(
                   padding: const EdgeInsets.fromLTRB(22, 16, 22, 12),
                   children: [
-                    Text('$accepted/${t.size} qabul qildi', style: WBText.grotesk(size: 14, color: WBColors.textA(.6))),
+                    Text(
+                      t.isTeam ? '$accepted/${t.size} jamoa qabul qildi' : '$accepted/${t.size} qabul qildi',
+                      style: WBText.grotesk(size: 14, color: WBColors.textA(.6)),
+                    ),
                     const SizedBox(height: 14),
                     for (final row in rows) ...[_row(row), const SizedBox(height: 9)],
                   ],
@@ -227,7 +231,7 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
                 ),
                 if (t != null)
                   Text(
-                    "${t.size} o'yinchi · yagona eliminatsiya",
+                    t.isTeam ? "${t.size} jamoa · 2v2 · yagona eliminatsiya" : "${t.size} o'yinchi · yagona eliminatsiya",
                     style: WBText.mono(size: 10, weight: FontWeight.w500, color: WBColors.textA(.4), letterSpacing: .1),
                   ),
               ],
@@ -278,12 +282,11 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
     );
   }
 
+  /// One seat: a lone player, or — in a 2v2 tournament — both people holding
+  /// it, each with the answer they gave for themselves, since the seat is only
+  /// ready once both have accepted.
   Widget _row(TournamentParticipantView p) {
-    final color = switch (p.status) {
-      'accepted' => WBColors.green,
-      'declined' => WBColors.red,
-      _ => WBColors.textA(.5),
-    };
+    final partnerUserId = p.partnerUserId;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -291,33 +294,50 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
         border: Border.all(color: WBColors.whiteA(.09)),
         borderRadius: BorderRadius.circular(17),
       ),
-      child: Row(
-        children: [
-          _avatar(p),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              p.user?.label ?? '#${p.userId}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: WBText.grotesk(size: 15, weight: FontWeight.w600),
+      child: partnerUserId == null
+          ? _member(p.userId, p.user, p.status, p.statusLabel)
+          : Column(
+              children: [
+                _member(p.userId, p.user, p.status, p.statusLabel, avatarSize: 34),
+                Container(margin: const EdgeInsets.symmetric(vertical: 9), height: 1, color: WBColors.whiteA(.07)),
+                _member(partnerUserId, p.partner, p.partnerStatus ?? 'invited', p.partnerStatusLabel, avatarSize: 34),
+              ],
             ),
-          ),
-          Text(p.statusLabel, style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: color)),
-        ],
-      ),
     );
   }
 
-  Widget _avatar(TournamentParticipantView p) {
-    final gradient = _gradients[p.userId.abs() % _gradients.length];
-    final color = _textColors[p.userId.abs() % _textColors.length];
+  Widget _member(int userId, UserDto? user, String status, String statusLabel, {double avatarSize = 42}) {
+    final color = switch (status) {
+      'accepted' => WBColors.green,
+      'declined' => WBColors.red,
+      _ => WBColors.textA(.5),
+    };
+    return Row(
+      children: [
+        _avatar(userId, user, avatarSize),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            user?.label ?? '#$userId',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: WBText.grotesk(size: 15, weight: FontWeight.w600),
+          ),
+        ),
+        Text(statusLabel, style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: color)),
+      ],
+    );
+  }
+
+  Widget _avatar(int userId, UserDto? user, double size) {
+    final gradient = _gradients[userId.abs() % _gradients.length];
+    final color = _textColors[userId.abs() % _textColors.length];
     return Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(gradient: gradient, borderRadius: BorderRadius.circular(14)),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(gradient: gradient, borderRadius: BorderRadius.circular(size / 3)),
       alignment: Alignment.center,
-      child: Text(p.user?.initial ?? '?', style: WBText.grotesk(size: 16, weight: FontWeight.w700, color: color)),
+      child: Text(user?.initial ?? '?', style: WBText.grotesk(size: size * 16 / 42, weight: FontWeight.w700, color: color)),
     );
   }
 }

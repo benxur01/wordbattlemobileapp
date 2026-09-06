@@ -1033,6 +1033,41 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     }
   }
 
+  /// The 2v2 half of [createAndInviteTournament]: creates a `team` tournament
+  /// — always friends-only, since nobody can self-join one — and invites each
+  /// chosen pair with a single call, the server checking the organizer against
+  /// both members of it.
+  Future<void> createAndInviteTeamTournament(int size, List<(UserDto, UserDto)> teams) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      final created = await _api.createTournament("${me?.label ?? "O'yinchi"} turniri", size, false, format: 'team');
+      var failed = 0;
+      for (final team in teams) {
+        try {
+          await _api.inviteTeamToTournament(created.id, team.$1.id, team.$2.id);
+        } on ApiException {
+          failed++;
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        organizingTournament = created;
+        organizingParticipants = null;
+        banner = failed == 0 ? null : "$failed ta jamoani taklif qilib bo'lmadi";
+      });
+      go(WBScreen.organizeTournamentManage);
+      unawaited(_loadOrganizingParticipants());
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        banner = e.message;
+      });
+    }
+  }
+
   Future<void> _loadOrganizingParticipants() async {
     final tournament = organizingTournament;
     if (tournament == null) return;
@@ -1067,7 +1102,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       if (!mounted) return;
       setState(() {
         busy = false;
-        banner = e.message;
+        // The server counts seats and phrases `not_ready` as "N/M o'yinchi",
+        // which reads wrong for a 2v2 bracket where a seat is a whole team.
+        banner = tournament.isTeam && e.code == 'not_ready' ? "Barcha jamoalar hali qabul qilmadi" : e.message;
       });
     }
   }
@@ -2486,6 +2523,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           busy: busy,
           onBack: () => go(WBScreen.friends),
           onSubmit: createAndInviteTournament,
+          onSubmitTeams: createAndInviteTeamTournament,
         ),
       WBScreen.organizeTournamentManage => OrganizeTournamentManageScreen(
           tournament: organizingTournament,

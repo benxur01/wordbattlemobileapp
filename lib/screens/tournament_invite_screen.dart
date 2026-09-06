@@ -102,9 +102,19 @@ class _TournamentInviteScreenState extends State<TournamentInviteScreen> with Si
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    "${invite.size} o'yinchi · yagona eliminatsiya",
+                    invite.isTeam
+                        ? "${invite.size} jamoa · 2v2 · yagona eliminatsiya"
+                        : "${invite.size} o'yinchi · yagona eliminatsiya",
                     style: WBText.mono(size: 13, weight: FontWeight.w500, color: WBColors.textA(.5)),
                   ),
+                  if (invite.teammate != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      "${invite.teammate!.label} bilan bir jamoada o'ynaysiz",
+                      textAlign: TextAlign.center,
+                      style: WBText.grotesk(size: 13, weight: FontWeight.w600, color: WBColors.accent),
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   Text(
                     "${invite.organizer?.label ?? 'Admin'} sizni ushbu turnirga taklif qildi. Qatnashish uchun quyidagi tugmani bosing.",

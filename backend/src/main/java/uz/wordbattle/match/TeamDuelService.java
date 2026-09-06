@@ -20,6 +20,7 @@ import java.util.concurrent.TimeoutException;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import uz.wordbattle.config.AppProperties;
@@ -29,6 +30,7 @@ import uz.wordbattle.friend.PresenceService;
 import uz.wordbattle.match.MatchEntity.EndReason;
 import uz.wordbattle.match.TeamDuelMessages.TeamChainEntry;
 import uz.wordbattle.match.TeamDuelMessages.TeamSpectateChainEntry;
+import uz.wordbattle.tournament.TournamentService;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserDto;
 import uz.wordbattle.user.UserService;
@@ -81,6 +83,14 @@ public class TeamDuelService {
     private final Map<Long, MissedFinish> missedFinishes = new ConcurrentHashMap<>();
 
     /**
+     * Which team duels were started as a tournament match, keyed by duel id —
+     * {@code DuelService}'s map of the same name, for the same single reader:
+     * {@link #settle} tells {@link TournamentService} to advance the bracket,
+     * and an ordinary 2v2 duel never has to know this exists.
+     */
+    private final Map<String, Long> tournamentMatchByDuel = new ConcurrentHashMap<>();
+
+    /**
      * Who is watching each live team duel, keyed by duel id — and the reverse
      * lookup, so a spectator's own disconnect can find their entry without a
      * scan. The 2v2 copy of {@code DuelService}'s two maps of the same names,
@@ -116,6 +126,7 @@ public class TeamDuelService {
     private final TeamMatchResultService results;
     private final FriendService friends;
     private final DuelService oneOnOneDuels;
+    private final TournamentService tournaments;
 
     /**
      * {@code oneOnOneDuels} is read only for {@link DuelService#isPlaying(long)}
@@ -124,6 +135,14 @@ public class TeamDuelService {
      * both at once by two unrelated queues would corrupt whichever registry
      * loses the race. {@link DuelService} has no reference back to this class,
      * so there is no cycle to build a {@code @Lazy} proxy around.
+     *
+     * <p>{@code tournaments} is the one that does need it, for exactly the
+     * reason {@code DuelService}'s field of the same name is {@code @Lazy}:
+     * {@link TournamentService} starts a {@code TEAM} tournament's match
+     * through this class, so a straight constructor cycle between the two beans
+     * would refuse to come up at all. The proxy defers resolving the real bean
+     * until {@link #settle} first reaches for it, by which time both are fully
+     * constructed.
      */
     public TeamDuelService(
             AppProperties props,
@@ -133,7 +152,8 @@ public class TeamDuelService {
             PresenceService presence,
             TeamMatchResultService results,
             FriendService friends,
-            DuelService oneOnOneDuels) {
+            DuelService oneOnOneDuels,
+            @Lazy TournamentService tournaments) {
         this.props = props;
         this.dictionary = dictionary;
         this.sockets = sockets;
@@ -142,6 +162,7 @@ public class TeamDuelService {
         this.results = results;
         this.friends = friends;
         this.oneOnOneDuels = oneOnOneDuels;
+        this.tournaments = tournaments;
     }
 
     /** Ends every live 2v2 duel unrated on shutdown — see {@code DuelService.shutdown}. */
@@ -211,6 +232,28 @@ public class TeamDuelService {
             armTurnTimer(session);
         }
         log.info("Team duel {} started: {} vs {}", session.id(), teamA(session), teamB(session));
+        return session;
+    }
+
+    /**
+     * Starts a 2v2 duel for a tournament round and tags it, so that
+     * {@link #settle} reports its result back to {@link TournamentService}
+     * instead of only to the four players — {@code
+     * DuelService.startTournamentMatch} with two people on each side.
+     *
+     * <p>Member <em>one</em> of each side is that team's primary member: the id
+     * the bracket seeded, paired and will advance the winning team by, and the
+     * one reported back as the winner. Null under the same conditions
+     * {@link #start} is: any of the four already playing, or banned.
+     */
+    public TeamDuelSession startTournamentMatch(
+            long teamAMemberOne,
+            long teamAMemberTwo,
+            long teamBMemberOne,
+            long teamBMemberTwo,
+            long tournamentMatchId) {
+        TeamDuelSession session = start(teamAMemberOne, teamAMemberTwo, teamBMemberOne, teamBMemberTwo);
+        if (session != null) tournamentMatchByDuel.put(session.id(), tournamentMatchId);
         return session;
     }
 
@@ -638,6 +681,22 @@ public class TeamDuelService {
 
     private void settle(TeamDuelSession session, boolean teamAWon, EndReason reason) {
         TeamMatchResultService.Outcome outcome = recordResult(session, teamAWon, reason);
+
+        // Read and cleared here, before any of the four is told, exactly where
+        // DuelService.settle does the same for a 1v1 tournament match — and
+        // reported as the winning team's primary member, the only id the
+        // bracket knows that team by.
+        Long tournamentMatchId = tournamentMatchByDuel.remove(session.id());
+        if (tournamentMatchId != null) {
+            long winningPrimaryUserId = (teamAWon ? session.teamA() : session.teamB()).get(0);
+            try {
+                tournaments.onTeamDuelFinished(tournamentMatchId, winningPrimaryUserId, outcome.matchId());
+            } catch (RuntimeException e) {
+                log.error("Tournament match {} could not be advanced from team duel {}",
+                        tournamentMatchId, session.id(), e);
+            }
+        }
+
         try {
             for (long playerId : session.order()) {
                 notifyFinish(session, playerId, teamAWon, reason, outcome);

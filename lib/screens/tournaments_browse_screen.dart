@@ -173,6 +173,7 @@ class TournamentsBrowseScreen extends StatelessWidget {
                 Row(
                   children: [
                     _kindBadge(t.kind),
+                    if (t.isTeam) ...[const SizedBox(width: 6), _teamBadge()],
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -216,10 +217,30 @@ class TournamentsBrowseScreen extends StatelessWidget {
     );
   }
 
+  /// A 2v2 bracket, marked so it is never mistaken for a 1v1 row nobody can
+  /// join — see [_action] for why it has no "Qo'shilish" of its own.
+  Widget _teamBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: WBColors.indigoA(.14),
+        border: Border.all(color: WBColors.indigoA(.4)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '2v2',
+        style: WBText.mono(size: 9.5, weight: FontWeight.w600, color: WBColors.indigo, letterSpacing: .04),
+      ),
+    );
+  }
+
   /// "Kirish" to spectate a live or finished bracket; "Qo'shilish" to
   /// self-join an open public/global one, greyed with the rating floor
   /// itself as its label when this player falls short of it — never a raw
-  /// error after the tap for a case the row could already see coming.
+  /// error after the tap for a case the row could already see coming. A team
+  /// bracket offers neither while it is open: its seats take two people the
+  /// organizer names themselves, so there is nothing here for a stranger to
+  /// tap — see [TournamentSummary.isJoinable].
   Widget _action(TournamentSummary t) {
     if (t.status == 'in_progress' || t.status == 'completed') {
       return _pillButton(label: 'Kirish', onTap: () => onSpectate(t.id));

@@ -7,10 +7,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +23,8 @@ import uz.wordbattle.common.ApiException;
 import uz.wordbattle.friend.FriendService;
 import uz.wordbattle.match.DuelService;
 import uz.wordbattle.match.DuelSession;
+import uz.wordbattle.match.TeamDuelService;
+import uz.wordbattle.match.TeamDuelSession;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserDto;
 import uz.wordbattle.user.UserRepository;
@@ -50,6 +54,19 @@ import uz.wordbattle.ws.SocketRegistry;
  * advances itself: {@link #onDuelFinished} is {@link DuelService}'s hook for a
  * duel tagged as a tournament match, and it is the only thing that ever moves
  * a winner into the next round.
+ *
+ * <p>A {@code TEAM} tournament — see {@link TournamentEntity.Format} — seats a
+ * pair of players where a {@code SOLO} one seats a player, and changes almost
+ * nothing here. Each team's <em>primary</em> member is the id every bracket
+ * mechanism in this class and in {@link TournamentBracket} goes on working
+ * against unchanged: seeding, pairing, {@link #advance}, {@code findReadyFor}.
+ * The teammate is carried beside it and read at exactly four points — who may
+ * be invited ({@link #inviteTeamByUser}), how a seat is rated for seeding
+ * ({@link #seedRatingOf}), which engine plays a round ({@link #startMatch}),
+ * and who is told about it ({@link #notifyMatchReady} and the DTOs it builds).
+ * {@link #onTeamDuelFinished} is {@link TeamDuelService}'s hook, and reports a
+ * winning team by its primary member so that {@link #advance} never has to
+ * know a team was playing at all.
  */
 @Service
 public class TournamentService {
@@ -71,6 +88,7 @@ public class TournamentService {
     private final SocketRegistry sockets;
     private final AdminAuditService audit;
     private final DuelService duels;
+    private final TeamDuelService teamDuels;
 
     /**
      * One lock per tournament, guarding every read-modify-write that could
@@ -97,7 +115,8 @@ public class TournamentService {
             FriendService friends,
             SocketRegistry sockets,
             AdminAuditService audit,
-            DuelService duels) {
+            DuelService duels,
+            TeamDuelService teamDuels) {
         this.tournaments = tournaments;
         this.participants = participants;
         this.matches = matches;
@@ -107,14 +126,20 @@ public class TournamentService {
         this.sockets = sockets;
         this.audit = audit;
         this.duels = duels;
+        this.teamDuels = teamDuels;
     }
 
     // ------------------------------------------------------------- admin: create, invite, start
 
     @Transactional
     public TournamentEntity create(long adminId, String name, int size) {
-        TournamentEntity tournament =
-                createEntity(adminId, name, size, TournamentEntity.Kind.ADMIN, TournamentEntity.Visibility.PRIVATE);
+        TournamentEntity tournament = createEntity(
+                adminId,
+                name,
+                size,
+                TournamentEntity.Kind.ADMIN,
+                TournamentEntity.Visibility.PRIVATE,
+                TournamentEntity.Format.SOLO);
         audit.record(adminId, AdminAuditService.TOURNAMENT_CREATE, null, tournament.getName() + " (" + size + ")");
         return tournament;
     }
@@ -128,7 +153,18 @@ public class TournamentService {
      */
     @Transactional
     public TournamentEntity createByUser(long userId, String name, int size, TournamentEntity.Visibility visibility) {
-        return createEntity(userId, name, size, TournamentEntity.Kind.FRIEND, visibility);
+        return createByUser(userId, name, size, visibility, TournamentEntity.Format.SOLO);
+    }
+
+    /** The same, when the organizer asks for a 2v2 bracket instead of the one-player-per-seat default. */
+    @Transactional
+    public TournamentEntity createByUser(
+            long userId,
+            String name,
+            int size,
+            TournamentEntity.Visibility visibility,
+            TournamentEntity.Format format) {
+        return createEntity(userId, name, size, TournamentEntity.Kind.FRIEND, visibility, format);
     }
 
     /**
@@ -145,6 +181,16 @@ public class TournamentService {
         }
     }
 
+    /** The same for {@code format} — {@code "solo"} when absent or blank, or {@code "team"} for a 2v2 bracket. */
+    public TournamentEntity.Format parseFormat(String raw) {
+        if (raw == null || raw.isBlank()) return TournamentEntity.Format.SOLO;
+        try {
+            return TournamentEntity.Format.valueOf(raw.strip().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw ApiException.badRequest("invalid_format", "Format solo yoki team bo'lishi kerak");
+        }
+    }
+
     /** {@code GlobalTournamentScheduler}'s own creation path — no organizer to audit, since nobody is acting on anybody's behalf here. */
     @Transactional
     public TournamentEntity createGlobalTournament(int size, double minRating) {
@@ -152,14 +198,19 @@ public class TournamentService {
     }
 
     private TournamentEntity createEntity(
-            long creatorId, String name, int size, TournamentEntity.Kind kind, TournamentEntity.Visibility visibility) {
+            long creatorId,
+            String name,
+            int size,
+            TournamentEntity.Kind kind,
+            TournamentEntity.Visibility visibility,
+            TournamentEntity.Format format) {
         String trimmed = name == null ? "" : name.strip();
         if (trimmed.isEmpty()) throw ApiException.badRequest("name_required", "Turnir nomini kiriting");
         if (trimmed.length() > 64) throw ApiException.badRequest("name_too_long", "Ko'pi bilan 64 ta belgi");
         if (!ALLOWED_SIZES.contains(size)) {
             throw ApiException.badRequest("invalid_size", "O'lcham 4, 8, 16 yoki 32 bo'lishi kerak");
         }
-        return tournaments.save(new TournamentEntity(trimmed, size, creatorId, kind, visibility));
+        return tournaments.save(new TournamentEntity(trimmed, size, creatorId, kind, visibility, format));
     }
 
     /**
@@ -197,7 +248,7 @@ public class TournamentService {
         TournamentParticipant saved = inviteInternal(tournament, userId);
         if (saved == null) return;
         audit.record(adminId, AdminAuditService.TOURNAMENT_INVITE, userId, tournament.getName());
-        sockets.send(userId, "tournament.invite", inviteView(tournament, saved));
+        sockets.send(userId, "tournament.invite", inviteView(tournament, saved, userId));
     }
 
     /**
@@ -215,11 +266,44 @@ public class TournamentService {
         }
         TournamentParticipant saved = inviteInternal(tournament, userId);
         if (saved == null) return;
-        sockets.send(userId, "tournament.invite", inviteView(tournament, saved));
+        sockets.send(userId, "tournament.invite", inviteView(tournament, saved, userId));
+    }
+
+    /**
+     * {@link #inviteByUser} for a {@code TEAM} tournament, where a seat is
+     * offered to two people at once rather than one. The organizer has to be a
+     * friend of both — one friend cannot bring a stranger in behind them — and
+     * each of the two answers the invite for themselves; the seat only counts
+     * towards the bracket once both have.
+     *
+     * <p>{@code primaryUserId} is the member the bracket will seed, pair and
+     * advance this team by; which of the two it is changes nothing a player can
+     * see.
+     */
+    @Transactional
+    public void inviteTeamByUser(long organizerId, long tournamentId, long primaryUserId, long partnerUserId) {
+        TournamentEntity tournament = require(tournamentId);
+        requireOrganizer(tournament, organizerId);
+        if (tournament.getFormat() != TournamentEntity.Format.TEAM) {
+            throw ApiException.badRequest("not_a_team_tournament", "Bu turnirga jamoa taklif qilinmaydi");
+        }
+        if (primaryUserId == partnerUserId) {
+            throw ApiException.badRequest("same_player", "Jamoada ikki xil o'yinchi bo'lishi kerak");
+        }
+        if (!friends.areFriends(organizerId, primaryUserId) || !friends.areFriends(organizerId, partnerUserId)) {
+            throw ApiException.badRequest("not_friends", "Faqat do'stlaringizni turnirga taklif qila olasiz");
+        }
+        TournamentParticipant saved = inviteTeamInternal(tournament, primaryUserId, partnerUserId);
+        if (saved == null) return;
+        sockets.send(primaryUserId, "tournament.invite", inviteView(tournament, saved, primaryUserId));
+        sockets.send(partnerUserId, "tournament.invite", inviteView(tournament, saved, partnerUserId));
     }
 
     /** @return the saved invite, or null when the player had already accepted and there is nothing to (re)send. */
     private TournamentParticipant inviteInternal(TournamentEntity tournament, long userId) {
+        if (tournament.getFormat() == TournamentEntity.Format.TEAM) {
+            throw ApiException.badRequest("team_invite_required", "Bu turnirga yakka o'yinchi taklif qilinmaydi");
+        }
         if (tournament.getStatus() != TournamentEntity.Status.OPEN) {
             throw ApiException.badRequest("tournament_not_open", "Turnir allaqachon boshlangan");
         }
@@ -234,6 +318,32 @@ public class TournamentService {
             participant.reinvite();
         }
         return participants.save(participant);
+    }
+
+    /** {@link #inviteInternal} for a whole seat — same re-invite rules, refusing anyone already seated elsewhere in this bracket. */
+    private TournamentParticipant inviteTeamInternal(
+            TournamentEntity tournament, long primaryUserId, long partnerUserId) {
+        if (tournament.getStatus() != TournamentEntity.Status.OPEN) {
+            throw ApiException.badRequest("tournament_not_open", "Turnir allaqachon boshlangan");
+        }
+        userService.require(primaryUserId);
+        userService.require(partnerUserId);
+
+        TournamentParticipant seat = participants.findSeatOf(tournament.getId(), primaryUserId).orElse(null);
+        TournamentParticipant partnerSeat = participants.findSeatOf(tournament.getId(), partnerUserId).orElse(null);
+        if (seat == null && partnerSeat == null) {
+            return participants.save(new TournamentParticipant(tournament.getId(), primaryUserId, partnerUserId));
+        }
+
+        // Whichever of the two was found already holds a seat: it has to be
+        // this very pair's, or one of them is being invited into a second team.
+        TournamentParticipant held = seat != null ? seat : partnerSeat;
+        if (!held.isHeldBy(primaryUserId, partnerUserId)) {
+            throw ApiException.badRequest("already_seated", "Bu o'yinchi turnirda allaqachon qatnashmoqda");
+        }
+        if (held.fullyAccepted()) return null;
+        held.reinvite();
+        return participants.save(held);
     }
 
     /**
@@ -263,8 +373,7 @@ public class TournamentService {
         if (tournament.getStatus() != TournamentEntity.Status.OPEN) {
             throw ApiException.conflict("tournament_already_started", "Turnir allaqachon boshlangan");
         }
-        List<TournamentParticipant> accepted =
-                participants.findByTournamentIdAndStatus(tournamentId, TournamentParticipant.Status.ACCEPTED);
+        List<TournamentParticipant> accepted = acceptedSeats(tournamentId);
         if (accepted.size() != tournament.getSize()) {
             throw ApiException.badRequest(
                     "not_ready", accepted.size() + "/" + tournament.getSize() + " o'yinchi qabul qildi");
@@ -272,29 +381,31 @@ public class TournamentService {
 
         Map<Long, User> byUserId = new HashMap<>();
         for (TournamentParticipant participant : accepted) {
-            User user = users.findById(participant.getUserId())
-                    .filter(u -> !u.isDeleted() && !u.isBanned())
-                    .orElse(null);
-            if (user == null) {
-                throw ApiException.badRequest(
-                        "participant_unavailable",
-                        "Qatnashchilardan biri endi mavjud emas — qaytadan qabul qilishni so'rang");
+            for (long memberId : membersOf(participant)) {
+                User user = users.findById(memberId)
+                        .filter(u -> !u.isDeleted() && !u.isBanned())
+                        .orElse(null);
+                if (user == null) {
+                    throw ApiException.badRequest(
+                            "participant_unavailable",
+                            "Qatnashchilardan biri endi mavjud emas — qaytadan qabul qilishni so'rang");
+                }
+                byUserId.put(memberId, user);
             }
-            byUserId.put(participant.getUserId(), user);
         }
 
         // Highest rating first, ties broken by id so two equal ratings seed the
         // same way every time this runs.
         List<TournamentParticipant> ordered = accepted.stream()
                 .sorted(Comparator
-                        .<TournamentParticipant>comparingDouble(p -> -byUserId.get(p.getUserId()).getRating())
+                        .<TournamentParticipant>comparingDouble(p -> -seedRatingOf(p, byUserId))
                         .thenComparing(TournamentParticipant::getUserId))
                 .toList();
-        Map<Integer, Long> userBySeed = new HashMap<>();
+        Map<Integer, TournamentParticipant> seatBySeed = new HashMap<>();
         for (int i = 0; i < ordered.size(); i++) {
             int seed = i + 1;
             ordered.get(i).setSeed(seed);
-            userBySeed.put(seed, ordered.get(i).getUserId());
+            seatBySeed.put(seed, ordered.get(i));
         }
         participants.saveAll(ordered);
 
@@ -304,9 +415,13 @@ public class TournamentService {
         List<int[]> firstRound = TournamentBracket.firstRoundPairs(size);
         for (int slot = 0; slot < firstRound.size(); slot++) {
             int[] pair = firstRound.get(slot);
+            TournamentParticipant one = seatBySeed.get(pair[0]);
+            TournamentParticipant two = seatBySeed.get(pair[1]);
             TournamentMatch match = new TournamentMatch(tournamentId, 1, slot);
-            match.setPlayerOneUserId(userBySeed.get(pair[0]));
-            match.setPlayerTwoUserId(userBySeed.get(pair[1]));
+            match.setPlayerOneUserId(one.getUserId());
+            match.setPlayerOnePartnerUserId(one.getPartnerUserId());
+            match.setPlayerTwoUserId(two.getUserId());
+            match.setPlayerTwoPartnerUserId(two.getPartnerUserId());
             match.setStatus(TournamentMatch.Status.READY);
             created.add(match);
         }
@@ -329,6 +444,38 @@ public class TournamentService {
         return saved;
     }
 
+    /**
+     * The seats that count towards filling a bracket. For a {@code SOLO}
+     * tournament these are exactly the {@code ACCEPTED} rows; a {@code TEAM}
+     * seat needs its second member's own acceptance too, so a team half of
+     * which never answered is not one of the {@code size} the bracket waits
+     * for.
+     */
+    private List<TournamentParticipant> acceptedSeats(long tournamentId) {
+        return participants.findByTournamentIdAndStatus(tournamentId, TournamentParticipant.Status.ACCEPTED).stream()
+                .filter(TournamentParticipant::fullyAccepted)
+                .toList();
+    }
+
+    /** Everyone holding this seat: one player, or a team's two. */
+    private static List<Long> membersOf(TournamentParticipant seat) {
+        return seat.getPartnerUserId() == null
+                ? List.of(seat.getUserId())
+                : List.of(seat.getUserId(), seat.getPartnerUserId());
+    }
+
+    /**
+     * What this seat is seeded on: a lone player's own rating, or a team's two
+     * averaged — the same "a pair plays as the strength of its middle" the 2v2
+     * rating settlement already builds its synthetic opponent from, see {@code
+     * TeamMatchResultService}.
+     */
+    private static double seedRatingOf(TournamentParticipant seat, Map<Long, User> byUserId) {
+        double own = byUserId.get(seat.getUserId()).getRating();
+        if (seat.getPartnerUserId() == null) return own;
+        return (own + byUserId.get(seat.getPartnerUserId()).getRating()) / 2.0;
+    }
+
     // ------------------------------------------------------------------------ public: self-join
 
     /**
@@ -342,6 +489,10 @@ public class TournamentService {
      * {@link #onDuelFinished} uses: two players racing for the last open slot
      * must not both see room and both get seated, which an unguarded
      * check-then-insert would allow.
+     *
+     * <p>Closed to a {@code TEAM} bracket, whose seats are held by two: there
+     * is nobody for a stranger arriving on their own to play alongside, and
+     * this is the only way into a tournament that does not name both.
      */
     @Transactional
     public TournamentEntity join(long userId, long tournamentId) {
@@ -349,7 +500,8 @@ public class TournamentService {
         synchronized (tournamentLocks.computeIfAbsent(tournamentId, id -> new Object())) {
             TournamentEntity tournament = require(tournamentId);
             if (tournament.getStatus() != TournamentEntity.Status.OPEN
-                    || tournament.getVisibility() != TournamentEntity.Visibility.PUBLIC) {
+                    || tournament.getVisibility() != TournamentEntity.Visibility.PUBLIC
+                    || tournament.getFormat() != TournamentEntity.Format.SOLO) {
                 throw ApiException.badRequest("tournament_not_joinable", "Bu turnirga o'zingiz qo'shila olmaysiz");
             }
             if (tournament.getKind() == TournamentEntity.Kind.GLOBAL && user.getRating() < tournament.getMinRating()) {
@@ -368,9 +520,7 @@ public class TournamentService {
                 participants.save(existing);
             }
 
-            long acceptedCount = participants
-                    .findByTournamentIdAndStatus(tournamentId, TournamentParticipant.Status.ACCEPTED)
-                    .size();
+            long acceptedCount = acceptedSeats(tournamentId).size();
             return acceptedCount == tournament.getSize() ? startInternal(tournament) : tournament;
         }
     }
@@ -407,9 +557,11 @@ public class TournamentService {
         tournament.setFinishedAt(Instant.now());
         TournamentEntity saved = tournaments.save(tournament);
 
+        Map<String, Object> payload = Map.of("tournamentId", tournament.getId(), "name", tournament.getName());
         for (TournamentParticipant participant : participantsOf(tournament.getId())) {
-            sockets.send(participant.getUserId(), "tournament.cancelled",
-                    Map.of("tournamentId", tournament.getId(), "name", tournament.getName()));
+            for (long memberId : membersOf(participant)) {
+                sockets.send(memberId, "tournament.cancelled", payload);
+            }
         }
         return saved;
     }
@@ -418,35 +570,34 @@ public class TournamentService {
 
     @Transactional
     public void accept(long userId, long tournamentId) {
-        TournamentParticipant participant = requireParticipant(tournamentId, userId);
-        TournamentEntity tournament = require(tournamentId);
-        if (tournament.getStatus() == TournamentEntity.Status.CANCELLED) {
-            throw ApiException.conflict("tournament_cancelled", "Turnir bekor qilingan");
-        }
-        if (participant.getStatus() != TournamentParticipant.Status.INVITED) {
-            throw ApiException.conflict("invite_resolved", "Taklif allaqachon hal qilingan");
-        }
-        participant.accept();
+        TournamentParticipant participant = requireAnswerable(tournamentId, userId);
+        participant.acceptAs(userId);
         participants.save(participant);
     }
 
     @Transactional
     public void decline(long userId, long tournamentId) {
-        TournamentParticipant participant = requireParticipant(tournamentId, userId);
-        TournamentEntity tournament = require(tournamentId);
-        if (tournament.getStatus() == TournamentEntity.Status.CANCELLED) {
-            throw ApiException.conflict("tournament_cancelled", "Turnir bekor qilingan");
-        }
-        if (participant.getStatus() != TournamentParticipant.Status.INVITED) {
-            throw ApiException.conflict("invite_resolved", "Taklif allaqachon hal qilingan");
-        }
-        participant.decline();
+        TournamentParticipant participant = requireAnswerable(tournamentId, userId);
+        participant.declineAs(userId);
         participants.save(participant);
     }
 
-    private TournamentParticipant requireParticipant(long tournamentId, long userId) {
-        return participants.findByTournamentIdAndUserId(tournamentId, userId)
+    /**
+     * The seat this player may still answer for. In a team's seat each of the
+     * two answers for themselves, so what has to be unanswered is this
+     * player's own half of it rather than the seat as a whole — for a
+     * {@code SOLO} seat the two are the same thing.
+     */
+    private TournamentParticipant requireAnswerable(long tournamentId, long userId) {
+        TournamentParticipant participant = participants.findSeatOf(tournamentId, userId)
                 .orElseThrow(() -> ApiException.notFound("invite_not_found", "Taklif topilmadi"));
+        if (require(tournamentId).getStatus() == TournamentEntity.Status.CANCELLED) {
+            throw ApiException.conflict("tournament_cancelled", "Turnir bekor qilingan");
+        }
+        if (participant.answerOf(userId) != TournamentParticipant.Status.INVITED) {
+            throw ApiException.conflict("invite_resolved", "Taklif allaqachon hal qilingan");
+        }
+        return participant;
     }
 
     // --------------------------------------------------------- participant: start a ready match
@@ -455,7 +606,9 @@ public class TournamentService {
      * The lobby's "Boshlash" button on a ready tournament match. Either player
      * may press it — both already committed to playing by accepting the
      * tournament — and whichever one does starts the duel for both, the same
-     * way accepting a friend's challenge needs only the acceptor's tap.
+     * way accepting a friend's challenge needs only the acceptor's tap. In a
+     * {@code TEAM} bracket any of the four may press it, and it starts the one
+     * 2v2 duel for all of them.
      */
     public void startMatch(long userId, long tournamentMatchId) {
         TournamentMatch match = matches.findById(tournamentMatchId)
@@ -463,7 +616,8 @@ public class TournamentService {
         if (!match.hasPlayer(userId)) {
             throw ApiException.badRequest("not_your_match", "Bu turnir jangi sizniki emas");
         }
-        if (require(match.getTournamentId()).getStatus() == TournamentEntity.Status.CANCELLED) {
+        TournamentEntity tournament = require(match.getTournamentId());
+        if (tournament.getStatus() == TournamentEntity.Status.CANCELLED) {
             sockets.sendError(userId, "tournament_cancelled", "Turnir bekor qilingan");
             return;
         }
@@ -471,15 +625,37 @@ public class TournamentService {
             sockets.sendError(userId, "match_not_ready", "Jang hali tayyor emas");
             return;
         }
-        DuelSession session =
-                duels.startTournamentMatch(match.getPlayerOneUserId(), match.getPlayerTwoUserId(), match.getId());
-        if (session == null) {
+        if (!startDuelFor(tournament, match)) {
             sockets.sendError(userId, "duel_unavailable", "Jang boshlanmadi, birozdan keyin urinib ko'ring");
             return;
         }
         match.setStatus(TournamentMatch.Status.LIVE);
         matches.save(match);
         broadcastBracketUpdate(match.getTournamentId());
+    }
+
+    /**
+     * Hands this round to whichever engine plays it — the 1v1 {@link
+     * DuelService} or, for a {@code TEAM} bracket, the 2v2 {@link
+     * TeamDuelService}, with each slot's primary member passed first so the
+     * winner comes back as an id this bracket already knows.
+     *
+     * @return false when the engine refused, exactly as it does for a player
+     *     who is already playing or banned.
+     */
+    private boolean startDuelFor(TournamentEntity tournament, TournamentMatch match) {
+        if (tournament.getFormat() == TournamentEntity.Format.TEAM) {
+            TeamDuelSession session = teamDuels.startTournamentMatch(
+                    match.getPlayerOneUserId(),
+                    match.getPlayerOnePartnerUserId(),
+                    match.getPlayerTwoUserId(),
+                    match.getPlayerTwoPartnerUserId(),
+                    match.getId());
+            return session != null;
+        }
+        DuelSession session =
+                duels.startTournamentMatch(match.getPlayerOneUserId(), match.getPlayerTwoUserId(), match.getId());
+        return session != null;
     }
 
     // ------------------------------------------------------------------- bracket advancement
@@ -500,14 +676,35 @@ public class TournamentService {
         if (match == null || match.getStatus() == TournamentMatch.Status.DONE) return;
 
         synchronized (tournamentLocks.computeIfAbsent(match.getTournamentId(), id -> new Object())) {
-            advance(match, winnerUserId, matchEntityId);
+            match.setMatchId(matchEntityId);
+            advance(match, winnerUserId);
         }
         broadcastBracketUpdate(match.getTournamentId());
     }
 
-    private void advance(TournamentMatch match, long winnerUserId, Long matchEntityId) {
+    /**
+     * {@link TeamDuelService}'s hook, and {@link #onDuelFinished} in every
+     * other respect: a 2v2 duel tagged as tournament match {@code
+     * tournamentMatchId} has settled, and the team that won it is named by its
+     * primary member — the only id this bracket ever knew that team by, which
+     * is why {@link #advance} below needs to know nothing about teams at all.
+     * The settled duel is recorded in {@code teamMatchId} rather than {@code
+     * matchId}: a 2v2 result lives in its own table.
+     */
+    @Transactional
+    public void onTeamDuelFinished(long tournamentMatchId, long winningPrimaryUserId, Long teamMatchEntityId) {
+        TournamentMatch match = matches.findById(tournamentMatchId).orElse(null);
+        if (match == null || match.getStatus() == TournamentMatch.Status.DONE) return;
+
+        synchronized (tournamentLocks.computeIfAbsent(match.getTournamentId(), id -> new Object())) {
+            match.setTeamMatchId(teamMatchEntityId);
+            advance(match, winningPrimaryUserId);
+        }
+        broadcastBracketUpdate(match.getTournamentId());
+    }
+
+    private void advance(TournamentMatch match, long winnerUserId) {
         match.setWinnerUserId(winnerUserId);
-        match.setMatchId(matchEntityId);
         match.setStatus(TournamentMatch.Status.DONE);
         matches.save(match);
 
@@ -531,10 +728,16 @@ public class TournamentService {
                 .orElseThrow(() -> new IllegalStateException(
                         "Bracket slot missing: tournament " + match.getTournamentId()
                                 + " round " + nextRound + " slot " + nextSlot));
+        // Null throughout a SOLO bracket, so this carries a whole team forward
+        // without changing anything about how one player is carried forward.
+        Long winnerPartnerUserId =
+                match.onSlotOne(winnerUserId) ? match.getPlayerOnePartnerUserId() : match.getPlayerTwoPartnerUserId();
         if (match.getSlot() % 2 == 0) {
             next.setPlayerOneUserId(winnerUserId);
+            next.setPlayerOnePartnerUserId(winnerPartnerUserId);
         } else {
             next.setPlayerTwoUserId(winnerUserId);
+            next.setPlayerTwoPartnerUserId(winnerPartnerUserId);
         }
         boolean justFilled = next.bothSlotsFilled() && next.getStatus() == TournamentMatch.Status.PENDING;
         if (justFilled) next.setStatus(TournamentMatch.Status.READY);
@@ -545,19 +748,67 @@ public class TournamentService {
 
     // --------------------------------------------------------------------------- socket, reads
 
-    private void notifyMatchReady(TournamentEntity tournament, TournamentMatch match) {
-        Long playerOne = match.getPlayerOneUserId();
-        Long playerTwo = match.getPlayerTwoUserId();
-        if (playerOne == null || playerTwo == null) return;
-        Map<Long, UserDto> byId = userService.allByIds(Set.of(playerOne, playerTwo)).stream()
-                .collect(Collectors.toMap(User::getId, UserDto::of));
-        sockets.send(playerOne, "tournament.match_ready", matchPrompt(tournament, match, byId.get(playerTwo)));
-        sockets.send(playerTwo, "tournament.match_ready", matchPrompt(tournament, match, byId.get(playerOne)));
+    /** Everyone this match is between: two players, or a {@code TEAM} bracket's four. */
+    private static List<Long> membersOf(TournamentMatch match) {
+        return Stream.of(
+                        match.getPlayerOneUserId(),
+                        match.getPlayerOnePartnerUserId(),
+                        match.getPlayerTwoUserId(),
+                        match.getPlayerTwoPartnerUserId())
+                .filter(Objects::nonNull)
+                .toList();
     }
 
-    private TournamentMatchPromptDto matchPrompt(TournamentEntity tournament, TournamentMatch match, UserDto opponent) {
+    private void notifyMatchReady(TournamentEntity tournament, TournamentMatch match) {
+        if (!match.bothSlotsFilled()) return;
+        List<Long> members = membersOf(match);
+        Map<Long, UserDto> byId = userService.allByIds(members).stream()
+                .collect(Collectors.toMap(User::getId, UserDto::of));
+        for (long memberId : members) {
+            sockets.send(memberId, "tournament.match_ready", matchPrompt(tournament, match, memberId, byId));
+        }
+    }
+
+    private TournamentMatchPromptDto matchPrompt(TournamentEntity tournament, TournamentMatch match, long viewerId) {
+        Map<Long, UserDto> byId = userService.allByIds(membersOf(match)).stream()
+                .collect(Collectors.toMap(User::getId, UserDto::of));
+        return matchPrompt(tournament, match, viewerId, byId);
+    }
+
+    /**
+     * The prompt as one of the match's players sees it: their own side's other
+     * member as {@code partner}, and the other side's two as {@code opponent}
+     * and {@code opponentPartner}. In a {@code SOLO} bracket both partner
+     * fields resolve to null and this is the two-person prompt it always was.
+     */
+    private TournamentMatchPromptDto matchPrompt(
+            TournamentEntity tournament, TournamentMatch match, long viewerId, Map<Long, UserDto> byId) {
+        boolean onSlotOne = match.onSlotOne(viewerId);
+        Long partnerId = onSlotOne
+                ? otherMember(match.getPlayerOneUserId(), match.getPlayerOnePartnerUserId(), viewerId)
+                : otherMember(match.getPlayerTwoUserId(), match.getPlayerTwoPartnerUserId(), viewerId);
+        Long opponentId = onSlotOne ? match.getPlayerTwoUserId() : match.getPlayerOneUserId();
+        Long opponentPartnerId =
+                onSlotOne ? match.getPlayerTwoPartnerUserId() : match.getPlayerOnePartnerUserId();
         return new TournamentMatchPromptDto(
-                match.getId(), tournament.getId(), tournament.getName(), match.getRound(), tournament.rounds(), opponent);
+                match.getId(),
+                tournament.getId(),
+                tournament.getName(),
+                match.getRound(),
+                tournament.rounds(),
+                dtoOf(byId, opponentId),
+                tournament.getFormat().name().toLowerCase(),
+                dtoOf(byId, partnerId),
+                dtoOf(byId, opponentPartnerId));
+    }
+
+    /** Whichever of a slot's two members is not {@code viewerId} — null in a {@code SOLO} bracket, where there is only one. */
+    private static Long otherMember(Long primaryUserId, Long partnerUserId, long viewerId) {
+        return primaryUserId != null && primaryUserId == viewerId ? partnerUserId : primaryUserId;
+    }
+
+    private static UserDto dtoOf(Map<Long, UserDto> byId, Long userId) {
+        return userId == null ? null : byId.get(userId);
     }
 
     /**
@@ -571,16 +822,24 @@ public class TournamentService {
      */
     private void broadcastBracketUpdate(long tournamentId) {
         Map<String, Object> payload = Map.of("tournamentId", tournamentId);
-        for (TournamentParticipant participant :
-                participants.findByTournamentIdAndStatus(tournamentId, TournamentParticipant.Status.ACCEPTED)) {
-            sockets.send(participant.getUserId(), "tournament.bracket_update", payload);
+        for (TournamentParticipant participant : acceptedSeats(tournamentId)) {
+            for (long memberId : membersOf(participant)) {
+                sockets.send(memberId, "tournament.bracket_update", payload);
+            }
         }
     }
 
-    private TournamentInviteDto inviteView(TournamentEntity tournament, TournamentParticipant participant) {
+    /** The invite as {@code recipientId} — either half of a team's seat — sees it: their own answer, and whoever they would be playing alongside. */
+    private TournamentInviteDto inviteView(
+            TournamentEntity tournament, TournamentParticipant participant, long recipientId) {
+        Long teammateId = otherMember(participant.getUserId(), participant.getPartnerUserId(), recipientId);
+        UserDto teammate = teammateId == null
+                ? null
+                : userService.allByIds(Set.of(teammateId)).stream().findFirst().map(UserDto::of).orElse(null);
         return new TournamentInviteDto(
                 tournament.getId(), tournament.getName(), tournament.getSize(),
-                participant.getStatus().name().toLowerCase(), organizerOf(tournament));
+                participant.answerOf(recipientId).name().toLowerCase(), organizerOf(tournament),
+                tournament.getFormat().name().toLowerCase(), teammate);
     }
 
     /** Null if the organizer's account has since been deleted, or if there never was one — see {@link UserService#allByIds}. */
@@ -599,37 +858,31 @@ public class TournamentService {
      * "Hali yo'q" — so this is what stands in for it the moment they come back.
      */
     public void sendPendingNoticesTo(long userId) {
-        for (TournamentParticipant invite : participants.findByUserIdAndStatus(userId, TournamentParticipant.Status.INVITED)) {
+        for (TournamentParticipant invite : participants.findPendingInvitesFor(userId)) {
             TournamentEntity tournament = tournaments.findById(invite.getTournamentId()).orElse(null);
             if (tournament == null || tournament.getStatus() != TournamentEntity.Status.OPEN) continue;
-            sockets.send(userId, "tournament.invite", inviteView(tournament, invite));
+            sockets.send(userId, "tournament.invite", inviteView(tournament, invite, userId));
         }
         for (TournamentMatch match : matches.findReadyFor(userId)) {
             TournamentEntity tournament = tournaments.findById(match.getTournamentId()).orElse(null);
             if (tournament == null) continue;
-            long opponentId = userId == match.getPlayerOneUserId() ? match.getPlayerTwoUserId() : match.getPlayerOneUserId();
-            UserDto opponent = userService.allByIds(Set.of(opponentId)).stream()
-                    .findFirst().map(UserDto::of).orElse(null);
-            sockets.send(userId, "tournament.match_ready", matchPrompt(tournament, match, opponent));
+            sockets.send(userId, "tournament.match_ready", matchPrompt(tournament, match, userId));
         }
     }
 
     /** Every tournament this player has ever been invited to that is still open, and every match ready for them. */
     public Mine mine(long userId) {
         List<TournamentInviteDto> invites = new ArrayList<>();
-        for (TournamentParticipant invite : participants.findByUserIdAndStatus(userId, TournamentParticipant.Status.INVITED)) {
+        for (TournamentParticipant invite : participants.findPendingInvitesFor(userId)) {
             TournamentEntity tournament = tournaments.findById(invite.getTournamentId()).orElse(null);
             if (tournament == null || tournament.getStatus() != TournamentEntity.Status.OPEN) continue;
-            invites.add(inviteView(tournament, invite));
+            invites.add(inviteView(tournament, invite, userId));
         }
         List<TournamentMatchPromptDto> ready = new ArrayList<>();
         for (TournamentMatch match : matches.findReadyFor(userId)) {
             TournamentEntity tournament = tournaments.findById(match.getTournamentId()).orElse(null);
             if (tournament == null) continue;
-            long opponentId = userId == match.getPlayerOneUserId() ? match.getPlayerTwoUserId() : match.getPlayerOneUserId();
-            UserDto opponent = userService.allByIds(Set.of(opponentId)).stream()
-                    .findFirst().map(UserDto::of).orElse(null);
-            ready.add(matchPrompt(tournament, match, opponent));
+            ready.add(matchPrompt(tournament, match, userId));
         }
         return new Mine(invites, ready);
     }
@@ -653,9 +906,7 @@ public class TournamentService {
 
     /** The row every write below hands back — including the accepted headcount a "12/32" reads off of. */
     public TournamentSummaryDto summaryOf(TournamentEntity tournament) {
-        int acceptedCount = participants
-                .findByTournamentIdAndStatus(tournament.getId(), TournamentParticipant.Status.ACCEPTED)
-                .size();
+        int acceptedCount = acceptedSeats(tournament.getId()).size();
         return new TournamentSummaryDto(
                 tournament.getId(),
                 tournament.getName(),
@@ -664,7 +915,8 @@ public class TournamentService {
                 tournament.getVisibility().name().toLowerCase(),
                 tournament.getKind().name().toLowerCase(),
                 acceptedCount,
-                tournament.getMinRating());
+                tournament.getMinRating(),
+                tournament.getFormat().name().toLowerCase());
     }
 
     /**
@@ -678,8 +930,7 @@ public class TournamentService {
         Set<Long> ids = new HashSet<>();
         if (tournament.getCreatedByAdminId() != null) ids.add(tournament.getCreatedByAdminId());
         for (TournamentMatch match : all) {
-            if (match.getPlayerOneUserId() != null) ids.add(match.getPlayerOneUserId());
-            if (match.getPlayerTwoUserId() != null) ids.add(match.getPlayerTwoUserId());
+            ids.addAll(membersOf(match));
         }
         Map<Long, UserDto> byId =
                 userService.allByIds(ids).stream().collect(Collectors.toMap(User::getId, UserDto::of));
@@ -689,18 +940,21 @@ public class TournamentService {
             TournamentDetailDto.MatchView view = new TournamentDetailDto.MatchView(
                     match.getSlot(),
                     match.getId(),
-                    match.getPlayerOneUserId() == null ? null : byId.get(match.getPlayerOneUserId()),
-                    match.getPlayerTwoUserId() == null ? null : byId.get(match.getPlayerTwoUserId()),
+                    dtoOf(byId, match.getPlayerOneUserId()),
+                    dtoOf(byId, match.getPlayerTwoUserId()),
                     match.getWinnerUserId(),
-                    match.getStatus().name().toLowerCase());
+                    match.getStatus().name().toLowerCase(),
+                    dtoOf(byId, match.getPlayerOnePartnerUserId()),
+                    dtoOf(byId, match.getPlayerTwoPartnerUserId()));
             byRound.computeIfAbsent(match.getRound(), r -> new ArrayList<>()).add(view);
         }
         List<TournamentDetailDto.RoundView> rounds = byRound.entrySet().stream()
                 .map(e -> new TournamentDetailDto.RoundView(e.getKey(), e.getValue()))
                 .toList();
 
-        UserDto champion = tournament.getChampionUserId() == null ? null : byId.get(tournament.getChampionUserId());
-        UserDto organizer = tournament.getCreatedByAdminId() == null ? null : byId.get(tournament.getCreatedByAdminId());
+        UserDto champion = dtoOf(byId, tournament.getChampionUserId());
+        UserDto championPartner = dtoOf(byId, championPartnerIdOf(tournament, all));
+        UserDto organizer = dtoOf(byId, tournament.getCreatedByAdminId());
 
         return new TournamentDetailDto(
                 tournament.getId(),
@@ -713,23 +967,49 @@ public class TournamentService {
                 organizer,
                 tournament.getVisibility().name().toLowerCase(),
                 tournament.getKind().name().toLowerCase(),
-                tournament.getMinRating());
+                tournament.getMinRating(),
+                tournament.getFormat().name().toLowerCase(),
+                championPartner);
     }
 
     /**
-     * Every invited player and how they answered, for the organizer's own setup
-     * screen — open to any signed-in player, the same way {@link #detail} is.
+     * The champion's teammate, read off the final rather than stored: the
+     * bracket already records both members of the slot that won it, and there
+     * is no second champion column that could disagree with them. Null unless
+     * a {@code TEAM} tournament has been decided.
+     */
+    private static Long championPartnerIdOf(TournamentEntity tournament, List<TournamentMatch> all) {
+        Long championUserId = tournament.getChampionUserId();
+        if (championUserId == null) return null;
+        for (TournamentMatch match : all) {
+            if (match.getRound() != tournament.rounds()) continue;
+            return match.onSlotOne(championUserId)
+                    ? match.getPlayerOnePartnerUserId()
+                    : match.getPlayerTwoPartnerUserId();
+        }
+        return null;
+    }
+
+    /**
+     * Every seat and how it was answered, for the organizer's own setup screen
+     * — open to any signed-in player, the same way {@link #detail} is.
      */
     public List<TournamentParticipantDto> participantViews(long tournamentId) {
         require(tournamentId);
         List<TournamentParticipant> rows = participantsOf(tournamentId);
         Map<Long, UserDto> byId = userService
-                .allByIds(rows.stream().map(TournamentParticipant::getUserId).collect(Collectors.toSet()))
+                .allByIds(rows.stream().flatMap(p -> membersOf(p).stream()).collect(Collectors.toSet()))
                 .stream()
                 .collect(Collectors.toMap(User::getId, UserDto::of));
         return rows.stream()
                 .map(p -> new TournamentParticipantDto(
-                        p.getUserId(), byId.get(p.getUserId()), p.getStatus().name().toLowerCase(), p.getSeed()))
+                        p.getUserId(),
+                        byId.get(p.getUserId()),
+                        p.getStatus().name().toLowerCase(),
+                        p.getSeed(),
+                        p.getPartnerUserId(),
+                        dtoOf(byId, p.getPartnerUserId()),
+                        p.getPartnerStatus() == null ? null : p.getPartnerStatus().name().toLowerCase()))
                 .toList();
     }
 }

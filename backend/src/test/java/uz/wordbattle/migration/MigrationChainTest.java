@@ -47,11 +47,12 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(15);
+        assertThat(result.migrationsExecuted).isEqualTo(16);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
-                .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15");
+                .containsExactly(
+                        "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -108,6 +109,16 @@ class MigrationChainTest {
         // can no longer be not-null now that a GLOBAL tournament has none.
         assertThat(columnsOf("fresh", "tournaments")).contains("visibility", "kind", "min_rating");
 
+        // V16 seats a pair of players where a SOLO bracket seats one: the
+        // teammate beside every id the bracket itself still keys on, their own
+        // answer to the invite, and the settled 2v2 duel behind a decided slot
+        // — which cannot share match_id, whose foreign key points at the 1v1
+        // table.
+        assertThat(columnsOf("fresh", "tournaments")).contains("format");
+        assertThat(columnsOf("fresh", "tournament_participants")).contains("partner_user_id", "partner_status");
+        assertThat(columnsOf("fresh", "tournament_matches"))
+                .contains("player_one_partner_user_id", "player_two_partner_user_id", "team_match_id");
+
         // Partial indexes are the reason this test needs PostgreSQL at all:
         // H2 accepts neither of these, so the H2 suite proves nothing about
         // them, and losing the predicate would turn one into a unique index
@@ -117,6 +128,11 @@ class MigrationChainTest {
         assertThat(indexDefinition("fresh", "ux_friend_requests_pending"))
                 .contains("UNIQUE")
                 .contains("'PENDING'");
+        // And V16's is a third: without the predicate every SOLO seat's null
+        // teammate would be a duplicate of every other one's.
+        assertThat(indexDefinition("fresh", "ux_tournament_participants_partner"))
+                .contains("UNIQUE")
+                .contains("partner_user_id IS NOT NULL");
 
         // Every restart re-runs migrate against a schema that is already up to
         // date; it has to be a no-op rather than an error.
@@ -158,7 +174,7 @@ class MigrationChainTest {
                 where a.nickname = 'aziza_m' and b.nickname = 'bekzod_99'
                 """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(13);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(14);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -244,6 +260,15 @@ class MigrationChainTest {
         // V15 adds two tables and nothing else — the 2v2 mode existed for no
         // upgraded server either, the same shape V11 is above.
         assertThat(tables("upgrade")).contains("team_matches", "team_match_words");
+
+        // V16 is V12's shape once more: columns onto tables an upgrade brought
+        // no rows into, and a not-null one whose default is the whole point —
+        // every tournament that already existed has to come back a SOLO one.
+        assertThat(columnsOf("upgrade", "tournaments")).contains("format");
+        assertThat(query("upgrade", "select count(*) from tournaments where format <> 'SOLO'")).containsExactly("0");
+        assertThat(columnsOf("upgrade", "tournament_participants")).contains("partner_user_id", "partner_status");
+        assertThat(columnsOf("upgrade", "tournament_matches"))
+                .contains("player_one_partner_user_id", "player_two_partner_user_id", "team_match_id");
     }
 
     // --------------------------------------------------------------- helpers
