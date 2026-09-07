@@ -822,6 +822,7 @@ class AdminControllerTest {
                 props.rating(),
                 props.cors(),
                 props.limits(),
+                props.auth(),
                 new AppProperties.Admin(bootstrapUserId),
                 props.tournament(),
                 props.timeZone(),

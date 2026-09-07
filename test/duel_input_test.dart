@@ -144,6 +144,7 @@ void main() {
               reaction: null,
               powerUps: const DuelPowerUps(),
               onPowerUp: (_) {},
+              onLeave: () {},
             )));
         await tester.pump();
 
@@ -173,6 +174,7 @@ void main() {
             reaction: null,
             powerUps: const DuelPowerUps(),
             onPowerUp: (_) {},
+            onLeave: () {},
           ));
 
       await tester.pumpWidget(screen(true));
@@ -209,6 +211,7 @@ void main() {
             reaction: null,
             powerUps: const DuelPowerUps(),
             onPowerUp: (_) {},
+            onLeave: () {},
           )));
       await tester.pump();
       expect(tester.testTextInput.isVisible, isTrue);
@@ -257,6 +260,7 @@ void main() {
             reaction: null,
             powerUps: const DuelPowerUps(),
             onPowerUp: (_) {},
+            onLeave: () {},
           )));
       await tester.pump();
       await tester.enterText(find.byType(TextField), 'window');
@@ -318,6 +322,7 @@ void main() {
           reaction: null,
           powerUps: const DuelPowerUps(),
           onPowerUp: (_) {},
+          onLeave: () {},
         ),
       ));
       await tester.pump(const Duration(milliseconds: 400));
@@ -366,6 +371,7 @@ void main() {
           reaction: null,
           powerUps: const DuelPowerUps(),
           onPowerUp: (_) {},
+          onLeave: () {},
         ),
       ));
       await tester.pump(const Duration(milliseconds: 400));

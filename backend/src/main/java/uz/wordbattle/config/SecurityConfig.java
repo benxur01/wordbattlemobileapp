@@ -15,6 +15,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import uz.wordbattle.admin.AdminAuthFilter;
+import uz.wordbattle.auth.AuthRateLimiter;
 import uz.wordbattle.auth.JwtAuthFilter;
 import uz.wordbattle.auth.RestAuthEntryPoint;
 
@@ -23,6 +24,7 @@ import uz.wordbattle.auth.RestAuthEntryPoint;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final AuthRateLimiter authRateLimiter;
     private final AdminAuthFilter adminAuthFilter;
     private final RestAuthEntryPoint authEntryPoint;
     private final RestAccessDeniedHandler accessDeniedHandler;
@@ -30,11 +32,13 @@ public class SecurityConfig {
 
     public SecurityConfig(
             JwtAuthFilter jwtAuthFilter,
+            AuthRateLimiter authRateLimiter,
             AdminAuthFilter adminAuthFilter,
             RestAuthEntryPoint authEntryPoint,
             RestAccessDeniedHandler accessDeniedHandler,
             AppProperties props) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.authRateLimiter = authRateLimiter;
         this.adminAuthFilter = adminAuthFilter;
         this.authEntryPoint = authEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
@@ -78,6 +82,12 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(authEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // Ahead of everything that reads a token, because the routes it
+                // guards are the ones nobody carries a token to: a refused
+                // attempt is meant to cost this server a map lookup and not a
+                // bcrypt comparison. Registered relative to JwtAuthFilter,
+                // which the line above adds, so the two cannot be reordered.
+                .addFilterBefore(authRateLimiter, JwtAuthFilter.class)
                 // After the token has named a player, since that is what this
                 // one looks the admin role up for. The position is expressed
                 // relative to JwtAuthFilter, which the line above is what

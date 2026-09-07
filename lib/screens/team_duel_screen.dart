@@ -28,6 +28,7 @@ class TeamDuelScreen extends StatefulWidget {
     required this.onSendChat,
     required this.onSendReaction,
     required this.reaction,
+    required this.onLeave,
   });
 
   final TeamDuelView? duel;
@@ -48,6 +49,10 @@ class TeamDuelScreen extends StatefulWidget {
   /// showing — see [DuelScreen.reaction] for how [TeamReaction.id] replays the
   /// animation for the same emoji twice.
   final TeamReaction? reaction;
+
+  /// The exit button in [_SocialBar] — [DuelScreen.onLeave]'s twin, and just
+  /// as much a forfeit: the pair loses the duel, not only the player leaving.
+  final VoidCallback onLeave;
 
   @override
   State<TeamDuelScreen> createState() => _TeamDuelScreenState();
@@ -272,6 +277,7 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
           chatOpen: _chatOpen,
           onToggleChat: () => setState(() => _chatOpen = !_chatOpen),
           onReact: widget.onSendReaction,
+          onLeave: widget.onLeave,
         ),
         if (_chatOpen)
           _ChatPanel(
@@ -467,14 +473,21 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
   }
 }
 
-/// The quick-reaction row and the chat toggle — `DuelScreen._SocialBar` on a
-/// board with three other people to send to instead of one.
+/// The exit button, the quick-reaction row and the chat toggle —
+/// `DuelScreen._SocialBar` on a board with three other people to send to
+/// instead of one.
 class _SocialBar extends StatelessWidget {
-  const _SocialBar({required this.chatOpen, required this.onToggleChat, required this.onReact});
+  const _SocialBar({
+    required this.chatOpen,
+    required this.onToggleChat,
+    required this.onReact,
+    required this.onLeave,
+  });
 
   final bool chatOpen;
   final VoidCallback onToggleChat;
   final ValueChanged<String> onReact;
+  final VoidCallback onLeave;
 
   @override
   Widget build(BuildContext context) {
@@ -485,6 +498,8 @@ class _SocialBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          _LeaveButton(onTap: onLeave),
+          const SizedBox(width: 10),
           Expanded(
             child: Row(
               children: [
@@ -531,6 +546,39 @@ class _SocialBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The way off the board — `DuelScreen._LeaveButton`, and there for the same
+/// reason: on iOS there is no back gesture to lean on.
+class _LeaveButton extends StatelessWidget {
+  const _LeaveButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      pressScale: .95,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: WBColors.redA(.1),
+          border: Border.all(color: WBColors.redA(.28)),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: StrokeGlyph.chevronLeft(
+          size: 9,
+          thickness: 2,
+          color: WBColors.redSoft,
+          offset: const Offset(2, 0),
+        ),
       ),
     );
   }

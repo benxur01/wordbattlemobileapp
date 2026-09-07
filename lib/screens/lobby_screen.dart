@@ -244,7 +244,7 @@ class LobbyScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            "~8 s kutish",
+                            'Raqib qidiriladi',
                             style: WBText.mono(
                               size: 12,
                               weight: FontWeight.w500,

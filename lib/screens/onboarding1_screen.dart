@@ -196,7 +196,7 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
                 ),
               ),
               const SizedBox(height: 14),
-              Text("Parol yo'q. 30 soniyada birinchi jangingda.",
+              Text('Tezkor kirish — Google orqali bitta bosishda',
                   textAlign: TextAlign.center, style: WBText.grotesk(size: 12.5, color: WBColors.textA(.5))),
               if (widget.onDevLogin != null) ...[
                 const SizedBox(height: 12),
@@ -255,7 +255,7 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
         const SizedBox(height: 10),
         _field(
           label: 'PAROL',
-          hint: _registering ? "kamida 6 ta belgi" : 'parolingiz',
+          hint: _registering ? "kamida 6 ta belgi, harf va raqam" : 'parolingiz',
           value: _password,
           onChanged: (v) => setState(() => _password = v),
           obscureText: true,

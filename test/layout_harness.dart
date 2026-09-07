@@ -524,6 +524,7 @@ Map<String, Widget> buildScreens() => {
         reaction: null,
         powerUps: const DuelPowerUps(),
         onPowerUp: (_) {},
+        onLeave: () {},
       ),
       'duel-error': DuelScreen(
         duel: _duel(yourTurn: false, timeLeftMs: 3000, thinking: true),
@@ -537,6 +538,7 @@ Map<String, Widget> buildScreens() => {
         reaction: null,
         powerUps: const DuelPowerUps(),
         onPowerUp: (_) {},
+        onLeave: () {},
       ),
       'duel-themed': DuelScreen(
         duel: _duel(theme: 'Hayvonlar'),
@@ -550,6 +552,7 @@ Map<String, Widget> buildScreens() => {
         reaction: null,
         powerUps: const DuelPowerUps(),
         onPowerUp: (_) {},
+        onLeave: () {},
       ),
       'duel-substituted': DuelScreen(
         duel: _substitutedDuel,
@@ -563,6 +566,7 @@ Map<String, Widget> buildScreens() => {
         reaction: null,
         powerUps: const DuelPowerUps(),
         onPowerUp: (_) {},
+        onLeave: () {},
       ),
       'duel-bot': DuelScreen(
         duel: _botDuel,
@@ -579,6 +583,7 @@ Map<String, Widget> buildScreens() => {
           hints: ['window', 'winter', 'wisdom'],
         ),
         onPowerUp: (_) {},
+        onLeave: () {},
       ),
       'win': WinScreen(result: _win, onRematch: () {}, onHome: () {}),
       'lose': LoseScreen(result: _lose, onRematch: () {}, onPractice: () {}),
@@ -709,6 +714,7 @@ Map<String, Widget> buildScreens() => {
         onSendChat: (_) {},
         onSendReaction: (_) {},
         reaction: null,
+        onLeave: () {},
       ),
       'team-duel-error': TeamDuelScreen(
         duel: _teamDuel(yourTurn: false, timeLeftMs: 3000),
@@ -720,6 +726,7 @@ Map<String, Widget> buildScreens() => {
         onSendChat: (_) {},
         onSendReaction: (_) {},
         reaction: null,
+        onLeave: () {},
       ),
       'team-duel-substituted': TeamDuelScreen(
         duel: _teamSubstitutedDuel,
@@ -731,6 +738,7 @@ Map<String, Widget> buildScreens() => {
         onSendChat: (_) {},
         onSendReaction: (_) {},
         reaction: null,
+        onLeave: () {},
       ),
       'team-win': TeamWinScreen(me: _me, result: _teamWin, onRematch: () {}, onHome: () {}),
       'team-lose': TeamLoseScreen(

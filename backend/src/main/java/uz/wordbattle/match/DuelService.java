@@ -1014,6 +1014,9 @@ public class DuelService {
 
     private void settle(DuelSession session, long winnerId, EndReason reason) {
         MatchResultService.Outcome outcome = recordResult(session, winnerId, reason);
+        if (outcome == null) {
+            outcome = MatchResultService.Outcome.unrecorded();
+        }
 
         // Read and cleared here, before either player is told: a tournament
         // match's winner advancing into the next round is not something either
@@ -1145,7 +1148,8 @@ public class DuelService {
             return;
         }
 
-        MatchResultService.PlayerResult result = outcome.forPlayer(playerId);
+        MatchResultService.PlayerResult result =
+                outcome != null ? outcome.forPlayer(playerId) : new MatchResultService.PlayerResult(0, 0, 0, 0, 0);
         boolean won = winnerId == playerId;
 
         // The lose screen offers three words for the letter the player got

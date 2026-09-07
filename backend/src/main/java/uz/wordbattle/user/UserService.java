@@ -120,8 +120,12 @@ public class UserService {
     @Transactional
     public User registerWithPassword(String rawNickname, String rawPassword) {
         String nickname = validatedNickname(rawNickname);
-        if (rawPassword == null || rawPassword.length() < MIN_PASSWORD_LENGTH) {
+        if (rawPassword == null || rawPassword.trim().length() < MIN_PASSWORD_LENGTH) {
             throw ApiException.badRequest("password_too_short", "Parol kamida 6 ta belgidan iborat bo'lishi kerak");
+        }
+        if (!hasLetterAndDigit(rawPassword)) {
+            throw ApiException.badRequest(
+                    "password_too_simple", "Parolda kamida bitta harf va bitta raqam bo'lishi kerak");
         }
         if (users.nicknameTaken(nickname)) {
             throw ApiException.conflict("nickname_taken", "Bu taxallus band");
@@ -132,6 +136,34 @@ public class UserService {
         } catch (DataIntegrityViolationException e) {
             throw ApiException.conflict("nickname_taken", "Bu taxallus band");
         }
+    }
+
+    /**
+     * The whole of the strength rule: one letter and one digit somewhere in the
+     * password. Six characters on their own let {@code 111111} and {@code
+     * aaaaaa} through, and those are not hypothetical — they are the first
+     * lines of every guessing list there is, so the length was a rule an
+     * attacker never had to work around.
+     *
+     * <p>Nothing more than that, deliberately. Symbols and mixed case buy very
+     * little against a server that already refuses to be guessed at more than
+     * ten times a minute — see {@link uz.wordbattle.auth.AuthRateLimiter} — and
+     * they cost every player on a phone keyboard a trip to the symbol pane at
+     * the exact moment they are deciding whether to bother signing up at all.
+     *
+     * <p>{@link Character#isLetter} rather than {@code a-z}: the players this
+     * game is for write in two alphabets, and a password in Cyrillic is a
+     * password.
+     */
+    private static boolean hasLetterAndDigit(String password) {
+        boolean letter = false;
+        boolean digit = false;
+        for (int i = 0; i < password.length(); i++) {
+            char c = password.charAt(i);
+            letter |= Character.isLetter(c);
+            digit |= Character.isDigit(c);
+        }
+        return letter && digit;
     }
 
     /**

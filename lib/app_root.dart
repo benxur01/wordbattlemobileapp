@@ -385,6 +385,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   StreamSubscription<SocketEvent>? _socketEvents;
   StreamSubscription<SocketStatus>? _socketStatus;
   StreamSubscription<Uri>? _linkSub;
+
+  /// A shared link that arrived before there was a session to open it with —
+  /// see [_handleDeepLink], which parks it here, and [_openPendingDeepLink],
+  /// which spends it.
+  Uri? _pendingDeepLink;
+
   DateTime _lastTick = DateTime.now();
 
   @override
@@ -462,6 +468,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         });
         unawaited(_refreshSocial());
         unawaited(_refreshActiveTournament());
+        _openPendingDeepLink();
       } else {
         setState(() {
           busy = false;
@@ -592,6 +599,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     });
     unawaited(_refreshSocial());
     unawaited(_refreshActiveTournament());
+    _openPendingDeepLink();
   }
 
   void _loginFailed(ApiException e) {
@@ -983,20 +991,35 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   /// bracket, the same screen [openTournamentBracket] already opens from the
   /// lobby's own "active tournament" card.
   ///
-  /// A link that arrives before login has finished has nowhere to land: [me]
-  /// is only ever set once a session is restored or a login completes, which
-  /// is the same "signed in" point every tournament REST call already waits
-  /// for (see the calls right after [_bootstrap] and [_completeLogin]). There
-  /// is no queue behind this — a link that beats sign-in is simply dropped,
-  /// and the tap that opened it falls back to whatever a bare `https://` link
-  /// does outside the app.
+  /// A link that arrives before login has finished has nowhere to land yet:
+  /// [me] is only ever set once a session is restored or a login completes,
+  /// which is the same "signed in" point every tournament REST call already
+  /// waits for (see the calls right after [_bootstrap] and [_completeLogin]).
+  /// A cold launch runs [_bootstrap] unawaited, so the tap that started the
+  /// app reliably loses that race — the link waits in [_pendingDeepLink] and
+  /// is opened from those two places instead of being thrown away.
   void _handleDeepLink(Uri uri) {
-    if (!mounted || me == null) return;
+    if (!mounted) return;
+    if (me == null) {
+      _pendingDeepLink = uri;
+      return;
+    }
     final segments = uri.pathSegments;
     if (segments.length != 2 || segments[0] != 't') return;
     final id = int.tryParse(segments[1]);
     if (id == null) return;
     openTournamentBracket(id);
+  }
+
+  /// Opens the link that was waiting on sign-in, if there was one. Only one is
+  /// ever held: a second link arriving before the first could be opened is the
+  /// newer intent, and the older one is what the player has already moved on
+  /// from.
+  void _openPendingDeepLink() {
+    final pending = _pendingDeepLink;
+    if (pending == null) return;
+    _pendingDeepLink = null;
+    _handleDeepLink(pending);
   }
 
   void openTournamentInvite() => go(WBScreen.tournamentInvite);
@@ -2291,6 +2314,48 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     }
   }
 
+  /// The only way out of a live duel, shared by the Android back gesture and
+  /// the duel screens' own exit button — iOS has neither a hardware back
+  /// button nor a page route to swipe, so without that button there is no way
+  /// off the board at all. Leaving forfeits (see [go]), which is far too much
+  /// to hand a stray gesture, so it is asked about first.
+  Future<void> confirmLeaveDuel() async {
+    final from = screen;
+    final answer = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: WBColors.bgPanel,
+        title: Text("Taslim bo'lasizmi?", style: WBText.grotesk(size: 16, weight: FontWeight.w700)),
+        content: Text(
+          "O'yin mag'lubiyat bilan tugaydi.",
+          style: WBText.grotesk(size: 13, height: 1.45, color: WBColors.textA(.72)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Bekor qilish',
+              style: WBText.grotesk(size: 13, weight: FontWeight.w600, color: WBColors.textA(.75)),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(backgroundColor: WBColors.redA(.14)),
+            child: Text(
+              "Ha, taslim bo'lish",
+              style: WBText.grotesk(size: 13, weight: FontWeight.w700, color: WBColors.redSoft),
+            ),
+          ),
+        ],
+      ),
+    );
+    // The duel can end while the question is still on screen — a turn timed
+    // out, or the opponent walked out first — and the result screen that
+    // replaced it is not something to forfeit out of.
+    if (!mounted || answer != true || screen != from) return;
+    go(WBScreen.lobby);
+  }
+
   void handleBack() {
     switch (screen) {
       case WBScreen.onb1:
@@ -2319,6 +2384,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         go(WBScreen.friends);
       case WBScreen.organizeTournamentManage:
         leaveOrganizingTournament();
+      // Named rather than left to the fallback below: for these two the
+      // fallback's `go` is a forfeit, and a back-gesture is not consent to one.
+      case WBScreen.duel:
+      case WBScreen.teamDuel:
+        unawaited(confirmLeaveDuel());
       default:
         go(WBScreen.lobby);
     }
@@ -2458,6 +2528,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           reaction: duelReaction,
           powerUps: duelPowerUps,
           onPowerUp: useDuelPowerUp,
+          onLeave: confirmLeaveDuel,
         ),
       WBScreen.win => WinScreen(
           result: finished,
@@ -2491,6 +2562,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onSendChat: sendTeamChat,
           onSendReaction: sendTeamReaction,
           reaction: teamReaction,
+          onLeave: confirmLeaveDuel,
         ),
       WBScreen.teamWin => TeamWinScreen(
           me: user,

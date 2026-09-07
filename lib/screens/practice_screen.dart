@@ -181,60 +181,49 @@ class PracticeScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 58,
-                      decoration: BoxDecoration(
-                        color: WBColors.whiteA(.05),
-                        border: Border.all(color: WBColors.whiteA(.13)),
-                        borderRadius: BorderRadius.circular(19),
+              const SizedBox(height: 12),
+              Pressable(
+                onTap: onHint,
+                pressScale: .98,
+                borderRadius: BorderRadius.circular(19),
+                child: Container(
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: wbIndigoGradient,
+                    borderRadius: BorderRadius.circular(19),
+                    boxShadow: [
+                      BoxShadow(
+                        color: WBColors.indigo.withValues(alpha: .25),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 18),
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        "so'zni yoz…",
-                        style: WBText.grotesk(size: 18, weight: FontWeight.w600, color: WBColors.textA(.3)),
-                      ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Pressable(
-                    onTap: onHint,
-                    child: Container(
-                      width: 58,
-                      height: 58,
-                      decoration: BoxDecoration(
-                        color: WBColors.whiteA(.06),
-                        border: Border.all(color: WBColors.whiteA(.13)),
-                        borderRadius: BorderRadius.circular(19),
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: WBColors.indigoInk.withValues(alpha: .15),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '?',
+                          style: WBText.mono(size: 15, weight: FontWeight.w700, color: WBColors.indigoInk),
+                        ),
                       ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '?',
-                        style: WBText.mono(size: 17, weight: FontWeight.w700, color: WBColors.textA(.7)),
+                      const SizedBox(width: 10),
+                      Text(
+                        "Maslahat so'zlarni olish",
+                        style: WBText.grotesk(size: 16, weight: FontWeight.w600, color: WBColors.indigoInk),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(
-                      gradient: wbIndigoGradient,
-                      borderRadius: BorderRadius.circular(19),
-                    ),
-                    alignment: Alignment.center,
-                    child: StrokeGlyph.chevronRight(
-                      size: 14,
-                      thickness: 3,
-                      color: WBColors.indigoInk,
-                      offset: const Offset(-4, 0),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),

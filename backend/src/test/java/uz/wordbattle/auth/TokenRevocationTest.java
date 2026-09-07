@@ -263,6 +263,7 @@ class TokenRevocationTest {
                 props.rating(),
                 props.cors(),
                 props.limits(),
+                props.auth(),
                 props.admin(),
                 props.tournament(),
                 props.timeZone(),

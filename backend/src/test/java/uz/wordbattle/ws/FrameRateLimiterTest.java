@@ -59,6 +59,7 @@ class FrameRateLimiterTest {
                 new AppProperties.Rating(Duration.ofHours(24)),
                 new AppProperties.Cors(List.of()),
                 new AppProperties.Limits(framesPerSecond, burst, 64),
+                new AppProperties.Auth(10, 20),
                 new AppProperties.Admin(""),
                 new AppProperties.Tournament(
                         new AppProperties.Tournament.Global(

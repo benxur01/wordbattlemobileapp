@@ -33,6 +33,7 @@ class DuelScreen extends StatefulWidget {
     required this.reaction,
     required this.powerUps,
     required this.onPowerUp,
+    required this.onLeave,
   });
 
   final DuelView? duel;
@@ -59,6 +60,11 @@ class DuelScreen extends StatefulWidget {
   /// duel that draws the row at all.
   final DuelPowerUps powerUps;
   final ValueChanged<DuelPowerUp> onPowerUp;
+
+  /// The exit button in [_SocialBar]. Walking out of a duel is a forfeit, so
+  /// this only asks to leave — `AppRoot` puts the question and acts on the
+  /// answer, the same way it does for the Android back gesture.
+  final VoidCallback onLeave;
 
   @override
   State<DuelScreen> createState() => _DuelScreenState();
@@ -379,6 +385,7 @@ class _DuelScreenState extends State<DuelScreen> {
           chatOpen: _chatOpen,
           onToggleChat: () => setState(() => _chatOpen = !_chatOpen),
           onReact: widget.onSendReaction,
+          onLeave: widget.onLeave,
         ),
         if (_chatOpen)
           _ChatPanel(
@@ -610,14 +617,20 @@ class _DuelScreenState extends State<DuelScreen> {
   }
 }
 
-/// The quick-reaction row and the chat toggle, in one slim strip so neither
-/// crowds the board above or the word field below.
+/// The way out of the duel, the quick-reaction row and the chat toggle, in one
+/// slim strip so none of them crowds the board above or the word field below.
 class _SocialBar extends StatelessWidget {
-  const _SocialBar({required this.chatOpen, required this.onToggleChat, required this.onReact});
+  const _SocialBar({
+    required this.chatOpen,
+    required this.onToggleChat,
+    required this.onReact,
+    required this.onLeave,
+  });
 
   final bool chatOpen;
   final VoidCallback onToggleChat;
   final ValueChanged<String> onReact;
+  final VoidCallback onLeave;
 
   @override
   Widget build(BuildContext context) {
@@ -628,6 +641,8 @@ class _SocialBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          _LeaveButton(onTap: onLeave),
+          const SizedBox(width: 10),
           Expanded(
             child: Row(
               children: [
@@ -675,6 +690,42 @@ class _SocialBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The board's own way out. Android's back gesture does the same thing, but
+/// iOS has no gesture to intercept and this screen is not a page route, so
+/// without this button a player there is stuck on the board until the duel
+/// ends. Tinted red because the tap forfeits, which [DuelScreen.onLeave] asks
+/// about before it happens.
+class _LeaveButton extends StatelessWidget {
+  const _LeaveButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      pressScale: .95,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: WBColors.redA(.1),
+          border: Border.all(color: WBColors.redA(.28)),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: StrokeGlyph.chevronLeft(
+          size: 9,
+          thickness: 2,
+          color: WBColors.redSoft,
+          offset: const Offset(2, 0),
+        ),
       ),
     );
   }

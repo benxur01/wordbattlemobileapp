@@ -51,6 +51,14 @@ wordbattle:
   limits:
     socket-frames-per-second: ${WS_FRAMES_PER_SECOND:20}
     socket-frame-burst: ${WS_FRAME_BURST:40}
+  auth:
+    # Per address, and only on /api/auth/login and /api/auth/register — the two
+    # routes a caller with no account can reach. A player who mistypes their
+    # password spends the burst and never notices; a dictionary run gets ten
+    # guesses a minute. Raise the burst if players share one address behind a
+    # carrier NAT and report being turned away.
+    attempts-per-minute: ${AUTH_ATTEMPTS_PER_MINUTE:10}
+    attempt-burst: ${AUTH_ATTEMPT_BURST:20}
   admin:
     # The users.id granted the admin role on every start, which is the only way
     # the first admin can exist: the role is a column and the panel grants it,

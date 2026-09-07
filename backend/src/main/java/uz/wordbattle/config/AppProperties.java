@@ -42,6 +42,7 @@ public record AppProperties(
         @DefaultValue Rating rating,
         @DefaultValue Cors cors,
         @DefaultValue Limits limits,
+        @DefaultValue Auth auth,
         @DefaultValue Admin admin,
         @DefaultValue Tournament tournament,
         /**
@@ -93,6 +94,22 @@ public record AppProperties(
             @DefaultValue("20") int socketFramesPerSecond,
             @DefaultValue("40") int socketFrameBurst,
             @DefaultValue("64") int maxWordLength) {}
+
+    /**
+     * How hard one address may try the two password routes. The pre-auth twin
+     * of {@link Limits}: every other ceiling in the game is spent by a player
+     * the server has already named, and {@code /api/auth/login} and
+     * {@code /api/auth/register} are precisely where the caller is nobody yet —
+     * one is where a password is guessed at, the other where accounts are
+     * invented by the thousand.
+     *
+     * <p>Ten a minute is far above a player who mistyped their own password and
+     * far below a dictionary run, and the burst is what carries a household or
+     * a phone network sharing one address through a busy minute — see
+     * {@link uz.wordbattle.auth.AuthRateLimiter} for why the address is the only
+     * handle these two routes leave.
+     */
+    public record Auth(@DefaultValue("10") int attemptsPerMinute, @DefaultValue("20") int attemptBurst) {}
 
     /**
      * The <em>Web</em> OAuth client id, not the Android one: Google Sign-In on
