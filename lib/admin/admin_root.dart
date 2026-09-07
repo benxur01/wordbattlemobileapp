@@ -247,7 +247,7 @@ class _AdminRootState extends State<AdminRoot> {
         return Row(
           children: [
             _sidebar(wide),
-            const VerticalDivider(width: 1, color: WBColors.cardBorder),
+            VerticalDivider(width: 1, color: WBColors.cardBorder),
             Expanded(child: _content()),
           ],
         );
@@ -296,7 +296,7 @@ class _AdminRootState extends State<AdminRoot> {
                           style: WBText.mono(size: 10, weight: FontWeight.w600, color: WBColors.amber, letterSpacing: .3)),
                     ],
                   )
-                : const Icon(Icons.shield_outlined, color: WBColors.amber, size: 22),
+                : Icon(Icons.shield_outlined, color: WBColors.amber, size: 22),
           ),
           _navItem(AdminTab.metrics, Icons.insights_outlined, 'Ko‘rsatkichlar', wide),
           _navItem(AdminTab.users, Icons.people_outline, 'Foydalanuvchilar', wide),
@@ -304,7 +304,7 @@ class _AdminRootState extends State<AdminRoot> {
           _navItem(AdminTab.matches, Icons.sports_esports_outlined, 'Janglar', wide),
           _navItem(AdminTab.audit, Icons.receipt_long_outlined, 'Audit jurnali', wide),
           const Spacer(),
-          const Divider(height: 1, color: WBColors.cardBorder),
+          Divider(height: 1, color: WBColors.cardBorder),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: wide ? 16 : 8, vertical: 12),
             child: wide

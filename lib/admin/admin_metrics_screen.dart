@@ -101,7 +101,7 @@ class _AdminMetricsScreenState extends State<AdminMetricsScreen> with AdminLoadi
                     value: metrics.botPercent / 100,
                     minHeight: 8,
                     backgroundColor: WBColors.whiteA(.06),
-                    valueColor: const AlwaysStoppedAnimation(WBColors.amber),
+                    valueColor: AlwaysStoppedAnimation(WBColors.amber),
                   ),
                 ),
               ],

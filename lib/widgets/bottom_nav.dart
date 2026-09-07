@@ -92,7 +92,7 @@ class _BottomNavState extends State<BottomNav> with SingleTickerProviderStateMix
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .45), blurRadius: 28, offset: const Offset(0, 10))],
+          boxShadow: [BoxShadow(color: WBColors.shadow, blurRadius: 28, offset: const Offset(0, 10))],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
@@ -100,7 +100,7 @@ class _BottomNavState extends State<BottomNav> with SingleTickerProviderStateMix
             filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color.fromRGBO(22, 21, 31, .12),
+                color: WBColors.glass,
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: WBColors.whiteA(.18)),
               ),
@@ -111,7 +111,9 @@ class _BottomNavState extends State<BottomNav> with SingleTickerProviderStateMix
                   // This has to sit at the container's own bounds rather than
                   // inside the padded tab row below — nested in that instead,
                   // it only fills the area 6px in from the pill's real edge,
-                  // which reads as a hard-edged darker box under the icons.
+                  // which reads as a hard-edged darker box under the icons. It
+                  // stays white in both palettes — a highlight taken through
+                  // `whiteA` would be drawn as a shadow over the light one.
                   Positioned.fill(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
@@ -119,7 +121,7 @@ class _BottomNavState extends State<BottomNav> with SingleTickerProviderStateMix
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [WBColors.whiteA(.14), WBColors.whiteA(0)],
+                          colors: [Colors.white.withValues(alpha: .14), Colors.white.withValues(alpha: 0)],
                           stops: const [0, .5],
                         ),
                       ),

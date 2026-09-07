@@ -6,22 +6,22 @@ import '../api/tournament_models.dart';
 import '../theme.dart';
 import '../widgets/primary_button.dart';
 
-const _gradients = [
-  wbTealGradient,
-  wbPurpleGradient,
-  wbBlueGradient,
-  wbRoseGradient,
-  wbAmber8Gradient,
-  wbGreyGradient,
-];
-const _textColors = [
-  WBColors.tealText,
-  WBColors.purpleText,
-  WBColors.blueText,
-  WBColors.roseText,
-  WBColors.amber8Text,
-  WBColors.greyText,
-];
+List<Gradient> get _gradients => [
+      wbTealGradient,
+      wbPurpleGradient,
+      wbBlueGradient,
+      wbRoseGradient,
+      wbAmber8Gradient,
+      wbGreyGradient,
+    ];
+List<Color> get _textColors => [
+      WBColors.tealText,
+      WBColors.purpleText,
+      WBColors.blueText,
+      WBColors.roseText,
+      WBColors.amber8Text,
+      WBColors.greyText,
+    ];
 
 /// The organizer's own view of a tournament they just created: who has
 /// answered so far, the button that seeds the bracket once everyone has, and
@@ -202,7 +202,7 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
   Widget _header(TournamentSummary? t) {
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 16, 22, 13),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color.fromRGBO(255, 255, 255, .07)))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: WBColors.whiteA(.07)))),
       child: Row(
         children: [
           Pressable(
@@ -217,7 +217,7 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.arrow_back_ios_new, size: 14, color: Colors.white70),
+              child: Icon(Icons.arrow_back_ios_new, size: 14, color: WBColors.textA(.7)),
             ),
           ),
           Expanded(
@@ -249,7 +249,7 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.ios_share, size: 15, color: Colors.white70),
+              child: Icon(Icons.ios_share, size: 15, color: WBColors.textA(.7)),
             ),
           ),
           const SizedBox(width: 8),
@@ -265,7 +265,7 @@ class _OrganizeTournamentManageScreenState extends State<OrganizeTournamentManag
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.refresh, size: 16, color: Colors.white70),
+              child: Icon(Icons.refresh, size: 16, color: WBColors.textA(.7)),
             ),
           ),
         ],

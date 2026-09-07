@@ -167,8 +167,11 @@ public class GameSocketHandler extends TextWebSocketHandler {
                 case "ping" -> sockets.send(userId, "pong", Map.of());
                 case "queue.join" -> matchmaking.join(userId);
                 case "queue.leave" -> matchmaking.leave(userId);
+                case "queue.bot" -> matchmaking.joinAgainstBot(
+                        userId, doubleValue(envelope, "rating"), text(envelope, "theme"));
                 case "duel.submit" -> duels.submit(userId, text(envelope, "word"));
                 case "duel.forfeit" -> duels.forfeit(userId);
+                case "duel.power_up" -> duels.usePowerUp(userId, text(envelope, "type"));
                 case "duel.chat" -> duels.sendChat(userId, text(envelope, "text"));
                 case "duel.reaction" -> duels.sendReaction(userId, text(envelope, "emoji"));
                 case "duel.spectate" -> spectate(userId, longValue(envelope, "userId"));
@@ -288,5 +291,10 @@ public class GameSocketHandler extends TextWebSocketHandler {
 
     private long longValue(Envelope envelope, String field) {
         return envelope.payload() == null ? 0L : envelope.payload().path(field).asLong();
+    }
+
+    /** A missing or unreadable number reads as 0, which the receiver clamps. */
+    private double doubleValue(Envelope envelope, String field) {
+        return envelope.payload() == null ? 0 : envelope.payload().path(field).asDouble();
     }
 }

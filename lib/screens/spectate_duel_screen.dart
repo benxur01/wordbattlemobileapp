@@ -65,7 +65,7 @@ class SpectateDuelScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       alignment: Alignment.center,
-                      child: const Icon(Icons.arrow_back_ios_new, size: 13, color: Colors.white70),
+                      child: Icon(Icons.arrow_back_ios_new, size: 13, color: WBColors.textA(.7)),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -115,7 +115,7 @@ class SpectateDuelScreen extends StatelessWidget {
                           Container(
                             width: 78,
                             height: 78,
-                            decoration: const BoxDecoration(color: WBColors.bgPanel, shape: BoxShape.circle),
+                            decoration: BoxDecoration(color: WBColors.bgPanel, shape: BoxShape.circle),
                             alignment: Alignment.center,
                             child: Text(
                               timeText,
@@ -269,10 +269,10 @@ class _PlayerBadge extends StatelessWidget {
               ? [
                   Text('$words', style: WBText.mono(size: 11.5, weight: FontWeight.w500, color: WBColors.flameText)),
                   const SizedBox(width: 4),
-                  const FlameIcon(width: 7, height: 9),
+                  FlameIcon(width: 7, height: 9),
                 ]
               : [
-                  const FlameIcon(width: 7, height: 9),
+                  FlameIcon(width: 7, height: 9),
                   const SizedBox(width: 4),
                   Text('$words', style: WBText.mono(size: 11.5, weight: FontWeight.w500, color: WBColors.flameText)),
                 ],

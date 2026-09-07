@@ -9,7 +9,11 @@ import uz.wordbattle.user.UserDto;
  *
  * <p>{@code organizer} is whoever created the tournament — an admin or, since
  * {@code TournamentService#createByUser}, an ordinary player organizing one
- * among friends — and is null only if that account has since been deleted.
+ * among friends — and is null if that account has since been deleted, or if
+ * there never was one. {@code kind} is what tells those two apart: a {@code
+ * "global"} invite has no organizer because nobody sent it, the player was
+ * picked off the top of the ladder, and the app says so rather than crediting
+ * an admin who did nothing.
  *
  * <p>{@code participantStatus} is this recipient's own answer, not their
  * team's: in a {@code "team"} tournament the two people sharing a seat each
@@ -23,4 +27,5 @@ public record TournamentInviteDto(
         String participantStatus,
         UserDto organizer,
         String format,
-        UserDto teammate) {}
+        UserDto teammate,
+        String kind) {}

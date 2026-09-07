@@ -6,6 +6,7 @@ import '../api/duel_models.dart';
 import '../theme.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/progress_ring.dart';
+import '../widgets/provisional_badge.dart';
 
 class IncomingScreen extends StatefulWidget {
   const IncomingScreen({
@@ -52,7 +53,7 @@ class _IncomingScreenState extends State<IncomingScreen> with SingleTickerProvid
       // rgba(5,5,8,.82) + backdrop-filter:blur(6px)
       filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
       child: Container(
-        color: WBColors.bgDeep.withValues(alpha: .82),
+        color: WBColors.scrim,
         alignment: Alignment.bottomCenter,
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
         child: FadeTransition(
@@ -66,11 +67,7 @@ class _IncomingScreenState extends State<IncomingScreen> with SingleTickerProvid
             child: Container(
               padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color.fromRGBO(30, 28, 44, .98), Color.fromRGBO(12, 12, 20, .98)],
-                ),
+                gradient: wbSheetGradient,
                 border: Border.all(color: WBColors.whiteA(.12)),
                 borderRadius: BorderRadius.circular(28),
               ),
@@ -134,9 +131,18 @@ class _IncomingScreenState extends State<IncomingScreen> with SingleTickerProvid
                     style: WBText.grotesk(size: 22, weight: FontWeight.w700),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    '${invite.user.rating} reyting',
-                    style: WBText.mono(size: 13, weight: FontWeight.w500, color: WBColors.textA(.5)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${invite.user.rating} reyting',
+                        style: WBText.mono(size: 13, weight: FontWeight.w500, color: WBColors.textA(.5)),
+                      ),
+                      if (invite.user.provisional) ...[
+                        const SizedBox(width: 6),
+                        ProvisionalBadge(size: 9),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 18),
                   Text(

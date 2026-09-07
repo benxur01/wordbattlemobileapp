@@ -40,6 +40,9 @@ class DuelServiceConcurrencyTest {
     /** Duels settled back to back by one player, all fighting over their row. */
     private static final int SHARED_PLAYER_DUELS = 10;
 
+    /** An everyday bot, whose pool is only ever borrowed here for a legal word. */
+    private static final double EVERYDAY_BOT = 600;
+
     @Autowired
     private DuelService duels;
 
@@ -197,7 +200,7 @@ class DuelServiceConcurrencyTest {
     /** A word the chain will accept right now, so the turn really does move. */
     private String legalWordFor(DuelSession session) {
         String word = dictionary.botMove(
-                session.requiredLetter(), session.used(), props.duel().minWordLength());
+                session.requiredLetter(), session.used(), props.duel().minWordLength(), EVERYDAY_BOT);
         assertThat(word).as("no word starts with '%s'", session.requiredLetter()).isNotNull();
         return word;
     }

@@ -40,6 +40,14 @@ class RareLetterTrapTest {
     private static final int MIN_WORD_LENGTH = 3;
 
     /**
+     * A rating in the band the bot has always played at — see {@code
+     * DictionaryService.Band}. The trap is about the letter the chain hands
+     * over, not about how hard the bot is, so the everyday pool is what the
+     * player's own words are drawn from here.
+     */
+    private static final double EVERYDAY_BOT = 600;
+
+    /**
      * Words ending in "x", covering every letter the chain can hand over so the
      * trap is available on almost every turn. A few are obscure — "x" is a rare
      * ending precisely because English has so few of them — but each one is in
@@ -123,7 +131,7 @@ class RareLetterTrapTest {
     /** Any word that keeps the chain going. Every bot word is a legal player word. */
     private String ordinaryWordFor(DuelSession session) {
         synchronized (session) {
-            return dictionary.botMove(session.requiredLetter(), session.used(), MIN_WORD_LENGTH);
+            return dictionary.botMove(session.requiredLetter(), session.used(), MIN_WORD_LENGTH, EVERYDAY_BOT);
         }
     }
 

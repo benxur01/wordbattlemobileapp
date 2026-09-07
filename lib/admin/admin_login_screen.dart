@@ -122,7 +122,7 @@ class AdminDeniedScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock_outline, size: 40, color: WBColors.red),
+              Icon(Icons.lock_outline, size: 40, color: WBColors.red),
               const SizedBox(height: 16),
               Text(
                 "Ruxsat yo'q",

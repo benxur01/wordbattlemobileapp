@@ -224,6 +224,7 @@ class AdminTournamentRow {
     required this.name,
     required this.size,
     required this.status,
+    required this.format,
     required this.createdAt,
     required this.startedAt,
     required this.finishedAt,
@@ -234,6 +235,7 @@ class AdminTournamentRow {
         name: json['name'] as String? ?? '',
         size: (json['size'] as num?)?.toInt() ?? 0,
         status: json['status'] as String? ?? '',
+        format: json['format'] as String? ?? 'solo',
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
         startedAt: DateTime.tryParse(json['startedAt'] as String? ?? ''),
         finishedAt: DateTime.tryParse(json['finishedAt'] as String? ?? ''),
@@ -243,9 +245,15 @@ class AdminTournamentRow {
   final String name;
   final int size;
   final String status;
+
+  /// `solo` — one player per seat — or `team`, where every seat is a pair
+  /// playing each round as one 2v2 duel.
+  final String format;
   final DateTime? createdAt;
   final DateTime? startedAt;
   final DateTime? finishedAt;
+
+  bool get isTeam => format == 'team';
 
   String get statusLabel => switch (status) {
         'open' => 'Ochiq',
@@ -257,13 +265,24 @@ class AdminTournamentRow {
 }
 
 class AdminTournamentParticipantRow {
-  const AdminTournamentParticipantRow({required this.userId, required this.label, required this.status, required this.seed});
+  const AdminTournamentParticipantRow({
+    required this.userId,
+    required this.label,
+    required this.status,
+    required this.seed,
+    required this.partnerUserId,
+    required this.partnerLabel,
+    required this.partnerStatus,
+  });
 
   factory AdminTournamentParticipantRow.fromJson(Map<String, dynamic> json) => AdminTournamentParticipantRow(
         userId: (json['userId'] as num).toInt(),
         label: json['label'] as String? ?? '#${json['userId']}',
         status: json['status'] as String? ?? '',
         seed: (json['seed'] as num?)?.toInt(),
+        partnerUserId: (json['partnerUserId'] as num?)?.toInt(),
+        partnerLabel: json['partnerLabel'] as String?,
+        partnerStatus: json['partnerStatus'] as String?,
       );
 
   final int userId;
@@ -271,13 +290,29 @@ class AdminTournamentParticipantRow {
   final String status;
   final int? seed;
 
-  String get statusLabel => switch (status) {
-        'invited' => 'Taklif qilindi',
-        'accepted' => 'Qabul qildi',
-        'declined' => 'Rad etdi',
-        _ => status,
-      };
+  /// The three fields below are filled only for a team tournament's seat, which
+  /// two people hold and each answers the invite for themselves.
+  final int? partnerUserId;
+  final String? partnerLabel;
+  final String? partnerStatus;
+
+  String get statusLabel => adminParticipantStatusLabel(status);
+
+  String? get partnerStatusLabel =>
+      partnerStatus == null ? null : adminParticipantStatusLabel(partnerStatus!);
+
+  /// Whether this seat counts towards filling the bracket, which for a team
+  /// needs both of its members to have accepted — the server's own rule, since
+  /// that is what it refuses to start a short bracket on.
+  bool get fullyAccepted => status == 'accepted' && (partnerUserId == null || partnerStatus == 'accepted');
 }
+
+String adminParticipantStatusLabel(String status) => switch (status) {
+      'invited' => 'Taklif qilindi',
+      'accepted' => 'Qabul qildi',
+      'declined' => 'Rad etdi',
+      _ => status,
+    };
 
 /// One card of the bracket, flattened out of the nested round/match shape the
 /// server sends — the admin table has no use for the tree, only the rows.
@@ -286,8 +321,11 @@ class AdminTournamentMatchRow {
     required this.round,
     required this.slot,
     required this.playerOneLabel,
+    required this.playerOnePartnerLabel,
     required this.playerTwoLabel,
+    required this.playerTwoPartnerLabel,
     required this.winnerLabel,
+    required this.winnerPartnerLabel,
     required this.status,
   });
 
@@ -297,6 +335,12 @@ class AdminTournamentMatchRow {
   final String playerTwoLabel;
   final String? winnerLabel;
   final String status;
+
+  /// The second member of each side, filled only in a team bracket — the pair
+  /// a bracket draws as one seat.
+  final String? playerOnePartnerLabel;
+  final String? playerTwoPartnerLabel;
+  final String? winnerPartnerLabel;
 
   String get statusLabel => switch (status) {
         'pending' => 'Kutilmoqda',
@@ -321,17 +365,25 @@ class AdminTournamentDetail {
           final matchJson = match as Map<String, dynamic>;
           final playerOne = matchJson['playerOne'] as Map<String, dynamic>?;
           final playerTwo = matchJson['playerTwo'] as Map<String, dynamic>?;
+          final playerOnePartner = matchJson['playerOnePartner'] as Map<String, dynamic>?;
+          final playerTwoPartner = matchJson['playerTwoPartner'] as Map<String, dynamic>?;
           final winnerId = (matchJson['winnerUserId'] as num?)?.toInt();
+          final wonBySlotOne = (playerOne?['id'] as num?)?.toInt() == winnerId;
           matches.add(AdminTournamentMatchRow(
             round: roundNumber,
             slot: (matchJson['slot'] as num?)?.toInt() ?? 0,
             playerOneLabel: _playerLabel(playerOne),
+            playerOnePartnerLabel: _partnerLabel(playerOnePartner),
             playerTwoLabel: _playerLabel(playerTwo),
+            playerTwoPartnerLabel: _partnerLabel(playerTwoPartner),
             winnerLabel: winnerId == null
                 ? null
-                : (playerOne?['id'] as num?)?.toInt() == winnerId
+                : wonBySlotOne
                     ? _playerLabel(playerOne)
                     : _playerLabel(playerTwo),
+            winnerPartnerLabel: winnerId == null
+                ? null
+                : _partnerLabel(wonBySlotOne ? playerOnePartner : playerTwoPartner),
             status: matchJson['status'] as String? ?? 'pending',
           ));
         }
@@ -354,6 +406,10 @@ class AdminTournamentDetail {
     if (player == null) return '—';
     return (player['nickname'] as String?) ?? (player['displayName'] as String?) ?? '#${player['id']}';
   }
+
+  /// The same, for a side's second member — absent throughout a solo bracket,
+  /// where there is no teammate to name rather than one still undecided.
+  static String? _partnerLabel(Map<String, dynamic>? partner) => partner == null ? null : _playerLabel(partner);
 }
 
 class AdminMetrics {

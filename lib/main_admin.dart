@@ -34,9 +34,9 @@ class WordBattleAdminApp extends StatelessWidget {
         // The phone app freezes text scaling because its layout is a fixed-width
         // canvas ported from a design file. This one is an ordinary responsive
         // page, so the browser's font-size setting is left alone.
-        textSelectionTheme: const TextSelectionThemeData(
+        textSelectionTheme: TextSelectionThemeData(
           cursorColor: WBColors.amber,
-          selectionColor: Color.fromRGBO(247, 183, 51, .3),
+          selectionColor: WBColors.amberA(.3),
           selectionHandleColor: WBColors.amber,
         ),
         tooltipTheme: const TooltipThemeData(waitDuration: Duration(milliseconds: 400)),

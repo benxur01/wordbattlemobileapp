@@ -12,6 +12,7 @@ class UserDto {
     required this.city,
     required this.rating,
     required this.streakDays,
+    this.provisional = false,
   });
 
   factory UserDto.fromJson(Map<String, dynamic> json) => UserDto(
@@ -22,6 +23,7 @@ class UserDto {
         city: json['city'] as String?,
         rating: (json['rating'] as num?)?.toInt() ?? 0,
         streakDays: (json['streakDays'] as num?)?.toInt() ?? 0,
+        provisional: json['provisional'] as bool? ?? false,
       );
 
   final int id;
@@ -31,6 +33,12 @@ class UserDto {
   final String? city;
   final int rating;
   final int streakDays;
+
+  /// Whether [rating] is still too uncertain to read as a placement — a fresh
+  /// account, or one that has barely played. The server derives it from the
+  /// Glicko-2 deviation; the app only draws a `ProvisionalBadge` beside the
+  /// number.
+  final bool provisional;
 
   /// The name every screen draws. The server labels the players it cannot name
   /// — a deleted opponent arrives as "O'chirilgan akkaunt" — so this last
@@ -234,6 +242,20 @@ class PracticeWordDto {
   final String word;
   final String ipa;
   final String meaning;
+}
+
+/// One topic a bot duel can be played inside. [id] is what `queue.bot` carries;
+/// [name] is the Uzbek label the server sends ready to draw.
+class WordThemeDto {
+  const WordThemeDto({required this.id, required this.name});
+
+  factory WordThemeDto.fromJson(Map<String, dynamic> json) => WordThemeDto(
+        id: json['id'] as String,
+        name: json['name'] as String,
+      );
+
+  final String id;
+  final String name;
 }
 
 /// One finished duel in the history list.

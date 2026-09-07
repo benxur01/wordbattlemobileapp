@@ -21,12 +21,12 @@ class LoseScreen extends StatelessWidget {
     if (result == null) return const SizedBox.shrink();
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
-          center: Alignment(0, -.44),
+          center: const Alignment(0, -.44),
           radius: 1,
-          colors: [Color.fromRGBO(124, 138, 255, .14), Colors.transparent],
-          stops: [0, .7],
+          colors: [WBColors.indigoA(.14), Colors.transparent],
+          stops: const [0, .7],
         ),
       ),
       child: Padding(
@@ -99,7 +99,7 @@ class LoseScreen extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            const FlameIcon(width: 15, height: 20, animate: false),
+                            FlameIcon(width: 15, height: 20, animate: false),
                             const SizedBox(width: 11),
                             Text(
                               'Streak saqlandi · ${result.streakDays} kun',

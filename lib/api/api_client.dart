@@ -135,6 +135,13 @@ class ApiClient {
     return list.map((e) => e as String).toList();
   }
 
+  /// The topics the bot picker offers. Fixed for the life of a server build,
+  /// so it is fetched once when the picker is opened rather than watched.
+  Future<List<WordThemeDto>> wordThemes() async {
+    final list = await _get('/themes') as List;
+    return list.map((e) => WordThemeDto.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   // ---------------------------------------------------------- tournaments
 
   /// The lobby's spectator discovery card: every tournament being played

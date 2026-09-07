@@ -153,6 +153,7 @@ Barchasi `/api` ostida. `*` — token talab qilinmaydi.
 | GET | `/leaderboard/friends` | o'zi va do'stlari orasida |
 | GET | `/practice/word` | kunlik so'z: `{word, ipa, meaning}` |
 | GET | `/practice/hints?letter=&limit=` | "?" tugmasi uchun maslahatlar |
+| GET | `/themes` | mavzuli bot jangi uchun `[{id, name}]` — server build'i bilan birga o'zgaradi, shuning uchun soket emas, REST |
 
 ### Turnirlar
 
@@ -225,8 +226,10 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 |---|---|---|
 | `queue.join` | — | raqib qidirishni boshlaydi |
 | `queue.leave` | — | qidiruvni bekor qiladi |
+| `queue.bot` | `{rating, theme?}` | qidiruvsiz bot jangi: reyting 200–2000 ga qisiladi, `theme` — `GET /api/themes` dagi id (bo'lmasa to'liq lug'at, notanish id — `unknown_theme` xatosi) |
 | `duel.submit` | `{word}` | so'z yuboradi |
 | `duel.forfeit` | — | jangdan chiqadi (mag'lubiyat) |
+| `duel.power_up` | `{type}` | kuchaytirgichni sarflaydi: `add_time` (+10 s), `skip_letter`, `hint`, `pressure`. Faqat bot bilan mashqda va faqat o'z navbatida; har biri jangda bir marta. Rad javoblari: `not_a_bot_duel`, `not_your_turn`, `power_up_spent`, `unknown_power_up` |
 | `duel.chat` | `{text}` | raqibga matn yuboradi (jang davomida, saqlanmaydi) |
 | `duel.reaction` | `{emoji}` | tayyor emoji ro'yxatidan biri: 🔥😂👏😮🤝😢 |
 | `invite.send` | `{userId}` | do'stni jangga chaqiradi |
@@ -249,9 +252,10 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 |---|---|
 | `hello` | `user`, `rules{turnSeconds,minWordLength,wordsToWin,inviteTimeoutSeconds}`, `onlineCount`, `pendingFriendRequests` |
 | `queue.joined` / `queue.left` | — |
-| `match.found` | `duelId, opponent, rated, yourTurn, seedWord, needLetter, substitutedFrom?, turnSeconds, chain[]` |
-| `duel.update` | `chain[{word,mine,spentMs}], yourTurn, needLetter, substitutedFrom?, timeLeftMs, yourWords, opponentWords, opponentThinking` |
+| `match.found` | `duelId, opponent, rated, theme?, yourTurn, seedWord, needLetter, substitutedFrom?, turnSeconds, chain[]` |
+| `duel.update` | `opponent, rated, theme?, chain[{word,mine,spentMs}], yourTurn, needLetter, substitutedFrom?, substitutionReason?, timeLeftMs, yourWords, opponentWords, opponentThinking` |
 | `duel.rejected` | `code, message` — **navbat yo'qolmaydi**, faqat xato ko'rsatiladi |
+| `duel.power_up` | `type, words[]` — kuchaytirgich sarflandi (tugma o'chadi); `words` faqat `hint` da to'la |
 | `duel.finished` | `result(win/lose), reason, rated, delta, ratingBefore, ratingAfter, chainLength, yourWords, averageMs, newWords, streakDays, stuckLetter, hints[]` |
 | `duel.chat` | `text` — raqibdan kelgan xabar |
 | `duel.reaction` | `emoji` — raqibning reaksiyasi |
@@ -324,6 +328,16 @@ bot esa ~7 350 keng tarqalgan so'zdan tanlaydi, shunda uning yurishlari tabiiy
 ko'rinadi. Ikkala ro'yxat ham yuklanish paytida filtrlanadi — qisqartmalar
 hammadan, atoqli otlar esa bot pulidan olib tashlanadi (`THIRD_PARTY.md`).
 
+**Mavzuli janglar.** Bot bilan jangda o'yinchi mavzu tanlashi mumkin
+(`GET /api/themes` → `queue.bot {"rating": N, "theme": "animals"}`). Shunda
+butun jang shu mavzuning ro'yxati ichida o'ynaladi: o'yinchining so'zi ham
+(`off_theme` rad javobi), botning yurishi ham. Mavzu qiyinlik o'rnini
+egallamaydi — ro'yxat `common-en.txt` bo'yicha ikkiga bo'linadi, shuning
+uchun kuchli bot o'sha mavzuning kamroq uchraydigan, uzunroq so'zlarini
+o'ynaydi. Mavzu faqat shu yo'lda bor: odam bilan odam jangi va navbat
+o'zgarmagan. Ro'yxatlar `words/theme-*-en.txt` — har biri 300–450 so'z va
+har biri `valid-en.txt` ning ichki qismi.
+
 **Nodir harflar.** Zanjir `x` yoki `z` ga tugasa, keyingi so'z oxirgi emas,
 undan oldingi harf bilan boshlanadi (`wax` → `a`). Sabab ingliz tilining
 o'zida: `x` ga mingga yaqin so'z tugaydi, bot pulida esa `x` bilan
@@ -332,6 +346,27 @@ ikki yurishlik tuzoq bo'lardi — arzon majburlanadi, chiqib bo'lmaydi, va odam
 raqib ham xuddi shunday qotib qoladi. Harflar ro'yxati sozlanadi
 (`wordbattle.duel.rare-letters`); almashtirish yuz berganda kadrda
 `substitutedFrom` keladi va ilova duel ekranida bir qatorlik izoh chiqaradi.
+
+Mavzuli jangda shu ro'yxatga o'sha mavzu javob bera olmaydigan harflar ham
+qo'shiladi (odatda `y`, `q`, `u` — `DictionaryService.thinLetters`). Sabab bir
+xil: 358 ming so'zli lug'at bitta yupqa harfni ko'taradi, uch yuz so'zli mavzu
+esa ko'tarmaydi — `battery` dan keyin butun mavzuda bitta `y` so'zi qolsa, u
+o'ynalgan zahoti zanjir tugab qoladi. Shuning uchun mavzudagi so'z
+o'chirilmaydi, harf `x` bilan bir qatorda o'tkazib yuboriladi.
+
+**Kuchaytirgichlar.** Faqat bot bilan mashqda, to'rttasi bor va har biri
+jangda bir marta ishlatiladi (`duel.power_up`): `add_time` navbatga 10 soniya
+qo'shadi (server taymerni ham qayta qo'yadi, ekrandagi raqam bilan cheklanib
+qolmaydi), `skip_letter` joriy harfni rad etadi va zanjir undan oldingi harfga
+o'tadi (nodir harf qoidasining o'zi, faqat o'yinchi bosgani —
+`substitutionReason: "power_up"`), `hint` shu harfga mos uchta so'z ko'rsatadi
+(mavzuli jangda mavzu ichidan), `pressure` esa botning **keyingi** javobini
+1,2–2,4 s o'rniga 0,3–0,6 s ichida qaytaradi. Bot uchun "vaqt" shundan iborat:
+uning soati yo'q, javobni darrov topadi va shunchaki kutib turadi — shuning
+uchun bu kuchaytirgich botni jazolamaydi, o'yinchini tezroq raqibga o'rgatadi.
+Reytingli jangda (odam bilan odam, 2v2, turnir) kuchaytirgich umuman yo'q:
+server har qanday `duel.power_up` ni `not_a_bot_duel` bilan rad etadi. Hech
+narsa bazaga yozilmaydi — zaryad jang bilan tug'iladi va jang bilan ketadi.
 
 **Reyting.** Glicko-2 (rating / deviation / volatility), har jang — bitta
 davr. Yangi o'yinchi tez, tajribalisi sekin harakatlanadi.

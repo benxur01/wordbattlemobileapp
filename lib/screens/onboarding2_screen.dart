@@ -106,18 +106,18 @@ class Onboarding2Screen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (checking) const SpinnerRing(size: 18, trackColor: Color.fromRGBO(244, 243, 248, .2), activeColor: Color.fromRGBO(244, 243, 248, .6)),
+                    if (checking) SpinnerRing(size: 18, trackColor: WBColors.textA(.2), activeColor: WBColors.textA(.6)),
                     if (free)
                       Container(
                         width: 24, height: 24,
                         decoration: BoxDecoration(color: WBColors.greenA(.16), shape: BoxShape.circle),
                         alignment: Alignment.center,
-                        child: const StrokeGlyph.check(
+                        child: StrokeGlyph.check(
                           width: 10,
                           height: 6,
                           thickness: 2.5,
                           color: WBColors.green,
-                          offset: Offset(0, -1.5),
+                          offset: const Offset(0, -1.5),
                         ),
                       ),
                     if (taken)
@@ -183,12 +183,12 @@ class Onboarding2Screen extends StatelessWidget {
                   width: 34, height: 34,
                   decoration: BoxDecoration(color: WBColors.greenA(.14), border: Border.all(color: WBColors.greenA(.3)), borderRadius: BorderRadius.circular(11)),
                   alignment: Alignment.center,
-                  child: const StrokeGlyph.check(
+                  child: StrokeGlyph.check(
                     width: 11,
                     height: 7,
                     thickness: 2.5,
                     color: WBColors.green,
-                    offset: Offset(0, -1.5),
+                    offset: const Offset(0, -1.5),
                   ),
                 ),
                 const SizedBox(width: 12),

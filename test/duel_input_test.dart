@@ -48,6 +48,7 @@ DuelView _duel({required bool yourTurn, int words = 1}) => DuelView(
       duelId: 'duel-1',
       opponent: _opponent,
       rated: true,
+      theme: null,
       chain: [
         for (var i = 0; i < words; i++)
           ChainWord(word: 'word${i.toString().padLeft(2, '0')}', mine: i.isOdd, spentMs: 1800),
@@ -55,6 +56,7 @@ DuelView _duel({required bool yourTurn, int words = 1}) => DuelView(
       yourTurn: yourTurn,
       needLetter: 'W',
       substitutedFrom: null,
+      substitutionReason: null,
       timeLeftMs: 12000,
       turnSeconds: 15,
       yourWords: 1,
@@ -140,6 +142,8 @@ void main() {
               onSendChat: (_) {},
               onSendReaction: (_) {},
               reaction: null,
+              powerUps: const DuelPowerUps(),
+              onPowerUp: (_) {},
             )));
         await tester.pump();
 
@@ -167,6 +171,8 @@ void main() {
             onSendChat: (_) {},
             onSendReaction: (_) {},
             reaction: null,
+            powerUps: const DuelPowerUps(),
+            onPowerUp: (_) {},
           ));
 
       await tester.pumpWidget(screen(true));
@@ -201,6 +207,8 @@ void main() {
             onSendChat: (_) {},
             onSendReaction: (_) {},
             reaction: null,
+            powerUps: const DuelPowerUps(),
+            onPowerUp: (_) {},
           )));
       await tester.pump();
       expect(tester.testTextInput.isVisible, isTrue);
@@ -247,6 +255,8 @@ void main() {
             onSendChat: (_) {},
             onSendReaction: (_) {},
             reaction: null,
+            powerUps: const DuelPowerUps(),
+            onPowerUp: (_) {},
           )));
       await tester.pump();
       await tester.enterText(find.byType(TextField), 'window');
@@ -306,6 +316,8 @@ void main() {
           onSendChat: (_) {},
           onSendReaction: (_) {},
           reaction: null,
+          powerUps: const DuelPowerUps(),
+          onPowerUp: (_) {},
         ),
       ));
       await tester.pump(const Duration(milliseconds: 400));
@@ -352,6 +364,8 @@ void main() {
           onSendChat: (_) {},
           onSendReaction: (_) {},
           reaction: null,
+          powerUps: const DuelPowerUps(),
+          onPowerUp: (_) {},
         ),
       ));
       await tester.pump(const Duration(milliseconds: 400));

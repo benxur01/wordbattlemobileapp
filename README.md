@@ -159,7 +159,8 @@ APK istalgan narsani yubora oladi — natija rad javobi bo'ladi.
 | Onboarding 1 | `POST /api/auth/google` (yoki dev login) |
 | Onboarding 2 | `GET /api/users/nickname/check` (har 400 ms), `PUT /api/users/me/nickname` |
 | Lobbi | `hello` freym: profil, onlayn soni; `GET /api/friends` |
-| Raqib qidirish | `queue.join` → `match.found` (35 s dan keyin bot) |
+| Raqib qidirish | `queue.join` → `match.found` (35 s dan keyin bot, reytingingizdan +75) |
+| Bot bilan jang | `GET /api/themes` (mavzular ro'yxati), `queue.bot` (tanlangan reyting, serverda 200–2000 oralig'iga qisiladi + ixtiyoriy mavzu) → `match.found`; jang davomida to'rtta kuchaytirgich (`duel.power_up`), har biri bir marta — reytingli janglarda ular yo'q |
 | Jang | `duel.update` freymlari; taymer ikki freym orasida lokal sanaydi |
 | G'alaba / Mag'lubiyat | `duel.finished`: delta, reyting, o'rtacha vaqt, yangi so'zlar, maslahatlar |
 | Reyting taxtasi | `GET /api/leaderboard/global` va `/friends` |

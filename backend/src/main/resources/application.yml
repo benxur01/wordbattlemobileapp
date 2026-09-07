@@ -104,6 +104,12 @@ wordbattle:
     # No human opponent within this many seconds -> play a bot. Never shorter
     # than the time the window needs to reach max-band.
     bot-fallback-seconds: 35
+    # How far above the waiting player the fallback bot is rated. It is both
+    # what they see and how hard the bot plays, so a 528 meets a 603 and the
+    # words it answers with are picked for that number — see
+    # DictionaryService.Band. A little above rather than level: the bot is the
+    # consolation for finding nobody, and an even one is a dull consolation.
+    bot-rating-offset: 75
   rating:
     # Glicko-2 step 6: a player who has not settled a rated duel for this long
     # grows one period's worth of uncertainty back, up to the 180 a new account
@@ -111,9 +117,26 @@ wordbattle:
     period-duration: PT24H
   tournament:
     global:
-      # Every Sunday at 20:00, in wordbattle.time-zone above.
-      cron: "0 0 20 * * SUN"
+      # Opens Monday morning and kicks off Sunday at 19:00, both in
+      # wordbattle.time-zone above: the week to answer an invite, a fixed hour
+      # to play. The kickoff is the same every week whether or not the bracket
+      # filled early — a bracket full by Tuesday still waits for it — and
+      # whatever has accepted by then plays, the bracket shrinking to the
+      # largest of 4/8/16/32 that fits.
+      cron: "0 0 8 * * MON"
+      finalize-cron: "0 0 19 * * SUN"
       size: 32
+      # Nobody organizes a Global bracket, so an invite left unanswered this
+      # long is taken as a no and the seat is offered to the next player down
+      # the ladder. Both brackets are swept on this one value.
+      invite-ttl: PT48H
+    global-team:
+      # The 2v2 bracket, staggered behind the 1v1 one at both ends so the two
+      # never open or kick off in the same instant. Size counts teams, not
+      # players: 8 teams is 16 people invited.
+      cron: "0 0 9 * * MON"
+      finalize-cron: "0 30 19 * * SUN"
+      size: 8
   dev-login-enabled: ${DEV_LOGIN_ENABLED:false}
 
 logging:

@@ -1,5 +1,6 @@
 package uz.wordbattle.tournament;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -49,11 +50,22 @@ import uz.wordbattle.ws.SocketRegistry;
  * neither, for the same reason: a player joining themselves is not anybody
  * acting on anybody else's account either.
  *
- * <p>A bracket is seeded once, when it fills — its organizer starting it by
- * hand, or the last open seat of a public one being claimed — and from then on
- * advances itself: {@link #onDuelFinished} is {@link DuelService}'s hook for a
- * duel tagged as a tournament match, and it is the only thing that ever moves
- * a winner into the next round.
+ * <p>A bracket is seeded once — its organizer starting it by hand, the last
+ * open seat of a public one being claimed, or a {@code GLOBAL} one reaching
+ * its weekly hour — and from then on advances itself:
+ * {@link #onDuelFinished} is {@link DuelService}'s hook for a duel tagged as a
+ * tournament match, and it is the only thing that ever moves a winner into the
+ * next round.
+ *
+ * <p>A {@code GLOBAL} tournament has no organizer and no self-join door of its
+ * own. Its guest list is the top of the ladder, invited by the system when the
+ * bracket opens ({@link #inviteTopRankedSolo}, {@link #inviteTopRankedTeam}),
+ * and every seat that comes back a no — refused, or left unanswered past the
+ * expiry {@link #expireStaleGlobalInvites} enforces — is offered on down the
+ * ladder until somebody takes it. Nobody is watching such a bracket on the
+ * server's behalf, which is why refusing a seat has to refill it and why
+ * {@link #finalizeOpenGlobal} — the clock, not a person and not the last
+ * acceptance — is the only thing that ever starts one.
  *
  * <p>A {@code TEAM} tournament — see {@link TournamentEntity.Format} — seats a
  * pair of players where a {@code SOLO} one seats a player, and changes almost
@@ -61,9 +73,10 @@ import uz.wordbattle.ws.SocketRegistry;
  * mechanism in this class and in {@link TournamentBracket} goes on working
  * against unchanged: seeding, pairing, {@link #advance}, {@code findReadyFor}.
  * The teammate is carried beside it and read at exactly four points — who may
- * be invited ({@link #inviteTeamByUser}), how a seat is rated for seeding
- * ({@link #seedRatingOf}), which engine plays a round ({@link #startMatch}),
- * and who is told about it ({@link #notifyMatchReady} and the DTOs it builds).
+ * be invited ({@link #inviteTeam}, {@link #inviteTeamByUser}), how a seat is
+ * rated for seeding ({@link #seedRatingOf}), which engine plays a round
+ * ({@link #startMatch}), and who is told about it ({@link #notifyMatchReady}
+ * and the DTOs it builds).
  * {@link #onTeamDuelFinished} is {@link TeamDuelService}'s hook, and reports a
  * winning team by its primary member so that {@link #advance} never has to
  * know a team was playing at all.
@@ -133,13 +146,14 @@ public class TournamentService {
 
     @Transactional
     public TournamentEntity create(long adminId, String name, int size) {
+        return create(adminId, name, size, TournamentEntity.Format.SOLO);
+    }
+
+    /** The same, when the admin asks for a 2v2 bracket instead of the one-player-per-seat default. */
+    @Transactional
+    public TournamentEntity create(long adminId, String name, int size, TournamentEntity.Format format) {
         TournamentEntity tournament = createEntity(
-                adminId,
-                name,
-                size,
-                TournamentEntity.Kind.ADMIN,
-                TournamentEntity.Visibility.PRIVATE,
-                TournamentEntity.Format.SOLO);
+                adminId, name, size, TournamentEntity.Kind.ADMIN, TournamentEntity.Visibility.PRIVATE, format);
         audit.record(adminId, AdminAuditService.TOURNAMENT_CREATE, null, tournament.getName() + " (" + size + ")");
         return tournament;
     }
@@ -197,6 +211,12 @@ public class TournamentService {
         return tournaments.save(TournamentEntity.global("Global turnir", size, minRating));
     }
 
+    /** The same for the weekly 2v2 bracket, where {@code size} counts teams — twice as many people. */
+    @Transactional
+    public TournamentEntity createGlobalTeamTournament(int size, double minRating) {
+        return tournaments.save(TournamentEntity.globalTeam("Global 2v2 turnir", size, minRating));
+    }
+
     private TournamentEntity createEntity(
             long creatorId,
             String name,
@@ -248,7 +268,34 @@ public class TournamentService {
         TournamentParticipant saved = inviteInternal(tournament, userId);
         if (saved == null) return;
         audit.record(adminId, AdminAuditService.TOURNAMENT_INVITE, userId, tournament.getName());
-        sockets.send(userId, "tournament.invite", inviteView(tournament, saved, userId));
+        sendInvite(tournament, saved, userId);
+    }
+
+    /**
+     * {@link #invite} for a {@code TEAM} tournament, whose seats are held by
+     * two. An admin may pair any two registered players — there is no
+     * friendship to check, which is the only thing this does not do that
+     * {@link #inviteTeamByUser} does — and each of the two still answers for
+     * themselves.
+     *
+     * <p>Audited once per invited member: the log is read by who was acted on,
+     * and this acted on both of them.
+     */
+    @Transactional
+    public void inviteTeam(long adminId, long tournamentId, long primaryUserId, long partnerUserId) {
+        TournamentEntity tournament = require(tournamentId);
+        if (tournament.getFormat() != TournamentEntity.Format.TEAM) {
+            throw ApiException.badRequest("not_a_team_tournament", "Bu turnirga jamoa taklif qilinmaydi");
+        }
+        if (primaryUserId == partnerUserId) {
+            throw ApiException.badRequest("same_player", "Jamoada ikki xil o'yinchi bo'lishi kerak");
+        }
+        TournamentParticipant saved = inviteTeamInternal(tournament, primaryUserId, partnerUserId);
+        if (saved == null) return;
+        audit.record(adminId, AdminAuditService.TOURNAMENT_INVITE, primaryUserId, tournament.getName());
+        audit.record(adminId, AdminAuditService.TOURNAMENT_INVITE, partnerUserId, tournament.getName());
+        sendInvite(tournament, saved, primaryUserId);
+        sendInvite(tournament, saved, partnerUserId);
     }
 
     /**
@@ -266,7 +313,7 @@ public class TournamentService {
         }
         TournamentParticipant saved = inviteInternal(tournament, userId);
         if (saved == null) return;
-        sockets.send(userId, "tournament.invite", inviteView(tournament, saved, userId));
+        sendInvite(tournament, saved, userId);
     }
 
     /**
@@ -295,8 +342,8 @@ public class TournamentService {
         }
         TournamentParticipant saved = inviteTeamInternal(tournament, primaryUserId, partnerUserId);
         if (saved == null) return;
-        sockets.send(primaryUserId, "tournament.invite", inviteView(tournament, saved, primaryUserId));
-        sockets.send(partnerUserId, "tournament.invite", inviteView(tournament, saved, partnerUserId));
+        sendInvite(tournament, saved, primaryUserId);
+        sendInvite(tournament, saved, partnerUserId);
     }
 
     /** @return the saved invite, or null when the player had already accepted and there is nothing to (re)send. */
@@ -344,6 +391,294 @@ public class TournamentService {
         if (held.fullyAccepted()) return null;
         held.reinvite();
         return participants.save(held);
+    }
+
+    /** The push that tells one member of a seat there is an invite waiting for their answer. */
+    private void sendInvite(TournamentEntity tournament, TournamentParticipant seat, long recipientId) {
+        sockets.send(recipientId, "tournament.invite", inviteView(tournament, seat, recipientId));
+    }
+
+    // ------------------------------------------------------- global: the system's own guest list
+
+    /**
+     * Fills a fresh Global bracket's guest list: the {@code size} best-rated
+     * players there are, invited the moment it opens. Nobody organizes a Global
+     * tournament — {@link #requireOrganizer} refuses everyone for one — so the
+     * invites go out from here rather than from a person, which is why this
+     * calls {@link #inviteInternal} directly: the friends-only gate lives in
+     * {@link #inviteByUser} above it, and there is no friendship to check when
+     * the invitation is the ladder's.
+     *
+     * <p>An invite, not a seat. Each of them still answers for themselves, and
+     * whoever says no — or says nothing for long enough — is replaced from
+     * further down the ladder: see {@link #decline}.
+     */
+    @Transactional
+    public void inviteTopRankedSolo(TournamentEntity tournament) {
+        for (User candidate : users.topEligibleByRating(PageRequest.of(0, tournament.getSize()))) {
+            TournamentParticipant saved = inviteInternal(tournament, candidate.getId());
+            if (saved != null) sendInvite(tournament, saved, candidate.getId());
+        }
+    }
+
+    /**
+     * The same for a 2v2 bracket, which needs {@code size * 2} people arranged
+     * into {@code size} seats. They are paired strongest with weakest — rank 1
+     * beside the last of them, rank 2 beside the second to last — so that every
+     * seat comes out about as strong as every other. Pairing 1 with 2 instead
+     * would stack the whole top of the ladder onto one seat and decide the
+     * bracket before a word was played.
+     *
+     * <p>The stronger half of each pair is its primary member, the id the
+     * bracket seeds, pairs and advances the seat by; which one it is changes
+     * nothing either of them can see.
+     */
+    @Transactional
+    public void inviteTopRankedTeam(TournamentEntity tournament) {
+        List<User> ranked = users.topEligibleByRating(PageRequest.of(0, tournament.getSize() * 2));
+        // An odd one out in the middle has nobody to be seated with, and is
+        // left uninvited rather than seated alone.
+        for (int i = 0; i < ranked.size() / 2; i++) {
+            long primaryUserId = ranked.get(i).getId();
+            long partnerUserId = ranked.get(ranked.size() - 1 - i).getId();
+            TournamentParticipant saved = inviteTeamInternal(tournament, primaryUserId, partnerUserId);
+            if (saved == null) continue;
+            sendInvite(tournament, saved, primaryUserId);
+            sendInvite(tournament, saved, partnerUserId);
+        }
+    }
+
+    /**
+     * Asks the next-strongest player after a Global invite came back a no. A
+     * bracket nobody organizes cannot wait for somebody to notice a hole in it,
+     * so every refusal cascades: the seat is offered on down the ladder until
+     * one of them says yes or the ladder runs out.
+     *
+     * <p>A {@code SOLO} seat is simply a new invite. A {@code TEAM} seat is
+     * repaired in place — see {@link TournamentParticipant#replaceHalf} — so
+     * that a teammate who already accepted keeps their acceptance and is not
+     * made to answer again for somebody else's change of mind.
+     *
+     * <p>Callers hold this tournament's lock: two refusals landing together
+     * must not be offered the same replacement.
+     */
+    private void backfillGlobalSeat(TournamentEntity tournament, TournamentParticipant seat, long decliningUserId) {
+        if (tournament.getKind() != TournamentEntity.Kind.GLOBAL
+                || tournament.getStatus() != TournamentEntity.Status.OPEN) {
+            return;
+        }
+        Long replacementId = nextCandidateFor(tournament);
+        // Nobody left to ask: this bracket has already been offered to every
+        // player there is. It waits, exactly as it would have waited for the
+        // refusal that has just arrived.
+        if (replacementId == null) return;
+
+        if (tournament.getFormat() == TournamentEntity.Format.TEAM) {
+            seat.replaceHalf(decliningUserId, replacementId);
+            sendInvite(tournament, participants.save(seat), replacementId);
+        } else {
+            TournamentParticipant saved = inviteInternal(tournament, replacementId);
+            if (saved != null) sendInvite(tournament, saved, replacementId);
+        }
+    }
+
+    /**
+     * The best-rated player this bracket has not already asked, in any seat, on
+     * either side of one, whatever they answered. Reading one more candidate
+     * than there are people in the tournament is enough to guarantee one of
+     * them is new: there cannot be more names already used than there are used
+     * names.
+     *
+     * <p>A {@code TEAM} seat repaired in place no longer names whoever refused
+     * it, so somebody who turned one pairing down may later be offered a seat
+     * beside a different partner. That is a different question from the one
+     * they answered, and the alternative — a row remembering a refusal — would
+     * be a row holding a seat the bracket has already given away.
+     */
+    private Long nextCandidateFor(TournamentEntity tournament) {
+        Set<Long> used = new HashSet<>();
+        for (TournamentParticipant seat : participantsOf(tournament.getId())) {
+            used.addAll(membersOf(seat));
+        }
+        for (User candidate : users.topEligibleByRating(PageRequest.of(0, used.size() + 1))) {
+            if (!used.contains(candidate.getId())) return candidate.getId();
+        }
+        return null;
+    }
+
+    /**
+     * Treats a Global invite nobody ever answered as the no it is in practice.
+     * Silence is the common case — a player who has not opened the app since
+     * the bracket went out is not going to decline it — and a bracket that
+     * waited on one would never fill, so past {@code ttl} the seat is declined
+     * on their behalf and cascaded down the ladder exactly as a tapped
+     * "Hozir emas" would be.
+     *
+     * <p>Global only. An admin's or a friend's invite has never expired and
+     * still does not: somebody is watching that bracket and can re-invite or
+     * cancel it themselves.
+     *
+     * @return how many unanswered halves were given up on, for the sweep's log.
+     */
+    @Transactional
+    public int expireStaleGlobalInvites(Duration ttl) {
+        Instant cutoff = Instant.now().minus(ttl);
+        int expired = 0;
+        for (TournamentEntity tournament : tournaments.findOpenGlobal()) {
+            synchronized (tournamentLocks.computeIfAbsent(tournament.getId(), id -> new Object())) {
+                for (TournamentParticipant seat : participantsOf(tournament.getId())) {
+                    if (!seat.getInvitedAt().isBefore(cutoff)) continue;
+                    // Resolved before anything is written: a backfill moves an
+                    // id out of this seat, and the member still to be looked at
+                    // would no longer be found in it.
+                    List<Long> silent = membersOf(seat).stream()
+                            .filter(memberId -> seat.answerOf(memberId) == TournamentParticipant.Status.INVITED)
+                            .toList();
+                    for (long memberId : silent) {
+                        seat.declineAs(memberId);
+                        participants.save(seat);
+                        backfillGlobalSeat(tournament, seat, memberId);
+                        expired++;
+                    }
+                }
+            }
+        }
+        return expired;
+    }
+
+    /**
+     * The week's kickoff, and the only thing that ever starts a Global bracket.
+     * It runs at its hour whether or not the bracket filled and whether or not
+     * it filled early — one that was full by Tuesday waits here with the rest,
+     * because a tournament everybody is invited to has to be at a time
+     * everybody can plan around rather than at whatever moment the last invite
+     * happened to be answered.
+     *
+     * <p>Which makes it the end of the collecting too: whoever has accepted by
+     * now plays and whoever has not is out. That end has to exist — nobody is
+     * watching for the moment a bracket is full enough, and a 32 that only ever
+     * gathered eleven would otherwise sit open until the ladder itself ran out
+     * of people to ask.
+     *
+     * <p>So the bracket shrinks to fit rather than waiting or being called off:
+     * the largest of {@link #ALLOWED_SIZES} the accepted seats fill, with the
+     * overflow above it trimmed weakest-first — a bracket half the size the
+     * week hoped for is still a tournament, and the strongest of those who did
+     * answer are the ones who get to play it. Only a week that could not raise
+     * even the smallest bracket is cancelled outright.
+     *
+     * <p>Nothing here cascades. Every invite still outstanding is declined
+     * because the window has closed, not because a seat has come free, so
+     * {@link #backfillGlobalSeat} is deliberately not on this path: there is
+     * nobody left who could answer in time.
+     *
+     * <p>And nothing here throws. A seat whose player has been deleted or
+     * banned in the days since they accepted is dropped rather than allowed to
+     * fail the bracket — see {@link #stillPlayable} for why this one path
+     * swallows what every other one reports.
+     *
+     * @return the brackets this closed, started or cancelled, for the scheduler's log.
+     */
+    @Transactional
+    public List<TournamentEntity> finalizeOpenGlobal(TournamentEntity.Format format) {
+        List<TournamentEntity> finalized = new ArrayList<>();
+        for (TournamentEntity tournament : tournaments.findOpenGlobal()) {
+            if (tournament.getFormat() != format) continue;
+            synchronized (tournamentLocks.computeIfAbsent(tournament.getId(), id -> new Object())) {
+                finalized.add(finalizeInternal(tournament));
+            }
+        }
+        return finalized;
+    }
+
+    private TournamentEntity finalizeInternal(TournamentEntity tournament) {
+        for (TournamentParticipant seat : participantsOf(tournament.getId())) {
+            if (declineOutstanding(seat)) participants.save(seat);
+        }
+
+        List<TournamentParticipant> answered = acceptedSeats(tournament.getId());
+        Map<Long, User> byUserId = playersOf(answered);
+        List<TournamentParticipant> accepted = new ArrayList<>();
+        for (TournamentParticipant seat : answered) {
+            if (stillPlayable(seat, byUserId)) {
+                accepted.add(seat);
+                continue;
+            }
+            declineWholeSeat(seat);
+            participants.save(seat);
+        }
+
+        int size = largestBracketFor(accepted.size());
+        if (size == 0) return cancelInternal(tournament);
+
+        // Strongest first, the same order the bracket would have seeded them
+        // in, so what is trimmed off the end is the weakest of the week.
+        List<TournamentParticipant> ordered = accepted.stream()
+                .sorted(Comparator
+                        .<TournamentParticipant>comparingDouble(seat -> -seedRatingOf(seat, byUserId))
+                        .thenComparing(TournamentParticipant::getUserId))
+                .toList();
+        for (TournamentParticipant trimmed : ordered.subList(size, ordered.size())) {
+            declineWholeSeat(trimmed);
+            participants.save(trimmed);
+        }
+
+        tournament.setSize(size);
+        return startInternal(tournaments.save(tournament));
+    }
+
+    /** Answers "no" for every half of this seat still sitting on an invite. @return whether anything changed. */
+    private static boolean declineOutstanding(TournamentParticipant seat) {
+        boolean changed = false;
+        for (long memberId : membersOf(seat)) {
+            if (seat.answerOf(memberId) != TournamentParticipant.Status.INVITED) continue;
+            seat.declineAs(memberId);
+            changed = true;
+        }
+        return changed;
+    }
+
+    /** Takes a seat back out of a bracket it had accepted into — both halves of a team's, so the seat stops counting. */
+    private static void declineWholeSeat(TournamentParticipant seat) {
+        for (long memberId : membersOf(seat)) {
+            seat.declineAs(memberId);
+        }
+    }
+
+    /**
+     * Whether the people holding this seat can still be seeded — nobody
+     * deleted, nobody banned, the same thing {@link #startInternal} demands.
+     * A team's seat needs both of them: one live member is not half a team, it
+     * is no team at all.
+     *
+     * <p>Asked here so that {@link #finalizeInternal} can drop such a seat
+     * quietly rather than let {@code startInternal} refuse the whole bracket
+     * over it. That refusal is right everywhere else — a player, an organizer
+     * or an admin is looking at the screen and can go and fix it — but the
+     * Sunday kickoff runs with nobody watching, and a bracket left
+     * {@code OPEN} by a thrown error would sit there blocking next week's as
+     * well as never playing its own.
+     */
+    private static boolean stillPlayable(TournamentParticipant seat, Map<Long, User> byUserId) {
+        for (long memberId : membersOf(seat)) {
+            User member = byUserId.get(memberId);
+            if (member == null || member.isDeleted() || member.isBanned()) return false;
+        }
+        return true;
+    }
+
+    /** The biggest bracket {@code accepted} seats can fill, or 0 when there are not enough for even the smallest. */
+    private static int largestBracketFor(int accepted) {
+        int largest = 0;
+        for (int size : ALLOWED_SIZES) {
+            if (size <= accepted && size > largest) largest = size;
+        }
+        return largest;
+    }
+
+    private Map<Long, User> playersOf(List<TournamentParticipant> seats) {
+        Set<Long> memberIds = seats.stream().flatMap(seat -> membersOf(seat).stream()).collect(Collectors.toSet());
+        return users.findAllById(memberIds).stream().collect(Collectors.toMap(User::getId, user -> user));
     }
 
     /**
@@ -480,10 +815,13 @@ public class TournamentService {
 
     /**
      * A stranger's own way into a {@code PUBLIC} tournament — nobody has to
-     * invite them. A {@code GLOBAL} one asks one more thing: their rating has
-     * to clear the floor {@code GlobalTournamentScheduler} computed the moment
-     * it opened the bracket. Joining twice costs nothing, the same way
-     * accepting twice does not in {@link #inviteInternal}.
+     * invite them. Joining twice costs nothing, the same way accepting twice
+     * does not in {@link #inviteInternal}.
+     *
+     * <p>Only a self-service bracket its organizer chose to open, these days: a
+     * {@code GLOBAL} tournament is {@code PRIVATE} and never reaches the rating
+     * floor below, because it invites the top of the ladder itself rather than
+     * waiting to be found — see {@link #inviteTopRankedSolo}.
      *
      * <p>The whole thing runs under this tournament's lock, the same one
      * {@link #onDuelFinished} uses: two players racing for the last open slot
@@ -568,6 +906,14 @@ public class TournamentService {
 
     // ------------------------------------------------------------ participant: accept, decline
 
+    /**
+     * Accepting never starts anything, whoever is accepting and however full
+     * the bracket now is. An admin's or a friend's waits for its organizer to
+     * press start; a {@code GLOBAL} one waits for its hour — see
+     * {@link #finalizeOpenGlobal} — because the one tournament everybody is in
+     * has to kick off when it said it would and not whenever the last invite
+     * happened to be answered.
+     */
     @Transactional
     public void accept(long userId, long tournamentId) {
         TournamentParticipant participant = requireAnswerable(tournamentId, userId);
@@ -575,11 +921,21 @@ public class TournamentService {
         participants.save(participant);
     }
 
+    /**
+     * "Hozir emas". On a {@code GLOBAL} bracket the seat does not simply go
+     * empty: it cascades on down the ladder — see {@link #backfillGlobalSeat} —
+     * because there is no organizer to notice the hole and invite somebody into
+     * it. Under this tournament's lock, so two refusals landing together are
+     * not handed the same replacement.
+     */
     @Transactional
     public void decline(long userId, long tournamentId) {
-        TournamentParticipant participant = requireAnswerable(tournamentId, userId);
-        participant.declineAs(userId);
-        participants.save(participant);
+        synchronized (tournamentLocks.computeIfAbsent(tournamentId, id -> new Object())) {
+            TournamentParticipant participant = requireAnswerable(tournamentId, userId);
+            participant.declineAs(userId);
+            participants.save(participant);
+            backfillGlobalSeat(require(tournamentId), participant, userId);
+        }
     }
 
     /**
@@ -839,7 +1195,8 @@ public class TournamentService {
         return new TournamentInviteDto(
                 tournament.getId(), tournament.getName(), tournament.getSize(),
                 participant.answerOf(recipientId).name().toLowerCase(), organizerOf(tournament),
-                tournament.getFormat().name().toLowerCase(), teammate);
+                tournament.getFormat().name().toLowerCase(), teammate,
+                tournament.getKind().name().toLowerCase());
     }
 
     /** Null if the organizer's account has since been deleted, or if there never was one — see {@link UserService#allByIds}. */

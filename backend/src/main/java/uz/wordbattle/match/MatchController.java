@@ -97,10 +97,30 @@ public class MatchController {
         // player's own history is not theirs to erase. `allByIds` serves live
         // players only, so a deleted one is simply absent from `known` and gets
         // named here — the anonymised row itself has no name left to send.
+        //
+        // The bot is named the same way and rated off the row, because its
+        // rating is the human's own plus an offset or the one they picked, and
+        // a card claiming a flat 400 for every bot duel ever played would be
+        // wrong for nearly all of them. Null only for a row written before the
+        // column was filled in, and for the duel between two people whose
+        // second player was deleted mid-settlement — see
+        // {@code MatchResultService.playerBehind} — which lands in this branch
+        // as well and has no bot rating to read.
+        // Neither synthetic opponent is provisional: the bot's rating is picked
+        // rather than earned, and a deleted account has no rating left to be
+        // uncertain about — the 400 below is the placeholder, not a reading.
         UserDto opponent = opponentId == null
-                ? new UserDto(DuelSession.BOT_ID, "wordbot", "Word Bot", "W", null, 1200, 0)
+                ? new UserDto(
+                        DuelSession.BOT_ID,
+                        "wordbot",
+                        "Word Bot",
+                        "W",
+                        null,
+                        rounded(match.getPlayerTwoRatingBefore()),
+                        0,
+                        false)
                 : known.getOrDefault(
-                        opponentId, new UserDto(opponentId, null, "O'chirilgan akkaunt", "?", null, 1200, 0));
+                        opponentId, new UserDto(opponentId, null, "O'chirilgan akkaunt", "?", null, 400, 0, false));
 
         double before = iAmPlayerOne ? match.getPlayerOneRatingBefore() : safe(match.getPlayerTwoRatingBefore());
         double after = iAmPlayerOne ? match.getPlayerOneRatingAfter() : safe(match.getPlayerTwoRatingAfter());
@@ -120,5 +140,10 @@ public class MatchController {
 
     private double safe(Double value) {
         return value == null ? 0 : value;
+    }
+
+    /** The bot's rating as a profile carries it — 400 for a row that has none. */
+    private int rounded(Double rating) {
+        return rating == null ? 400 : (int) Math.round(rating);
     }
 }

@@ -7,6 +7,7 @@ import '../widgets/bottom_nav.dart';
 import '../widgets/dashed_border.dart';
 import '../widgets/flame_badge.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/provisional_badge.dart';
 import '../widgets/spinner_ring.dart';
 import '../widgets/stroke_glyph.dart';
 
@@ -73,11 +74,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (data == null) {
       return Column(
         children: [
-          const Expanded(
+          Expanded(
             child: Center(
               child: SpinnerRing(
                 size: 26,
-                trackColor: Color.fromRGBO(244, 243, 248, .15),
+                trackColor: WBColors.textA(.15),
                 activeColor: WBColors.accent,
                 strokeWidth: 2.5,
               ),
@@ -149,9 +150,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        '${user.rating}',
-                        style: WBText.mono(size: 24, weight: FontWeight.w700, color: WBColors.accent),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (user.provisional) ...[
+                            ProvisionalBadge(size: 11),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(
+                            '${user.rating}',
+                            style: WBText.mono(size: 24, weight: FontWeight.w700, color: WBColors.accent),
+                          ),
+                        ],
                       ),
                       Text(
                         '${data.weeklyDelta >= 0 ? '+' : ''}${data.weeklyDelta} hafta',
@@ -285,6 +295,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [for (final badge in data.badges) _badgeTile(badge)],
               ),
               const SizedBox(height: 22),
+              _appearanceSection(),
+              const SizedBox(height: 22),
               _accountSection(),
             ],
           ),
@@ -337,6 +349,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Dark, light, or whatever the phone itself is set to. The choice is the
+  /// player's own and is kept on the device, so it is read from and written to
+  /// [WBTheme] here rather than travelling through AppRoot the way everything
+  /// the server owns does.
+  Widget _appearanceSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Ko'rinish", style: WBText.grotesk(size: 13.5, weight: FontWeight.w600)),
+        const SizedBox(height: 11),
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: WBColors.whiteA(.045),
+            border: Border.all(color: WBColors.whiteA(.09)),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              // Not `const`: these read the palette they are drawing, and a
+              // const widget would be handed back unchanged the moment it
+              // changes them.
+              _ThemeOption(label: 'Tizim', mode: WBThemeMode.system),
+              _ThemeOption(label: "Yorug'", mode: WBThemeMode.light),
+              _ThemeOption(label: 'Tungi', mode: WBThemeMode.dark),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -451,9 +495,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'streak_7' || 'streak_30' => _Badge(
         label: badge.label,
         color: WBColors.flameText,
-        bg: const Color.fromRGBO(255, 138, 60, .11),
-        border: const Color.fromRGBO(255, 138, 60, .3),
-        mark: const FlameIcon(width: 14, height: 19, animate: false),
+        bg: WBColors.flameTop.withValues(alpha: .11),
+        border: WBColors.flameTop.withValues(alpha: .3),
+        mark: FlameIcon(width: 14, height: 19, animate: false),
       ),
       'wins_50' || 'friend_top' => _Badge(
         label: badge.label,
@@ -481,6 +525,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     };
+  }
+}
+
+/// One segment of the appearance picker.
+class _ThemeOption extends StatelessWidget {
+  const _ThemeOption({required this.label, required this.mode});
+
+  final String label;
+  final WBThemeMode mode;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = WBTheme.mode == mode;
+    return Expanded(
+      child: Pressable(
+        onTap: active ? null : () => WBTheme.select(mode),
+        pressScale: .96,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 38,
+          decoration: BoxDecoration(
+            color: active ? WBColors.accentA(.16) : Colors.transparent,
+            border: Border.all(color: active ? WBColors.accentA(.34) : Colors.transparent),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: WBText.grotesk(
+              size: 13,
+              weight: active ? FontWeight.w600 : FontWeight.w500,
+              color: active ? WBColors.accent : WBColors.textA(.55),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -559,22 +640,28 @@ class _StatCard extends StatelessWidget {
 class _Badge extends StatelessWidget {
   const _Badge({
     required this.label,
-    this.color = const Color.fromRGBO(244, 243, 248, .28),
-    this.bg = const Color.fromRGBO(255, 255, 255, .03),
-    this.border = const Color.fromRGBO(255, 255, 255, .12),
+    this.color,
+    this.bg,
+    this.border,
     this.mark,
     this.locked = false,
   });
 
   final String label;
-  final Color color;
-  final Color bg;
-  final Color border;
+
+  /// Null for a locked badge, which takes the palette's own muted foreground
+  /// and hairline rather than a colour of its own.
+  final Color? color;
+  final Color? bg;
+  final Color? border;
   final Widget? mark;
   final bool locked;
 
   @override
   Widget build(BuildContext context) {
+    final color = this.color ?? WBColors.textA(.28);
+    final bg = this.bg ?? WBColors.whiteA(.03);
+    final border = this.border ?? WBColors.whiteA(.12);
     final content = Column(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,

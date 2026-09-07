@@ -31,12 +31,12 @@ class TeamInviteScreen extends StatelessWidget {
     if (invite == null) return const SizedBox.shrink();
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
-          center: Alignment(0, -.32),
+          center: const Alignment(0, -.32),
           radius: 1,
-          colors: [Color.fromRGBO(58, 109, 176, .14), Colors.transparent],
-          stops: [0, .7],
+          colors: [WBColors.accentA(.14), Colors.transparent],
+          stops: const [0, .7],
         ),
       ),
       child: Padding(

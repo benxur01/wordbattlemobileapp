@@ -87,10 +87,10 @@ class PracticeScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color.fromRGBO(124, 138, 255, .14), Color.fromRGBO(124, 138, 255, .04)],
+                    colors: [WBColors.indigoA(.14), WBColors.indigoA(.04)],
                   ),
                   border: Border.all(color: WBColors.indigoA(.26)),
                   borderRadius: BorderRadius.circular(20),
@@ -227,11 +227,11 @@ class PracticeScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(19),
                     ),
                     alignment: Alignment.center,
-                    child: const StrokeGlyph.chevronRight(
+                    child: StrokeGlyph.chevronRight(
                       size: 14,
                       thickness: 3,
-                      color: Color(0xFF0B0B16),
-                      offset: Offset(-4, 0),
+                      color: WBColors.indigoInk,
+                      offset: const Offset(-4, 0),
                     ),
                   ),
                 ],
@@ -275,7 +275,7 @@ class PracticeScreen extends StatelessWidget {
               TextSpan(text: head),
               TextSpan(
                 text: last,
-                style: const TextStyle(color: WBColors.accent),
+                style: TextStyle(color: WBColors.accent),
               ),
             ],
           ),

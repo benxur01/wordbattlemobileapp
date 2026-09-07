@@ -10,6 +10,7 @@ import '../widgets/chain_bubble.dart';
 import '../widgets/flame_badge.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/progress_ring.dart';
+import '../widgets/provisional_badge.dart';
 import '../widgets/stroke_glyph.dart';
 
 /// The emoji a player can react with — fixed, same set the server accepts.
@@ -30,6 +31,8 @@ class DuelScreen extends StatefulWidget {
     required this.onSendChat,
     required this.onSendReaction,
     required this.reaction,
+    required this.powerUps,
+    required this.onPowerUp,
   });
 
   final DuelView? duel;
@@ -50,6 +53,12 @@ class DuelScreen extends StatefulWidget {
   /// value (even the same emoji again) replays the float-and-fade animation —
   /// see [DuelReaction.id].
   final DuelReaction? reaction;
+
+  /// What is left of the four power-ups, and the words the hint last offered.
+  /// Only ever anything but empty in a duel against the bot, which is the only
+  /// duel that draws the row at all.
+  final DuelPowerUps powerUps;
+  final ValueChanged<DuelPowerUp> onPowerUp;
 
   @override
   State<DuelScreen> createState() => _DuelScreenState();
@@ -233,9 +242,18 @@ class _DuelScreenState extends State<DuelScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Sen', style: WBText.grotesk(size: 13, weight: FontWeight.w600)),
-                        Text(
-                          '${widget.me?.rating ?? 0}',
-                          style: WBText.mono(size: 11.5, weight: FontWeight.w500, color: WBColors.accent),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${widget.me?.rating ?? 0}',
+                              style: WBText.mono(size: 11.5, weight: FontWeight.w500, color: WBColors.accent),
+                            ),
+                            if (widget.me?.provisional ?? false) ...[
+                              const SizedBox(width: 5),
+                              ProvisionalBadge(size: 8),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -260,7 +278,7 @@ class _DuelScreenState extends State<DuelScreen> {
                           Container(
                             width: 78,
                             height: 78,
-                            decoration: const BoxDecoration(color: WBColors.bgPanel, shape: BoxShape.circle),
+                            decoration: BoxDecoration(color: WBColors.bgPanel, shape: BoxShape.circle),
                             alignment: Alignment.center,
                             child: Text(
                               timeText,
@@ -292,6 +310,13 @@ class _DuelScreenState extends State<DuelScreen> {
                         ),
                       ),
                     ),
+                    // Under the turn pill, and only in a themed duel: without
+                    // it a player whose perfectly good word is refused has
+                    // nothing on screen to tell them why.
+                    if (duel.theme != null) ...[
+                      const SizedBox(height: 5),
+                      _ThemePill(name: duel.theme!),
+                    ],
                   ],
                 ),
               ),
@@ -310,13 +335,22 @@ class _DuelScreenState extends State<DuelScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: WBText.grotesk(size: 13, weight: FontWeight.w600),
                           ),
-                          Text(
-                            '${duel.opponent.rating}',
-                            style: WBText.mono(
-                              size: 11.5,
-                              weight: FontWeight.w500,
-                              color: WBColors.textA(.5),
-                            ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (duel.opponent.provisional) ...[
+                                ProvisionalBadge(size: 8),
+                                const SizedBox(width: 5),
+                              ],
+                              Text(
+                                '${duel.opponent.rating}',
+                                style: WBText.mono(
+                                  size: 11.5,
+                                  weight: FontWeight.w500,
+                                  color: WBColors.textA(.5),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -380,7 +414,7 @@ class _DuelScreenState extends State<DuelScreen> {
                             bottomLeft: Radius.circular(6),
                           ),
                         ),
-                        child: const _TypingDots(),
+                        child: _TypingDots(),
                       ),
                     ),
                 ],
@@ -438,7 +472,7 @@ class _DuelScreenState extends State<DuelScreen> {
                   ),
                   Row(
                     children: [
-                      const FlameIcon(),
+                      FlameIcon(),
                       const SizedBox(width: 6),
                       Text(
                         '${duel.yourWords}',
@@ -450,7 +484,23 @@ class _DuelScreenState extends State<DuelScreen> {
               ),
               if (duel.substitutedFrom != null) ...[
                 const SizedBox(height: 7),
-                _SubstitutionNote(skipped: duel.substitutedFrom!, needLetter: duel.needLetter),
+                _SubstitutionNote(
+                  skipped: duel.substitutedFrom!,
+                  needLetter: duel.needLetter,
+                  byPowerUp: duel.substitutionReason == 'power_up',
+                ),
+              ],
+              // Bot practice only. `rated` is the server's own `!botOpponent`,
+              // the same flag the ratings on this screen are drawn from, and
+              // the server refuses every one of these frames in a duel with a
+              // person on the other side of it.
+              if (!duel.rated) ...[
+                const SizedBox(height: 10),
+                _PowerUpBar(
+                  powerUps: widget.powerUps,
+                  yourTurn: duel.yourTurn,
+                  onUse: widget.onPowerUp,
+                ),
               ],
               if (widget.error.isNotEmpty) ...[
                 const SizedBox(height: 10),
@@ -541,11 +591,11 @@ class _DuelScreenState extends State<DuelScreen> {
                           ],
                         ),
                         alignment: Alignment.center,
-                        child: const StrokeGlyph.chevronRight(
+                        child: StrokeGlyph.chevronRight(
                           size: 15,
                           thickness: 3,
                           color: WBColors.accentInk,
-                          offset: Offset(-4, 0),
+                          offset: const Offset(-4, 0),
                         ),
                       ),
                     ),
@@ -751,11 +801,11 @@ class _ChatPanel extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     alignment: Alignment.center,
-                    child: const StrokeGlyph.chevronRight(
+                    child: StrokeGlyph.chevronRight(
                       size: 12,
                       thickness: 2.5,
                       color: WBColors.accentInk,
-                      offset: Offset(-3, 0),
+                      offset: const Offset(-3, 0),
                     ),
                   ),
                 ),
@@ -763,6 +813,33 @@ class _ChatPanel extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The topic a themed duel is played inside, named where the player can see
+/// it for the whole duel. Amber rather than the turn pill's grey: it is the
+/// rule that makes this duel different from every other one.
+class _ThemePill extends StatelessWidget {
+  const _ThemePill({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: WBColors.accentA(.14),
+        border: Border.all(color: WBColors.accentA(.34)),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: WBText.grotesk(size: 11, weight: FontWeight.w600, color: WBColors.accent),
       ),
     );
   }
@@ -796,12 +873,24 @@ class _ReactionBubble extends StatelessWidget {
 /// saying: a player who meets it unannounced reads it as the server getting the
 /// letter wrong. It sits under the letter chip it explains, one muted line, and
 /// leaves with the turn — anything larger would be a banner about a detail.
+///
+/// The same line covers a letter the player skipped themselves, in the words
+/// that case wants: they know perfectly well why the letter changed, and being
+/// told it was a rare one would be the screen contradicting them.
 class _SubstitutionNote extends StatelessWidget {
-  const _SubstitutionNote({required this.skipped, required this.needLetter});
+  const _SubstitutionNote({
+    required this.skipped,
+    required this.needLetter,
+    required this.byPowerUp,
+  });
 
   /// The rare letter the chain skipped, and the one handed over instead.
   final String skipped;
   final String needLetter;
+
+  /// Whether the player skipped it with [DuelPowerUp.skipLetter], rather than
+  /// the chain stepping over a letter nobody can answer.
+  final bool byPowerUp;
 
   @override
   Widget build(BuildContext context) {
@@ -813,12 +902,104 @@ class _SubstitutionNote extends StatelessWidget {
         style: WBText.grotesk(size: 11.5, color: WBColors.textA(.45)),
         children: [
           TextSpan(text: '«$skipped»', style: letter),
-          const TextSpan(text: ' kam uchraydi — '),
+          TextSpan(text: byPowerUp ? " o'tkazib yuborildi — " : ' kam uchraydi — '),
           TextSpan(text: '«$needLetter»', style: letter),
           // "harfidan" rather than a case suffix hung off the quotes: it is
           // how the rejection message already talks about a letter.
           const TextSpan(text: ' harfidan davom et'),
         ],
+      ),
+    );
+  }
+}
+
+/// The four power-ups of a bot practice, one charge each.
+///
+/// Above the word field rather than beside the reactions: they are part of
+/// playing the turn, and the hand reaching for one is the hand about to type.
+/// A spent charge stays on screen greyed out instead of disappearing — a row
+/// that changes shape mid-duel is a row whose buttons move under the finger.
+class _PowerUpBar extends StatelessWidget {
+  const _PowerUpBar({required this.powerUps, required this.yourTurn, required this.onUse});
+
+  static const _labels = {
+    DuelPowerUp.addTime: '+10s',
+    DuelPowerUp.skipLetter: "O'tkaz",
+    DuelPowerUp.hint: 'Maslahat',
+    DuelPowerUp.pressure: 'Shoshir',
+  };
+
+  static const _icons = {
+    DuelPowerUp.addTime: Icons.more_time,
+    DuelPowerUp.skipLetter: Icons.skip_next,
+    DuelPowerUp.hint: Icons.lightbulb_outline,
+    DuelPowerUp.pressure: Icons.bolt,
+  };
+
+  final DuelPowerUps powerUps;
+
+  /// All four act on the turn being played, so all four wait for it — as the
+  /// server does, which refuses every one of them on the bot's turn.
+  final bool yourTurn;
+  final ValueChanged<DuelPowerUp> onUse;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            for (final powerUp in DuelPowerUp.values) ...[
+              Expanded(child: _button(powerUp)),
+              if (powerUp != DuelPowerUp.values.last) const SizedBox(width: 6),
+            ],
+          ],
+        ),
+        if (powerUps.hints.isNotEmpty) ...[
+          const SizedBox(height: 7),
+          Text(
+            powerUps.hints.join(' · '),
+            textAlign: TextAlign.center,
+            style: WBText.mono(size: 12, weight: FontWeight.w500, color: WBColors.accentA(.85)),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _button(DuelPowerUp powerUp) {
+    final available = yourTurn && !powerUps.isSpent(powerUp);
+    return Pressable(
+      onTap: available ? () => onUse(powerUp) : null,
+      pressScale: .95,
+      borderRadius: BorderRadius.circular(12),
+      child: Opacity(
+        opacity: available ? 1 : .35,
+        child: Container(
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: WBColors.whiteA(.05),
+            border: Border.all(color: WBColors.whiteA(.1)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_icons[powerUp], size: 13, color: WBColors.accentA(.9)),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  _labels[powerUp]!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: WBText.grotesk(size: 11, weight: FontWeight.w600, color: WBColors.textA(.7)),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

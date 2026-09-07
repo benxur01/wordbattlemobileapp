@@ -203,7 +203,7 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
                           Container(
                             width: 78,
                             height: 78,
-                            decoration: const BoxDecoration(color: WBColors.bgPanel, shape: BoxShape.circle),
+                            decoration: BoxDecoration(color: WBColors.bgPanel, shape: BoxShape.circle),
                             alignment: Alignment.center,
                             child: Text(
                               timeText,
@@ -448,11 +448,11 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
                           ],
                         ),
                         alignment: Alignment.center,
-                        child: const StrokeGlyph.chevronRight(
+                        child: StrokeGlyph.chevronRight(
                           size: 15,
                           thickness: 3,
                           color: WBColors.accentInk,
-                          offset: Offset(-4, 0),
+                          offset: const Offset(-4, 0),
                         ),
                       ),
                     ),
@@ -674,11 +674,11 @@ class _ChatPanel extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     alignment: Alignment.center,
-                    child: const StrokeGlyph.chevronRight(
+                    child: StrokeGlyph.chevronRight(
                       size: 12,
                       thickness: 2.5,
                       color: WBColors.accentInk,
-                      offset: Offset(-3, 0),
+                      offset: const Offset(-3, 0),
                     ),
                   ),
                 ),

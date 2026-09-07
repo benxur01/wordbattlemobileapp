@@ -10,8 +10,9 @@ class DuelSessionTest {
     /** The shipped {@code wordbattle.duel.rare-letters}. */
     private static final Set<Character> RARE = Set.of('x', 'z');
 
+    /** No bot in any of these, so the bot's rating is the 0 a human duel carries. */
     private DuelSession session() {
-        return new DuelSession("duel-1", 10L, 20L, false, "battle", RARE);
+        return new DuelSession("duel-1", 10L, 20L, false, 0, null, "battle", RARE);
     }
 
     @Test
@@ -75,11 +76,11 @@ class DuelSessionTest {
         // Neither shape can reach the chain — words are validated against the
         // dictionary and must be three letters long — but the walk must not
         // depend on that to stay inside the string.
-        DuelSession allRare = new DuelSession("duel-2", 10L, 20L, false, "zzz", RARE);
+        DuelSession allRare = new DuelSession("duel-2", 10L, 20L, false, 0, null, "zzz", RARE);
         assertThat(allRare.requiredLetter()).isEqualTo('z');
         assertThat(allRare.substitutedFrom()).isNull();
 
-        DuelSession twoLetters = new DuelSession("duel-3", 10L, 20L, false, "ox", RARE);
+        DuelSession twoLetters = new DuelSession("duel-3", 10L, 20L, false, 0, null, "ox", RARE);
         assertThat(twoLetters.requiredLetter()).isEqualTo('o');
         assertThat(twoLetters.substitutedFrom()).isEqualTo('x');
     }

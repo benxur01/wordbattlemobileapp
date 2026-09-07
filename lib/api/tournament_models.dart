@@ -85,6 +85,7 @@ class TournamentInvite {
     required this.organizer,
     required this.format,
     required this.teammate,
+    required this.kind,
   });
 
   factory TournamentInvite.fromJson(Map<String, dynamic> json) => TournamentInvite(
@@ -95,6 +96,7 @@ class TournamentInvite {
         organizer: json['organizer'] == null ? null : UserDto.fromJson(json['organizer'] as Map<String, dynamic>),
         format: json['format'] as String? ?? 'solo',
         teammate: json['teammate'] == null ? null : UserDto.fromJson(json['teammate'] as Map<String, dynamic>),
+        kind: json['kind'] as String? ?? 'friend',
       );
 
   final int tournamentId;
@@ -106,8 +108,8 @@ class TournamentInvite {
   final String participantStatus;
 
   /// Whoever created this tournament — an admin or a player organizing one
-  /// among friends, the same shape either way. Null only if that account has
-  /// since been deleted.
+  /// among friends, the same shape either way. Null if that account has since
+  /// been deleted, or — see [isGlobal] — if nobody created it.
   final UserDto? organizer;
 
   /// `"solo"` or `"team"` — see [TournamentSummary.format].
@@ -117,7 +119,15 @@ class TournamentInvite {
   /// [format] is `"solo"`.
   final UserDto? teammate;
 
+  /// `"friend"`, `"admin"`, or `"global"` — see [TournamentSummary.kind].
+  final String kind;
+
   bool get isTeam => format == 'team';
+
+  /// Whether nobody sent this invite: a weekly Global bracket picks its guests
+  /// off the top of the ladder, so there is no organizer to credit and the
+  /// screen says how they were chosen instead.
+  bool get isGlobal => kind == 'global';
 }
 
 /// "Your tournament match is ready" — the lobby's prompt to press start.

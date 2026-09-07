@@ -52,6 +52,7 @@ void main() {
     'duel',
     'duel-error',
     'duel-substituted',
+    'duel-bot',
     'friends',
     'team-duel',
     'team-duel-error',

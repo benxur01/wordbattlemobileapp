@@ -4,6 +4,7 @@ import '../api/models.dart';
 import '../theme.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/provisional_badge.dart';
 import '../widgets/stroke_glyph.dart';
 import '../widgets/synced_text_field.dart';
 
@@ -62,22 +63,22 @@ class FriendsScreen extends StatelessWidget {
   /// Which tab the previous screen highlighted, so the bar can animate.
   final WBTab? previousTab;
 
-  static const _gradients = [
-    wbTealGradient,
-    wbPurpleGradient,
-    wbBlueGradient,
-    wbRoseGradient,
-    wbAmber8Gradient,
-    wbGreyGradient,
-  ];
-  static const _textColors = [
-    WBColors.tealText,
-    WBColors.purpleText,
-    WBColors.blueText,
-    WBColors.roseText,
-    WBColors.amber8Text,
-    WBColors.greyText,
-  ];
+  static List<Gradient> get _gradients => [
+        wbTealGradient,
+        wbPurpleGradient,
+        wbBlueGradient,
+        wbRoseGradient,
+        wbAmber8Gradient,
+        wbGreyGradient,
+      ];
+  static List<Color> get _textColors => [
+        WBColors.tealText,
+        WBColors.purpleText,
+        WBColors.blueText,
+        WBColors.roseText,
+        WBColors.amber8Text,
+        WBColors.greyText,
+      ];
 
   static Gradient _gradientFor(int id) => _gradients[id.abs() % _gradients.length];
 
@@ -170,7 +171,7 @@ class FriendsScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(22, 2, 22, 12),
             children: [
               if (search.trim().isNotEmpty) ...[
-                const _SectionLabel('QIDIRUV NATIJASI'),
+                _SectionLabel('QIDIRUV NATIJASI'),
                 const SizedBox(height: 9),
                 if (searchResults.isEmpty)
                   Padding(
@@ -194,7 +195,7 @@ class FriendsScreen extends StatelessWidget {
               const SizedBox(height: 9),
               if (friends.where((f) => f.online).isEmpty)
                 friends.isEmpty
-                    ? const _NoFriendsYet()
+                    ? _NoFriendsYet()
                     : Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
@@ -209,7 +210,7 @@ class FriendsScreen extends StatelessWidget {
                 ],
               if (friends.any((f) => !f.online)) ...[
                 const SizedBox(height: 9),
-                const _SectionLabel('OFLAYN'),
+                _SectionLabel('OFLAYN'),
                 const SizedBox(height: 9),
                 for (final friend in friends.where((f) => !f.online)) ...[
                   Opacity(opacity: .72, child: _friendRow(friend)),
@@ -266,6 +267,26 @@ class FriendsScreen extends StatelessWidget {
     );
   }
 
+  /// The line under a nickname that opens with a rating, in the two rows that
+  /// carry one. [Flexible] rather than [Expanded] so a short line keeps the
+  /// badge against the text instead of pushing it out to the button.
+  Widget _metaLine(String text, bool provisional) {
+    final label = Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: WBText.mono(size: 11.5, weight: FontWeight.w500, color: WBColors.textA(.45)),
+    );
+    if (!provisional) return label;
+    return Row(
+      children: [
+        Flexible(child: label),
+        const SizedBox(width: 6),
+        ProvisionalBadge(size: 8),
+      ],
+    );
+  }
+
   /// A stranger found by search: can be sent a friend request once.
   Widget _searchRow(UserDto user) {
     final sent = isRequestSent(user.id);
@@ -290,9 +311,9 @@ class FriendsScreen extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: WBText.grotesk(size: 15, weight: FontWeight.w600),
                 ),
-                Text(
+                _metaLine(
                   [user.rating.toString(), if (user.city != null) user.city!].join(' · '),
-                  style: WBText.mono(size: 11.5, weight: FontWeight.w500, color: WBColors.textA(.45)),
+                  user.provisional,
                 ),
               ],
             ),
@@ -350,10 +371,7 @@ class FriendsScreen extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: WBText.grotesk(size: 15, weight: FontWeight.w600),
                 ),
-                Text(
-                  request.meta,
-                  style: WBText.mono(size: 11.5, weight: FontWeight.w500, color: WBColors.textA(.45)),
-                ),
+                _metaLine(request.meta, request.user.provisional),
               ],
             ),
           ),
@@ -364,12 +382,12 @@ class FriendsScreen extends StatelessWidget {
               height: 42,
               decoration: BoxDecoration(color: WBColors.green, borderRadius: BorderRadius.circular(13)),
               alignment: Alignment.center,
-              child: const StrokeGlyph.check(
+              child: StrokeGlyph.check(
                 width: 13,
                 height: 8,
                 thickness: 3,
                 color: WBColors.greenInk,
-                offset: Offset(0, -1.5),
+                offset: const Offset(0, -1.5),
               ),
             ),
           ),

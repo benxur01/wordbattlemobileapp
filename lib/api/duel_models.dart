@@ -18,16 +18,69 @@ class ChainWord {
   String get spentLabel => '${(spentMs / 1000).toStringAsFixed(1)}s';
 }
 
+/// The four helps a bot practice offers, once each — `PowerUp` on the server.
+/// [id] is what the `duel.power_up` frame carries in either direction.
+enum DuelPowerUp {
+  addTime('add_time'),
+  skipLetter('skip_letter'),
+  hint('hint'),
+  pressure('pressure');
+
+  const DuelPowerUp(this.id);
+
+  final String id;
+
+  /// The power-up a frame is about, or null if it named none of them — a
+  /// server newer than this build.
+  static DuelPowerUp? byId(String? id) {
+    for (final powerUp in values) {
+      if (powerUp.id == id) return powerUp;
+    }
+    return null;
+  }
+}
+
+/// What is left of this duel's power-ups, and whatever the last hint offered.
+///
+/// A charge is counted spent only once the server says so — it is the server's
+/// to give, and a client that greyed its own button out would lose a charge to
+/// every refusal (asking on the bot's turn, asking twice in the same instant).
+/// The other side of that: an app relaunched mid-practice knows of no spent
+/// charges and offers all four again, and the server answers the ones already
+/// gone with `power_up_spent` rather than a second use.
+class DuelPowerUps {
+  const DuelPowerUps({this.spent = const {}, this.hints = const []});
+
+  /// The ones already used up. Empty at the start of every duel.
+  final Set<DuelPowerUp> spent;
+
+  /// Words the hint offered for the letter it was asked about. Dropped on the
+  /// next state frame: the board has moved and they were about the old one.
+  final List<String> hints;
+
+  bool isSpent(DuelPowerUp powerUp) => spent.contains(powerUp);
+
+  /// [words] is the hint's suggestions and empty for the other three, which
+  /// leave whatever is on screen alone: none of them is about the words, and
+  /// only a move of the board is a reason to take them away.
+  DuelPowerUps used(DuelPowerUp powerUp, List<String> words) =>
+      DuelPowerUps(spent: {...spent, powerUp}, hints: words.isEmpty ? hints : words);
+
+  DuelPowerUps withoutHints() => hints.isEmpty ? this : DuelPowerUps(spent: spent);
+}
+
 /// The live duel, rebuilt from every `match.found` / `duel.update` frame.
 class DuelView {
   const DuelView({
     required this.duelId,
     required this.opponent,
     required this.rated,
+    required this.theme,
     required this.chain,
     required this.yourTurn,
     required this.needLetter,
     required this.substitutedFrom,
+    required this.substitutionReason,
     required this.timeLeftMs,
     required this.turnSeconds,
     required this.yourWords,
@@ -59,12 +112,17 @@ class DuelView {
       duelId: duelId,
       opponent: UserDto.fromJson(opponent),
       rated: json['rated'] as bool? ?? true,
+      theme: json['theme'] as String?,
       chain: ((json['chain'] as List?) ?? const [])
           .map((e) => ChainWord.fromJson(e as Map<String, dynamic>))
           .toList(),
       yourTurn: json['yourTurn'] as bool? ?? false,
       needLetter: (json['needLetter'] as String? ?? 'a').toUpperCase(),
       substitutedFrom: (json['substitutedFrom'] as String?)?.toUpperCase(),
+      // No frame carries a reason at the start of a duel, and none needs to:
+      // a chain nobody has played in yet can only have been moved off its
+      // letter by the rare-letter rule.
+      substitutionReason: null,
       timeLeftMs: ((json['turnSeconds'] as num?)?.toInt() ?? 15) * 1000,
       turnSeconds: (json['turnSeconds'] as num?)?.toInt() ?? 15,
       yourWords: 0,
@@ -106,10 +164,12 @@ class DuelView {
       duelId: duelId,
       opponent: UserDto.fromJson(opponent),
       rated: json['rated'] as bool? ?? true,
+      theme: json['theme'] as String?,
       chain: const [],
       yourTurn: false,
       needLetter: 'A',
       substitutedFrom: null,
+      substitutionReason: null,
       timeLeftMs: 0,
       turnSeconds: 15,
       yourWords: 0,
@@ -121,6 +181,12 @@ class DuelView {
   final String duelId;
   final UserDto opponent;
   final bool rated;
+
+  /// The topic this duel is restricted to, named for the screen to show, or
+  /// null for an ordinary duel played against the whole dictionary. Set from
+  /// `match.found` and from `duel.update`, like [opponent] and [rated]: it
+  /// never changes, and the relaunch-mid-duel path only ever sees the latter.
+  final String? theme;
   final List<ChainWord> chain;
   final bool yourTurn;
   final String needLetter;
@@ -129,6 +195,12 @@ class DuelView {
   /// time: the server leaves the field out entirely on the turns nothing was
   /// substituted, which is exactly when the note has to come off the screen.
   final String? substitutedFrom;
+
+  /// Why that letter was skipped: `rare_letter` for the game's own rule,
+  /// `power_up` for a player who spent their skip on it. The note says one or
+  /// the other, and a player told their own skip was a rare letter would
+  /// rightly wonder what the server was talking about.
+  final String? substitutionReason;
   final int timeLeftMs;
   final int turnSeconds;
   final int yourWords;
@@ -139,6 +211,7 @@ class DuelView {
         duelId: json['duelId'] as String? ?? duelId,
         opponent: opponent,
         rated: rated,
+        theme: theme,
         chain: ((json['chain'] as List?) ?? const [])
             .map((e) => ChainWord.fromJson(e as Map<String, dynamic>))
             .toList(),
@@ -147,6 +220,7 @@ class DuelView {
         // Deliberately without a fallback to the previous value: an absent
         // field means this chain ends on an ordinary letter, so the note goes.
         substitutedFrom: (json['substitutedFrom'] as String?)?.toUpperCase(),
+        substitutionReason: json['substitutionReason'] as String?,
         timeLeftMs: (json['timeLeftMs'] as num?)?.toInt() ?? timeLeftMs,
         turnSeconds: (json['turnSeconds'] as num?)?.toInt() ?? turnSeconds,
         yourWords: (json['yourWords'] as num?)?.toInt() ?? yourWords,
@@ -159,10 +233,12 @@ class DuelView {
         duelId: duelId,
         opponent: opponent,
         rated: rated,
+        theme: theme,
         chain: chain,
         yourTurn: yourTurn,
         needLetter: needLetter,
         substitutedFrom: substitutedFrom,
+        substitutionReason: substitutionReason,
         timeLeftMs: timeLeftMs - elapsedMs < 0 ? 0 : timeLeftMs - elapsedMs,
         turnSeconds: turnSeconds,
         yourWords: yourWords,

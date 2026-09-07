@@ -94,10 +94,10 @@ class HistoryScreen extends StatelessWidget {
         ),
         Expanded(
           child: data == null
-              ? const Center(
+              ? Center(
                   child: SpinnerRing(
                     size: 26,
-                    trackColor: Color.fromRGBO(244, 243, 248, .15),
+                    trackColor: WBColors.textA(.15),
                     activeColor: WBColors.accent,
                     strokeWidth: 2.5,
                   ),

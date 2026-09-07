@@ -29,7 +29,7 @@ class MatchmakingScreen extends StatelessWidget {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      const RadarRings(size: 220, color: WBColors.accent),
+                      RadarRings(size: 220, color: WBColors.accent),
                       Container(
                         width: 92,
                         height: 92,

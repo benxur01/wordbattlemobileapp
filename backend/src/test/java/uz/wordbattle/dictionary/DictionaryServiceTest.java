@@ -3,9 +3,11 @@ package uz.wordbattle.dictionary;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +20,22 @@ class DictionaryServiceTest {
 
     /** The shipped {@code wordbattle.duel.rare-letters}. */
     private static final Set<Character> RARE_LETTERS = Set.of('x', 'z');
+
+    /**
+     * One rating from each band {@code botMove} buckets into — see
+     * {@code DictionaryService.Band}. {@code EVERYDAY} is the one the bot has
+     * always played at, and every assertion about the pool itself is made
+     * through it so that draining a letter still means what it used to.
+     */
+    private static final double GENTLE = 250;
+
+    private static final double EVERYDAY = 600;
+
+    private static final double SHARP = 1000;
+
+    private static final double RARE = 1400;
+
+    private static final double RAREST = 1900;
 
     private static DictionaryService dictionary;
 
@@ -110,10 +128,95 @@ class DictionaryServiceTest {
     void botMoveRespectsLengthAndTheUsedChain() {
         Set<String> used = new LinkedHashSet<>();
         for (int i = 0; i < 50; i++) {
-            String word = dictionary.botMove('s', used, 6);
+            String word = dictionary.botMove('s', used, 6, EVERYDAY);
             assertThat(word).isNotNull();
             assertThat(word).startsWith("s").hasSizeGreaterThanOrEqualTo(6);
             assertThat(used.add(word)).as("%s repeated", word).isTrue();
+        }
+    }
+
+    /**
+     * The whole of the difficulty scale, in the only terms it is made of:
+     * length, and which of the two pools the word came from. An approximation
+     * — see {@code DictionaryService.Band} for why that is deliberate — so
+     * what is held here is the ordering rather than any one number.
+     */
+    @Test
+    void theBandsRunFromShortEverydayWordsToLongRareOnes() {
+        // A letter with a fat pool on both sides, so that 80 answers per band
+        // are drawn from choice rather than from what little was left.
+        double gentle = averageLength(answers('s', GENTLE, 80));
+        double everyday = averageLength(answers('s', EVERYDAY, 80));
+        double sharp = averageLength(answers('s', SHARP, 80));
+        double rarest = averageLength(answers('s', RAREST, 80));
+
+        assertThat(gentle).as("a weak bot plays shorter words than the everyday one").isLessThan(everyday);
+        assertThat(everyday).as("a strong bot plays longer words than the everyday one").isLessThan(sharp);
+        assertThat(sharp).as("the hardest band plays the longest words").isLessThan(rarest);
+    }
+
+    @Test
+    void theHardBandsAnswerFromOutsideTheEverydayPool() {
+        Set<String> everyday = botPoolFor('c');
+
+        assertThat(answers('c', RARE, 40)).doesNotContainAnyElementsOf(everyday);
+        assertThat(answers('c', RAREST, 40)).doesNotContainAnyElementsOf(everyday);
+    }
+
+    /**
+     * The one thing a band must never do. A bot with no legal answer hands the
+     * duel to the human on the spot ({@code EndReason.NO_MOVES}), and a length
+     * preference that could not be satisfied for some letter would trigger that
+     * gift for no reason at all — so both ends of the scale are put in the
+     * position their preference cannot be met in.
+     */
+    @Test
+    void aBandsLengthPreferenceIsNeverAFilter() {
+        Set<String> pool = botPoolFor('c');
+
+        Set<String> shortOnesUsed = pool.stream()
+                .filter(word -> word.length() <= 5)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        String forGentle = dictionary.botMove('c', shortOnesUsed, BOT_MIN_LENGTH, GENTLE);
+        assertThat(forGentle).as("a weak bot with no short word left").isNotNull();
+        assertThat(forGentle).hasSizeGreaterThan(5);
+
+        Set<String> longOnesUsed = pool.stream()
+                .filter(word -> word.length() >= 7)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        String forSharp = dictionary.botMove('c', longOnesUsed, BOT_MIN_LENGTH, SHARP);
+        assertThat(forSharp).as("a strong bot with no long word left").isNotNull();
+        assertThat(forSharp).hasSizeLessThan(7);
+    }
+
+    /**
+     * The same tolerance one pool further out: "q" is the thinnest letter the
+     * duel rules can hand the bot, and a chain that empties its long tail has
+     * to leave it playing everyday words rather than stuck.
+     */
+    @Test
+    void aHardBotFallsBackToTheEverydayPoolOnceTheRareOneIsDrained() {
+        Set<String> everyday = botPoolFor('q');
+        Set<String> served = new LinkedHashSet<>();
+
+        String word;
+        while ((word = dictionary.botMove('q', served, BOT_MIN_LENGTH, RAREST)) != null) {
+            assertThat(served.add(word)).as("%s served twice", word).isTrue();
+        }
+
+        assertThat(served).as("the long tail was played first").hasSizeGreaterThan(everyday.size() * 2);
+        assertThat(served).as("and the everyday pool after it").containsAll(everyday);
+    }
+
+    @Test
+    void everyBandAnswersEveryLetterTheBotCanBeSentTo() {
+        for (char letter = 'a'; letter <= 'z'; letter++) {
+            if (RARE_LETTERS.contains(letter)) continue;
+            for (double rating : new double[] {GENTLE, EVERYDAY, SHARP, RARE, RAREST}) {
+                assertThat(dictionary.botMove(letter, Set.of(), BOT_MIN_LENGTH, rating))
+                        .as("a bot at %s sent to '%s'", rating, letter)
+                        .isNotNull();
+            }
         }
     }
 
@@ -141,9 +244,26 @@ class DictionaryServiceTest {
     private Set<String> botPoolFor(char letter) {
         Set<String> used = new LinkedHashSet<>();
         String word;
-        while ((word = dictionary.botMove(letter, used, BOT_MIN_LENGTH)) != null) {
+        while ((word = dictionary.botMove(letter, used, BOT_MIN_LENGTH, EVERYDAY)) != null) {
             assertThat(used.add(word)).as("%s served twice", word).isTrue();
         }
         return used;
+    }
+
+    /** What a bot at {@code rating} actually answers with, over a fresh chain. */
+    private List<String> answers(char letter, double rating, int count) {
+        Set<String> used = new LinkedHashSet<>();
+        List<String> words = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            String word = dictionary.botMove(letter, used, BOT_MIN_LENGTH, rating);
+            assertThat(word).as("a bot at %s ran out of '%s' words", rating, letter).isNotNull();
+            used.add(word);
+            words.add(word);
+        }
+        return words;
+    }
+
+    private double averageLength(List<String> words) {
+        return words.stream().mapToInt(String::length).average().orElseThrow();
     }
 }

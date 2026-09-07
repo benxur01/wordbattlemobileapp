@@ -125,12 +125,12 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
-          center: Alignment(0, -1),
+          center: const Alignment(0, -1),
           radius: 1.1,
-          colors: [Color.fromRGBO(58, 109, 176, .16), Colors.transparent],
-          stops: [0, .72],
+          colors: [WBColors.accentA(.16), Colors.transparent],
+          stops: const [0, .72],
         ),
       ),
       child: Column(
@@ -203,7 +203,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
     final d = widget.detail;
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 16, 22, 13),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color.fromRGBO(255, 255, 255, .07)))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: WBColors.whiteA(.07)))),
       child: Row(
         children: [
           Pressable(
@@ -218,7 +218,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.arrow_back_ios_new, size: 14, color: Colors.white70),
+              child: Icon(Icons.arrow_back_ios_new, size: 14, color: WBColors.textA(.7)),
             ),
           ),
           Expanded(
@@ -257,7 +257,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.ios_share, size: 15, color: Colors.white70),
+              child: Icon(Icons.ios_share, size: 15, color: WBColors.textA(.7)),
             ),
           ),
           const SizedBox(width: 8),
@@ -587,7 +587,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
                       ),
               ),
               if (match.isDone && match.wonBy(player))
-                const Icon(Icons.check, size: 13, color: WBColors.green),
+                Icon(Icons.check, size: 13, color: WBColors.green),
             ],
           );
 
@@ -596,7 +596,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
       margin: EdgeInsets.only(top: isFirst ? 0 : 1),
       decoration: isFirst
           ? null
-          : const BoxDecoration(border: Border(top: BorderSide(color: Color.fromRGBO(255, 255, 255, .07)))),
+          : BoxDecoration(border: Border(top: BorderSide(color: WBColors.whiteA(.07)))),
       child: content,
     );
   }
@@ -729,22 +729,22 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
     );
   }
 
-  static const List<Gradient> _gradients = [
-    wbTealGradient,
-    wbPurpleGradient,
-    wbBlueGradient,
-    wbRoseGradient,
-    wbAmber8Gradient,
-    wbGreyGradient,
-  ];
-  static const List<Color> _textColors = [
-    WBColors.tealText,
-    WBColors.purpleText,
-    WBColors.blueText,
-    WBColors.roseText,
-    WBColors.amber8Text,
-    WBColors.greyText,
-  ];
+  static List<Gradient> get _gradients => [
+        wbTealGradient,
+        wbPurpleGradient,
+        wbBlueGradient,
+        wbRoseGradient,
+        wbAmber8Gradient,
+        wbGreyGradient,
+      ];
+  static List<Color> get _textColors => [
+        WBColors.tealText,
+        WBColors.purpleText,
+        WBColors.blueText,
+        WBColors.roseText,
+        WBColors.amber8Text,
+        WBColors.greyText,
+      ];
 
   Widget _avatar(UserDto user) {
     final gradient = _gradients[user.id.abs() % _gradients.length];

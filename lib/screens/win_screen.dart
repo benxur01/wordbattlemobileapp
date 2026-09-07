@@ -28,19 +28,19 @@ class WinScreen extends StatelessWidget {
         // Positioned.fill: a childless DecoratedBox in a Stack takes the
         // smallest size the constraints allow — zero — so the win screen's
         // green glow was never painted.
-        const Positioned.fill(
+        Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: RadialGradient(
-                center: Alignment(0, -.48),
+                center: const Alignment(0, -.48),
                 radius: 1,
-                colors: [Color.fromRGBO(53, 208, 127, .18), Colors.transparent],
-                stops: [0, .7],
+                colors: [WBColors.greenA(.18), Colors.transparent],
+                stops: const [0, .7],
               ),
             ),
           ),
         ),
-        const Positioned.fill(child: ConfettiRain()),
+        Positioned.fill(child: ConfettiRain()),
         Padding(
           padding: const EdgeInsets.fromLTRB(26, 0, 26, 30),
           child: Column(
@@ -111,7 +111,7 @@ class WinScreen extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          const FlameIcon(width: 15, height: 20),
+                          FlameIcon(width: 15, height: 20),
                           const SizedBox(width: 11),
                           Expanded(
                             child: Column(

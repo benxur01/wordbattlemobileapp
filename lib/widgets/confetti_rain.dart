@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 /// Ports the `wbFall` keyframe animation: a handful of falling/rotating
 /// confetti pieces used on the win screen. Each piece has its own left
 /// position, size, color, duration and delay — matching the five
@@ -8,13 +10,13 @@ import 'package:flutter/material.dart';
 class ConfettiRain extends StatelessWidget {
   const ConfettiRain({super.key});
 
-  static const _pieces = [
-    _Piece(left: .12, width: 8, height: 14, color: Color(0xFFF7B733), durationMs: 3000, delayMs: 0),
-    _Piece(left: .34, width: 7, height: 12, color: Color(0xFF35D07F), durationMs: 3400, delayMs: 400),
-    _Piece(left: .58, width: 9, height: 13, color: Color(0xFF7C8AFF), durationMs: 3100, delayMs: 900),
-    _Piece(left: .78, width: 7, height: 15, color: Color(0xFFF7B733), durationMs: 3600, delayMs: 200),
-    _Piece(left: .88, width: 8, height: 11, color: Color(0xFFFF9A55), durationMs: 3300, delayMs: 1300),
-  ];
+  static List<_Piece> get _pieces => [
+        _Piece(left: .12, width: 8, height: 14, color: WBColors.amber, durationMs: 3000, delayMs: 0),
+        _Piece(left: .34, width: 7, height: 12, color: WBColors.green, durationMs: 3400, delayMs: 400),
+        _Piece(left: .58, width: 9, height: 13, color: WBColors.indigo, durationMs: 3100, delayMs: 900),
+        _Piece(left: .78, width: 7, height: 15, color: WBColors.amber, durationMs: 3600, delayMs: 200),
+        _Piece(left: .88, width: 8, height: 11, color: WBColors.flameText, durationMs: 3300, delayMs: 1300),
+      ];
 
   @override
   Widget build(BuildContext context) {

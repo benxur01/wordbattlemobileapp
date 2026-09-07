@@ -14,9 +14,13 @@ import java.time.Instant;
  * only for the last one, and the rest of this class does not care which.
  *
  * <p>{@link #visibility} is the door {@link TournamentService#join} checks:
- * {@code PRIVATE} is every admin- and friend-run bracket, invite-only exactly
- * as before, and {@code PUBLIC} — always true of a {@code GLOBAL} one — lets a
- * stranger seat themselves with nobody inviting them.
+ * {@code PRIVATE} is invite-only and {@code PUBLIC} lets a stranger seat
+ * themselves with nobody inviting them. A {@code GLOBAL} bracket is
+ * {@code PRIVATE} too, and that is the whole of what closes self-join on one:
+ * its guest list is the top of the ladder, invited by the system itself — see
+ * {@link TournamentService#inviteTopRankedSolo} — so there is no seat left for
+ * a stranger to claim, and {@code join} refuses one for exactly the reason it
+ * refuses an admin's bracket.
  *
  * <p>{@link #format} decides what occupies a seat: one player ({@code SOLO},
  * every bracket that existed before 2v2 tournaments) or a pair of them
@@ -78,7 +82,12 @@ public class TournamentEntity {
     @Column(name = "format", nullable = false, length = 16)
     private Format format;
 
-    /** The rating floor to self-join — set only on a {@code GLOBAL} tournament, null otherwise. */
+    /**
+     * How strong this week's field is: the rating of the weakest player the
+     * bracket was opened to, set only on a {@code GLOBAL} tournament and null
+     * otherwise. Shown rather than enforced — nothing gates on it now that a
+     * Global bracket invites its players instead of waiting to be joined.
+     */
     @Column(name = "min_rating")
     private Double minRating;
 
@@ -135,14 +144,33 @@ public class TournamentEntity {
         this(name, size, createdByAdminId, visibility, kind, format, null);
     }
 
-    /** {@code GlobalTournamentScheduler}'s own creation path — no organizer, public from the moment it exists. */
+    /**
+     * {@code GlobalTournamentScheduler}'s own creation path — no organizer, and
+     * invite-only like every other bracket: the invites go out from
+     * {@link TournamentService#inviteTopRankedSolo} rather than from a person.
+     */
     public static TournamentEntity global(String name, int size, double minRating) {
-        return new TournamentEntity(name, size, null, Visibility.PUBLIC, Kind.GLOBAL, Format.SOLO, minRating);
+        return new TournamentEntity(name, size, null, Visibility.PRIVATE, Kind.GLOBAL, Format.SOLO, minRating);
+    }
+
+    /** The same for the weekly 2v2 bracket beside it, whose {@code size} counts teams rather than players. */
+    public static TournamentEntity globalTeam(String name, int size, double minRating) {
+        return new TournamentEntity(name, size, null, Visibility.PRIVATE, Kind.GLOBAL, Format.TEAM, minRating);
     }
 
     public Long getId() { return id; }
     public String getName() { return name; }
     public int getSize() { return size; }
+
+    /**
+     * Only {@link TournamentService#finalizeOpenGlobal} writes this, and only
+     * to shrink a Global bracket the week did not fill to the number of seats
+     * it actually has — a 32 that collected 11 becomes an 8. Everything that
+     * reads {@link #size} reads it after that: {@link #rounds} lays out the
+     * bracket from it, and {@code startInternal} refuses unless exactly this
+     * many seats accepted, which is precisely what the finalize just made true.
+     */
+    public void setSize(int size) { this.size = size; }
     public Status getStatus() { return status; }
     public void setStatus(Status status) { this.status = status; }
     public Long getCreatedByAdminId() { return createdByAdminId; }

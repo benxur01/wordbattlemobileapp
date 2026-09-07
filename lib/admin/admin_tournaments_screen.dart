@@ -50,7 +50,7 @@ class _AdminTournamentsScreenState extends State<AdminTournamentsScreen> with Ad
     final result = await _askCreate(context);
     if (result == null) return;
     await guard(() async {
-      final created = await widget.api.createTournament(result.name, result.size);
+      final created = await widget.api.createTournament(result.name, result.size, result.format);
       await _load(0);
       if (mounted) widget.onOpenTournament(created.id);
     });
@@ -98,6 +98,7 @@ class _AdminTournamentsScreenState extends State<AdminTournamentsScreen> with Ad
       columns: const [
         AdminColumn('ID', 60),
         AdminColumn('Nomi', 220),
+        AdminColumn('Format', 100),
         AdminColumn("O'lcham", 80),
         AdminColumn('Holat', 110),
         AdminColumn('Yaratilgan', 140),
@@ -109,6 +110,11 @@ class _AdminTournamentsScreenState extends State<AdminTournamentsScreen> with Ad
           [
             adminCell('#${tournament.id}', mono: true, color: WBColors.textA(.5)),
             adminCell(tournament.name, weight: FontWeight.w600),
+            adminCell(
+              tournament.isTeam ? '2v2' : '1v1',
+              mono: true,
+              color: tournament.isTeam ? WBColors.purpleText : WBColors.textA(.6),
+            ),
             adminCell('${tournament.size}', mono: true),
             adminCell(
               tournament.statusLabel,
@@ -127,14 +133,20 @@ class _AdminTournamentsScreenState extends State<AdminTournamentsScreen> with Ad
   }
 }
 
-Future<({String name, int size})?> _askCreate(BuildContext context) {
+/// Name, format and size. The format toggle is the panel's version of the
+/// `OrganizeTournamentScreen` step a player picks between 1v1 and 2v2 in, and
+/// decides what the size below it counts: players in a solo bracket, pairs in a
+/// team one.
+Future<({String name, int size, String format})?> _askCreate(BuildContext context) {
   final controller = TextEditingController();
   int size = 8;
-  return showDialog<({String name, int size})>(
+  String format = 'solo';
+  return showDialog<({String name, int size, String format})>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) {
         final name = controller.text.trim();
+        final isTeam = format == 'team';
         return AlertDialog(
           backgroundColor: WBColors.bgPanel,
           title: Text('Yangi turnir', style: WBText.grotesk(size: 16, weight: FontWeight.w700)),
@@ -150,7 +162,24 @@ Future<({String name, int size})?> _askCreate(BuildContext context) {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 14),
-              Text("Ishtirokchilar soni", style: WBText.grotesk(size: 12.5, color: WBColors.textA(.6))),
+              Text('Format', style: WBText.grotesk(size: 12.5, color: WBColors.textA(.6))),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final option in const [(value: 'solo', label: 'Yakka · 1v1'), (value: 'team', label: 'Jamoaviy · 2v2')])
+                    ChoiceChip(
+                      label: Text(option.label),
+                      selected: format == option.value,
+                      onSelected: (_) => setState(() => format = option.value),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                isTeam ? 'Jamoalar soni' : 'Ishtirokchilar soni',
+                style: WBText.grotesk(size: 12.5, color: WBColors.textA(.6)),
+              ),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
@@ -163,6 +192,13 @@ Future<({String name, int size})?> _askCreate(BuildContext context) {
                     ),
                 ],
               ),
+              if (isTeam) ...[
+                const SizedBox(height: 8),
+                Text(
+                  "$size jamoa — ya'ni ${size * 2} o'yinchi, har bir o'rinda ikkitadan",
+                  style: WBText.grotesk(size: 12, color: WBColors.textA(.45)),
+                ),
+              ],
             ],
           ),
           actions: [
@@ -170,7 +206,7 @@ Future<({String name, int size})?> _askCreate(BuildContext context) {
             FilledButton(
               onPressed: name.isEmpty
                   ? null
-                  : () => Navigator.of(context).pop((name: name, size: size)),
+                  : () => Navigator.of(context).pop((name: name, size: size, format: format)),
               style: FilledButton.styleFrom(backgroundColor: WBColors.amber, foregroundColor: WBColors.amberInk),
               child: const Text('Yaratish'),
             ),

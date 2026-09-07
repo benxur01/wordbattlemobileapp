@@ -52,9 +52,9 @@ class _FlameIconState extends State<FlameIcon> with SingleTickerProviderStateMix
       child: Container(
         width: widget.width,
         height: widget.height,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: wbFlameGradient,
-          borderRadius: BorderRadius.only(
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(100),
             topRight: Radius.circular(100),
             bottomLeft: Radius.circular(60),

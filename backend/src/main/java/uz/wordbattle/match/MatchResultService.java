@@ -340,6 +340,15 @@ public class MatchResultService {
         if (two != null) {
             match.setPlayerTwoRatingBefore(twoBefore);
             match.setPlayerTwoRatingAfter(two.getRating());
+        } else if (session.botOpponent()) {
+            // The bot's rating is no longer a constant — it tracks the human it
+            // was given to, or is the one they chose — so the number the duel
+            // was played at is written down with it. Nothing else remembers it,
+            // and without this the history card would have to name a rating the
+            // duel never had. Before and after are the same because a bot duel
+            // settles nothing: see this class's own opening.
+            match.setPlayerTwoRatingBefore(session.botRating());
+            match.setPlayerTwoRatingAfter(session.botRating());
         }
         match.setFinishedAt(now);
         matches.save(match);

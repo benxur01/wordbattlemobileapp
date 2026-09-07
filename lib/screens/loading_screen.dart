@@ -45,9 +45,9 @@ class LoadingScreen extends StatelessWidget {
             ),
             const SizedBox(height: 30),
             if (!failed)
-              const SpinnerRing(
+              SpinnerRing(
                 size: 22,
-                trackColor: Color.fromRGBO(244, 243, 248, .18),
+                trackColor: WBColors.textA(.18),
                 activeColor: WBColors.accent,
                 strokeWidth: 2.5,
               )

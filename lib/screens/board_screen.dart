@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/models.dart';
 import '../theme.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/provisional_badge.dart';
 import '../widgets/spinner_ring.dart';
 
 class BoardScreen extends StatelessWidget {
@@ -35,22 +36,22 @@ class BoardScreen extends StatelessWidget {
   /// Avatar tint, picked from the player id so the same person keeps the same
   /// colour everywhere. The design hand-picked one per row; with live data the
   /// palette has to be derived from something stable.
-  static const _gradients = [
-    wbRoseGradient,
-    wbTealGradient,
-    wbPurpleGradient,
-    wbAmber8Gradient,
-    wbBlueGradient,
-    wbGreyGradient,
-  ];
-  static const _textColors = [
-    WBColors.roseText,
-    WBColors.tealText,
-    WBColors.purpleText,
-    WBColors.amber8Text,
-    WBColors.blueText,
-    WBColors.greyText,
-  ];
+  static List<Gradient> get _gradients => [
+        wbRoseGradient,
+        wbTealGradient,
+        wbPurpleGradient,
+        wbAmber8Gradient,
+        wbBlueGradient,
+        wbGreyGradient,
+      ];
+  static List<Color> get _textColors => [
+        WBColors.roseText,
+        WBColors.tealText,
+        WBColors.purpleText,
+        WBColors.amber8Text,
+        WBColors.blueText,
+        WBColors.greyText,
+      ];
 
   static int paletteIndex(int userId) => userId.abs() % _gradients.length;
 
@@ -93,10 +94,10 @@ class BoardScreen extends StatelessWidget {
         ),
         Expanded(
           child: data == null
-              ? const Center(
+              ? Center(
                   child: SpinnerRing(
                     size: 26,
-                    trackColor: Color.fromRGBO(244, 243, 248, .15),
+                    trackColor: WBColors.textA(.15),
                     activeColor: WBColors.accent,
                     strokeWidth: 2.5,
                   ),
@@ -150,8 +151,8 @@ class BoardScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
       decoration: BoxDecoration(
         gradient: highlight
-            ? const LinearGradient(
-                colors: [Color.fromRGBO(247, 183, 51, .16), Color.fromRGBO(247, 183, 51, .04)],
+            ? LinearGradient(
+                colors: [WBColors.amberA(.16), WBColors.amberA(.04)],
               )
             : null,
         // The player's own row carries a faint amber tint in the design.
@@ -221,6 +222,10 @@ class BoardScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
+          if (row.user.provisional) ...[
+            ProvisionalBadge(size: 10),
+            const SizedBox(width: 6),
+          ],
           Text(
             '${row.user.rating}',
             style: WBText.mono(

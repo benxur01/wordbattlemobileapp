@@ -8,8 +8,13 @@ import '../widgets/primary_button.dart';
 
 /// A tournament invite waiting for Accept/Decline — the closest analogue is
 /// `IncomingScreen`'s bottom-sheet, adapted for a challenge that comes from
-/// the admin rather than a friend, names a format instead of a rating, and
-/// never expires on its own.
+/// the admin rather than a friend, and names a format instead of a rating.
+///
+/// A weekly Global bracket sends the same sheet with nobody behind it: the
+/// player was picked off the top of the ladder, so it says that rather than
+/// crediting an admin who did nothing. That one does expire, quietly and on
+/// the server — see `TournamentService#expireStaleGlobalInvites` — where every
+/// other invite here waits as long as it takes.
 class TournamentInviteScreen extends StatefulWidget {
   const TournamentInviteScreen({
     super.key,
@@ -47,7 +52,7 @@ class _TournamentInviteScreenState extends State<TournamentInviteScreen> with Si
     return BackdropFilter(
       filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
       child: Container(
-        color: WBColors.bgDeep.withValues(alpha: .82),
+        color: WBColors.scrim,
         alignment: Alignment.bottomCenter,
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
         child: FadeTransition(
@@ -61,11 +66,7 @@ class _TournamentInviteScreenState extends State<TournamentInviteScreen> with Si
             child: Container(
               padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color.fromRGBO(30, 28, 44, .98), Color.fromRGBO(12, 12, 20, .98)],
-                ),
+                gradient: wbSheetGradient,
                 border: Border.all(color: WBColors.whiteA(.12)),
                 borderRadius: BorderRadius.circular(28),
               ),
@@ -117,7 +118,9 @@ class _TournamentInviteScreenState extends State<TournamentInviteScreen> with Si
                   ],
                   const SizedBox(height: 18),
                   Text(
-                    "${invite.organizer?.label ?? 'Admin'} sizni ushbu turnirga taklif qildi. Qatnashish uchun quyidagi tugmani bosing.",
+                    invite.isGlobal
+                        ? "Reytingingizga ko'ra ushbu haftalik global turnirga tanlandingiz. Qatnashish uchun quyidagi tugmani bosing."
+                        : "${invite.organizer?.label ?? 'Admin'} sizni ushbu turnirga taklif qildi. Qatnashish uchun quyidagi tugmani bosing.",
                     textAlign: TextAlign.center,
                     style: WBText.grotesk(size: 12.5, height: 1.4, color: WBColors.textA(.55)),
                   ),

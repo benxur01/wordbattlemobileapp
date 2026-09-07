@@ -66,7 +66,7 @@ class _ChainBubbleState extends State<ChainBubble> with SingleTickerProviderStat
               ),
               children: [
                 TextSpan(text: head),
-                TextSpan(text: last, style: const TextStyle(color: WBColors.accent)),
+                TextSpan(text: last, style: TextStyle(color: WBColors.accent)),
               ],
             ),
           ),
@@ -190,7 +190,7 @@ class _TeamChainBubbleState extends State<TeamChainBubble> with SingleTickerProv
               style: WBText.grotesk(size: 19, weight: FontWeight.w600, color: textColor, letterSpacing: .01),
               children: [
                 TextSpan(text: head),
-                TextSpan(text: last, style: const TextStyle(color: WBColors.accent)),
+                TextSpan(text: last, style: TextStyle(color: WBColors.accent)),
               ],
             ),
           ),

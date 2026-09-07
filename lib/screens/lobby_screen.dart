@@ -10,6 +10,7 @@ import '../widgets/bottom_nav.dart';
 import '../widgets/flame_badge.dart';
 import '../widgets/glow_orb.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/provisional_badge.dart';
 
 class LobbyScreen extends StatelessWidget {
   const LobbyScreen({
@@ -20,6 +21,7 @@ class LobbyScreen extends StatelessWidget {
     required this.friendsOnlineCount,
     required this.incoming,
     required this.onStartMatch,
+    required this.onBotBattle,
     required this.onFriends,
     required this.onPractice,
     required this.onIncoming,
@@ -62,6 +64,12 @@ class LobbyScreen extends StatelessWidget {
   /// Which tab the previous screen highlighted, so the bar can animate.
   final WBTab? previousTab;
   final VoidCallback onStartMatch;
+
+  /// The other way into a duel: a bot, at a strength the player picks. Sits
+  /// under the search button rather than beside the two pills below it — a
+  /// third one there does not fit the phone this design is drawn for.
+  final VoidCallback onBotBattle;
+
   final VoidCallback onFriends;
   final VoidCallback onPractice;
   final VoidCallback onIncoming;
@@ -156,12 +164,19 @@ class LobbyScreen extends StatelessWidget {
                     ),
                     value: '$rating',
                   ),
+                  // Outside the chip rather than in it: the chip is already a
+                  // bordered pill, and a second one nested inside reads as a
+                  // control.
+                  if (user?.provisional ?? false) ...[
+                    const SizedBox(width: 5),
+                    ProvisionalBadge(size: 9),
+                  ],
                   const SizedBox(width: 7),
                   _StatChip(
                     color: WBColors.flameText,
-                    bg: const Color.fromRGBO(255, 92, 60, .09),
-                    border: const Color.fromRGBO(255, 120, 60, .26),
-                    icon: const FlameIcon(),
+                    bg: WBColors.flameTop.withValues(alpha: .09),
+                    border: WBColors.flameTop.withValues(alpha: .26),
+                    icon: FlameIcon(),
                     value: '$streak',
                   ),
                 ],
@@ -193,7 +208,7 @@ class LobbyScreen extends StatelessWidget {
                     child: Container(
                       width: 232,
                       height: 232,
-                      decoration: const BoxDecoration(gradient: wbAccentGradient, shape: BoxShape.circle),
+                      decoration: BoxDecoration(gradient: wbAccentGradient, shape: BoxShape.circle),
                       alignment: Alignment.center,
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -241,7 +256,32 @@ class LobbyScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 30),
+                Pressable(
+                  onTap: onBotBattle,
+                  hoverColor: WBColors.whiteA(.08),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+                    decoration: BoxDecoration(
+                      color: WBColors.whiteA(.05),
+                      border: Border.all(color: WBColors.whiteA(.1)),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.smart_toy_outlined, size: 16, color: WBColors.amber),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Bot bilan jang · kuchini tanlang',
+                          style: WBText.grotesk(size: 14.5, weight: FontWeight.w500, color: WBColors.textA(.82)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -297,7 +337,7 @@ class LobbyScreen extends StatelessWidget {
                             Container(
                               width: 8,
                               height: 8,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 color: WBColors.indigo,
                                 shape: BoxShape.circle,
                               ),

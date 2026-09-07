@@ -7,6 +7,8 @@ enum WBScreen {
   onb2,
   lobby,
   match,
+  /// Picking how strong a bot to play, before that duel starts.
+  botSetup,
   duel,
   win,
   lose,

@@ -10,9 +10,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -21,6 +23,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import uz.wordbattle.admin.AdminAuditLog;
+import uz.wordbattle.admin.AdminAuditLogRepository;
+import uz.wordbattle.admin.AdminAuditService;
 import uz.wordbattle.common.ApiException;
 import uz.wordbattle.friend.FriendService;
 import uz.wordbattle.match.DuelService;
@@ -63,6 +68,9 @@ class TeamTournamentServiceTest {
 
     @Autowired
     private UserRepository users;
+
+    @Autowired
+    private AdminAuditLogRepository auditEntries;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -292,7 +300,153 @@ class TeamTournamentServiceTest {
         assertThat(participants.get(0).get("partnerStatus").asText()).isEqualTo("accepted");
     }
 
+    // ------------------------------------------------------------------- admin
+
+    /**
+     * The admin panel's own way into a 2v2 bracket. It seats any two registered
+     * players — none of the eight below is a friend of the admin or of each
+     * other, which the friends-screen path refuses and this one deliberately
+     * does not — and leaves the same audit trail every other admin action does.
+     */
+    @Test
+    void anAdminSeatsPairsOfStrangersInATeamBracketAndPlaysItToARound() {
+        long adminId = adminUserId();
+        TournamentEntity tournament =
+                tournaments.create(adminId, "Admin jamoaviy", 4, TournamentEntity.Format.TEAM);
+        assertThat(tournament.getFormat()).isEqualTo(TournamentEntity.Format.TEAM);
+        assertThat(tournament.getKind()).isEqualTo(TournamentEntity.Kind.ADMIN);
+
+        List<Team> teams = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            teams.add(new Team(
+                    createPlayer("ttadmin" + i + "a", 1600 - i * 100),
+                    createPlayer("ttadmin" + i + "b", 1500 - i * 100)));
+        }
+        for (Team team : teams) {
+            tournaments.inviteTeam(adminId, tournament.getId(), team.primary(), team.partner());
+        }
+
+        List<TournamentParticipantDto> seats = tournaments.participantViews(tournament.getId());
+        assertThat(seats).hasSize(4);
+        assertThat(seats).allSatisfy(seat -> {
+            assertThat(seat.partnerUserId()).isNotNull();
+            assertThat(seat.status()).isEqualTo("invited");
+            assertThat(seat.partnerStatus()).isEqualTo("invited");
+        });
+
+        // Both halves of every seat are named in the log, since both were
+        // acted on.
+        assertThat(auditTargetsOf(adminId, AdminAuditService.TOURNAMENT_INVITE))
+                .containsExactlyInAnyOrderElementsOf(
+                        teams.stream().flatMap(t -> Stream.of(t.primary(), t.partner())).toList());
+
+        // One half's acceptance is not a seat, exactly as on the friends path.
+        for (Team team : teams) tournaments.accept(team.primary(), tournament.getId());
+        assertThatThrownBy(() -> tournaments.start(adminId, tournament.getId()))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("not_ready"));
+
+        for (Team team : teams) tournaments.accept(team.partner(), tournament.getId());
+        tournaments.start(adminId, tournament.getId());
+
+        List<TournamentMatch> round1 = matchesOf(tournament.getId(), 1);
+        assertThat(round1).hasSize(2);
+        for (TournamentMatch match : round1) {
+            assertThat(match.getPlayerOnePartnerUserId()).isNotNull();
+            assertThat(match.getPlayerTwoPartnerUserId()).isNotNull();
+        }
+    }
+
+    @Test
+    void theAdminTeamInviteRefusesASoloBracketAndAPairOfTheSamePlayer() {
+        long adminId = adminUserId();
+        long one = createPlayer("ttadmref1", 1500);
+        long two = createPlayer("ttadmref2", 1500);
+
+        TournamentEntity solo = tournaments.create(adminId, "Admin yakka", 4);
+        assertThatThrownBy(() -> tournaments.inviteTeam(adminId, solo.getId(), one, two))
+                .isInstanceOfSatisfying(
+                        ApiException.class, e -> assertThat(e.code()).isEqualTo("not_a_team_tournament"));
+
+        TournamentEntity team = tournaments.create(adminId, "Admin jamoa", 4, TournamentEntity.Format.TEAM);
+        assertThatThrownBy(() -> tournaments.inviteTeam(adminId, team.getId(), one, one))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("same_player"));
+        assertThatThrownBy(() -> tournaments.invite(adminId, team.getId(), one))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("team_invite_required"));
+    }
+
+    @Test
+    void adminCreationDefaultsToSoloButHonoursAnExplicitTeamRequest() throws Exception {
+        String admin = adminLogin("AdminTeamFormat", "adm_team_fmt");
+
+        JsonNode defaultCreated = json(post("/api/admin/tournaments")
+                .header("Authorization", "Bearer " + admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Standart\",\"size\":4}"));
+        assertThat(defaultCreated.get("format").asText()).isEqualTo("solo");
+
+        JsonNode teamCreated = json(post("/api/admin/tournaments")
+                .header("Authorization", "Bearer " + admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Jamoaviy\",\"size\":4,\"format\":\"team\"}"));
+        assertThat(teamCreated.get("format").asText()).isEqualTo("team");
+
+        mvc.perform(post("/api/admin/tournaments")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Noto'g'ri\",\"size\":4,\"format\":\"nonsense\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid_format"));
+    }
+
+    @Test
+    void anAdminInvitesAWholeSeatOverRestAndTheDetailNamesBothOfItsMembers() throws Exception {
+        String admin = adminLogin("AdminTeamInvite", "adm_team_inv");
+        long primaryId = createPlayer("ttadmrest1", 1500);
+        long partnerId = createPlayer("ttadmrest2", 1400);
+
+        JsonNode created = json(post("/api/admin/tournaments")
+                .header("Authorization", "Bearer " + admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Admin jamoasi\",\"size\":4,\"format\":\"team\"}"));
+        long tournamentId = created.get("id").asLong();
+
+        mvc.perform(post("/api/admin/tournaments/" + tournamentId + "/invite-team")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":" + primaryId + ",\"partnerUserId\":" + partnerId + "}"))
+                .andExpect(status().isOk());
+
+        JsonNode detail = json(get("/api/admin/tournaments/" + tournamentId)
+                .header("Authorization", "Bearer " + admin));
+        assertThat(detail.get("tournament").get("format").asText()).isEqualTo("team");
+        JsonNode seat = detail.get("participants").get(0);
+        assertThat(seat.get("userId").asLong()).isEqualTo(primaryId);
+        assertThat(seat.get("label").asText()).isEqualTo("ttadmrest1");
+        assertThat(seat.get("partnerUserId").asLong()).isEqualTo(partnerId);
+        assertThat(seat.get("partnerLabel").asText()).isEqualTo("ttadmrest2");
+        assertThat(seat.get("status").asText()).isEqualTo("invited");
+        assertThat(seat.get("partnerStatus").asText()).isEqualTo("invited");
+    }
+
+    @Test
+    void anOrdinaryPlayerCannotInviteATeamThroughTheAdminRoute() throws Exception {
+        String player = login("OddiyJamoachi");
+        mvc.perform(post("/api/admin/tournaments/1/invite-team")
+                        .header("Authorization", "Bearer " + player)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":1,\"partnerUserId\":2}"))
+                .andExpect(status().isForbidden());
+    }
+
     // --------------------------------------------------------------- helpers
+
+    /** Every account {@code adminId} has been logged as acting on under {@code action}. */
+    private List<Long> auditTargetsOf(long adminId, String action) {
+        return auditEntries.findAll().stream()
+                .filter(entry -> entry.getAdminUserId() == adminId && entry.getAction().equals(action))
+                .map(AdminAuditLog::getTargetUserId)
+                .toList();
+    }
 
     /** Starts the match and forfeits for {@code loser}, whose whole team goes out; returns once the bracket has moved. */
     private void playOutLosing(TournamentMatch match, Team loser) {
@@ -358,6 +512,20 @@ class TeamTournamentServiceTest {
             user.setRating(rating);
             users.save(user);
         });
+    }
+
+    private long adminUserId() {
+        String suffix = String.valueOf(System.nanoTime() % 100000);
+        return userId(adminLogin("TTAdmin", "ttadm" + suffix));
+    }
+
+    private String adminLogin(String name, String nickname) {
+        String token = login(name);
+        long id = userId(token);
+        claim(token, nickname);
+        new TransactionTemplate(transactionManager)
+                .executeWithoutResult(status -> assertThat(users.grantAdmin(id)).isEqualTo(1));
+        return token;
     }
 
     private String login(String name) {

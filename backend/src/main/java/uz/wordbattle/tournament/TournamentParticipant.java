@@ -54,6 +54,14 @@ public class TournamentParticipant {
     @Column(name = "partner_status", length = 16)
     private Status partnerStatus;
 
+    /**
+     * When the invite this seat is currently waiting on went out — moved
+     * forward every time one is (re)sent, rather than being the moment the row
+     * was first written. {@code GlobalTournamentScheduler}'s expiry sweep
+     * measures a Global invite's patience from here, and a seat handed to
+     * somebody new has to start that clock again: the newcomer cannot be timed
+     * out for the silence of whoever held the seat before them.
+     */
     @Column(name = "invited_at", nullable = false)
     private Instant invitedAt = Instant.now();
 
@@ -114,7 +122,28 @@ public class TournamentParticipant {
     public void reinvite() {
         this.status = Status.INVITED;
         this.respondedAt = null;
+        this.invitedAt = Instant.now();
         if (partnerUserId != null) this.partnerStatus = Status.INVITED;
+    }
+
+    /**
+     * Hands one half of a team's seat to somebody else, leaving the other half
+     * exactly as it was: the member who accepted keeps their acceptance and
+     * only gains a new teammate. The replacement owes an answer of their own,
+     * so their half goes back to {@code INVITED} with the clock restarted —
+     * this is the cascading backfill {@code TournamentService#decline} runs
+     * when a Global invite is turned down or left unanswered.
+     */
+    public void replaceHalf(long decliningUserId, long replacementUserId) {
+        if (userId == decliningUserId) {
+            this.userId = replacementUserId;
+            this.status = Status.INVITED;
+            this.respondedAt = null;
+        } else {
+            this.partnerUserId = replacementUserId;
+            this.partnerStatus = Status.INVITED;
+        }
+        this.invitedAt = Instant.now();
     }
 
     public void accept() {

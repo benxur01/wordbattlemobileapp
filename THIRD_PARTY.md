@@ -34,6 +34,7 @@ bo'ladi. Ular ikkita o'zimiz tuzgan ro'yxat orqali filtrlanadi, filtrlash
 |---|---|
 | `backend/src/main/resources/words/invalid-en.txt` | 872 ta uch harfli yozuv (`aaa`, `cpu`, `faq`, `dwt`) — ular hech qayerda qabul qilinmaydi |
 | `backend/src/main/resources/words/bot-excluded-en.txt` | 888 ta atoqli ot va qisqartma (`aaron`, `london`, `blvd`) — faqat bot o'ynay olmaydi, o'yinchi ayta oladi |
+| `backend/src/main/resources/words/theme-*-en.txt` | 8 ta mavzuli ro'yxat (`animals`, `food`, …) — mavzuli bot jangida o'yinchi ham, bot ham faqat shulardan yuradi. Har biri `valid-en.txt` ning ichki qismi: undan tashqaridagi so'z yo'q (`ThemedWordListTest`) |
 
 Bu ikkalasi — bizning ishimiz, tashqi material emas. Har birining boshida
 qanday qoida bilan tuzilgani yozilgan. Tuzishda quyidagi ro'yxatlar solishtirish

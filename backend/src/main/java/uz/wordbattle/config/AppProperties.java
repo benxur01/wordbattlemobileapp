@@ -146,7 +146,15 @@ public record AppProperties(
             @DefaultValue("40") int bandStep,
             @DefaultValue("500") int maxBand,
             @DefaultValue("3") int stepSeconds,
-            @DefaultValue("35") int botFallbackSeconds) {}
+            @DefaultValue("35") int botFallbackSeconds,
+            /**
+             * How far above the waiting player's own rating the fallback bot is
+             * presented — and played, since the rating decides which words it
+             * answers with. Above rather than level: the bot is what a player
+             * gets instead of the opponent they were looking for, and one that
+             * cannot lose interest is worth a little more than an even match.
+             */
+            @DefaultValue("75") int botRatingOffset) {}
 
     /**
      * How long one Glicko-2 rating period lasts, which is the unit the
@@ -163,15 +171,47 @@ public record AppProperties(
     public record Rating(@DefaultValue("PT24H") Duration periodDuration) {}
 
     /**
-     * The weekly Global tournament {@code GlobalTournamentScheduler} opens —
-     * nobody has to run this one, so there is only ever the one nested section
-     * rather than a whole record of admin-shaped settings.
+     * The two weekly Global tournaments {@code GlobalTournamentScheduler} opens
+     * — nobody has to run either, so each is a cron and a size rather than a
+     * whole record of admin-shaped settings.
      */
-    public record Tournament(@DefaultValue Global global) {
+    public record Tournament(@DefaultValue Global global, @DefaultValue GlobalTeam globalTeam) {
         public record Global(
-                /** When a fresh bracket opens, in {@link AppProperties#timeZone()}. Sunday at 20:00 by default. */
-                @DefaultValue("0 0 20 * * SUN") String cron,
-                /** How many of the top-rated players clear the bar for this week's bracket. */
-                @DefaultValue("32") int size) {}
+                /** When a fresh bracket opens, in {@link AppProperties#timeZone()}. Monday at 08:00 by default. */
+                @DefaultValue("0 0 8 * * MON") String cron,
+                /**
+                 * When the bracket kicks off, every week, whether or not it
+                 * filled: Sunday evening in {@link AppProperties#timeZone()}.
+                 * Fixed on purpose — the one tournament everybody is in has to
+                 * be at an hour a player can plan their Sunday around, so a
+                 * bracket that filled on Tuesday waits here with the rest.
+                 *
+                 * <p>Which makes this the end of the collecting as well: at
+                 * this moment whoever has accepted plays, whoever has not is
+                 * out, and the bracket shrinks to fit — see {@code
+                 * TournamentService#finalizeOpenGlobal}.
+                 */
+                @DefaultValue("0 0 19 * * SUN") String finalizeCron,
+                /** How many of the top-rated players this week's bracket is offered to. */
+                @DefaultValue("32") int size,
+                /**
+                 * How long a Global invite waits for an answer before the seat
+                 * is offered to the next player down the ladder. Long enough
+                 * that a player who opens the app once over a weekend still
+                 * gets to answer their own invite, short enough that a bracket
+                 * is not held up for a week by somebody who has stopped
+                 * playing. Both brackets are swept on this one value — a 2v2
+                 * invite is no more urgent than a 1v1 one.
+                 */
+                @DefaultValue("PT48H") Duration inviteTtl) {}
+
+        /** The 2v2 bracket beside it, staggered at both ends so the two never open or kick off in the same instant. */
+        public record GlobalTeam(
+                /** When a fresh 2v2 bracket opens, in {@link AppProperties#timeZone()}. Monday at 09:00 by default. */
+                @DefaultValue("0 0 9 * * MON") String cron,
+                /** Its own kickoff, half an hour after the 1v1 one — see {@link Global#finalizeCron()}. */
+                @DefaultValue("0 30 19 * * SUN") String finalizeCron,
+                /** How many <em>teams</em> the bracket seats — twice as many players are invited. */
+                @DefaultValue("8") int size) {}
     }
 }

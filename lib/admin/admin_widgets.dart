@@ -182,9 +182,9 @@ class AdminTag extends StatelessWidget {
 
 /// The tags a user row carries, in the order that matters most first.
 List<Widget> adminUserTags(AdminUserRow user) => [
-      if (user.banned) const AdminTag(label: 'BLOK', color: WBColors.red),
-      if (user.deleted) const AdminTag(label: "O'CHIRILGAN", color: WBColors.grey),
-      if (user.admin) const AdminTag(label: 'ADMIN', color: WBColors.amber),
+      if (user.banned) AdminTag(label: 'BLOK', color: WBColors.red),
+      if (user.deleted) AdminTag(label: "O'CHIRILGAN", color: WBColors.grey),
+      if (user.admin) AdminTag(label: 'ADMIN', color: WBColors.amber),
     ];
 
 InputDecoration adminInput(String hint, {Widget? prefix}) => InputDecoration(
@@ -197,7 +197,7 @@ InputDecoration adminInput(String hint, {Widget? prefix}) => InputDecoration(
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: WBColors.cardBorder),
+        borderSide: BorderSide(color: WBColors.cardBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(6),
@@ -205,7 +205,7 @@ InputDecoration adminInput(String hint, {Widget? prefix}) => InputDecoration(
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(6),
-        borderSide: const BorderSide(color: WBColors.red),
+        borderSide: BorderSide(color: WBColors.red),
       ),
     );
 
@@ -271,7 +271,7 @@ class AdminTable extends StatelessWidget {
 
   Widget _header() => Container(
         height: 36,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: WBColors.bgPanel,
           border: Border(bottom: BorderSide(color: WBColors.cardBorder)),
         ),

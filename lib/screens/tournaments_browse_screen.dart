@@ -68,7 +68,7 @@ class TournamentsBrowseScreen extends StatelessWidget {
   Widget _header() {
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 16, 22, 13),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color.fromRGBO(255, 255, 255, .07)))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: WBColors.whiteA(.07)))),
       child: Row(
         children: [
           Pressable(
@@ -83,7 +83,7 @@ class TournamentsBrowseScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.arrow_back_ios_new, size: 14, color: Colors.white70),
+              child: Icon(Icons.arrow_back_ios_new, size: 14, color: WBColors.textA(.7)),
             ),
           ),
           Expanded(
@@ -105,7 +105,7 @@ class TournamentsBrowseScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.refresh, size: 16, color: Colors.white70),
+              child: Icon(Icons.refresh, size: 16, color: WBColors.textA(.7)),
             ),
           ),
         ],

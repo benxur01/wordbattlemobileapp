@@ -26,6 +26,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import uz.wordbattle.config.AppProperties;
 import uz.wordbattle.dictionary.DictionaryService;
+import uz.wordbattle.dictionary.WordTheme;
 import uz.wordbattle.friend.FriendService;
 import uz.wordbattle.friend.PresenceService;
 import uz.wordbattle.match.DuelMessages.ChainEntry;
@@ -222,14 +223,43 @@ public class DuelService {
 
     // ---------------------------------------------------------------- start
 
+    /**
+     * The weakest and strongest bot a player may ask for. Round numbers either
+     * side of where accounts actually sit — a new one starts at 400 — with room
+     * below for somebody who wants an easy game and enough above that the
+     * hardest setting is a genuine one. Nothing else in the game caps a rating,
+     * so these are the picker's range and the server's own clamp both.
+     */
+    public static final double MIN_BOT_RATING = 200;
+
+    public static final double MAX_BOT_RATING = 2000;
+
     /** Starts a human-vs-human duel and tells both sides. Null if either is busy. */
     public DuelSession start(long playerOne, long playerTwo) {
-        return start(playerOne, playerTwo, false);
+        return start(playerOne, playerTwo, false, null, null);
     }
 
-    /** Starts a duel against the bot (unrated). */
+    /**
+     * Starts a duel against the bot (unrated), rated a little above the player
+     * themselves — see {@code wordbattle.matchmaking.bot-rating-offset}.
+     */
     public DuelSession startAgainstBot(long player) {
-        return start(player, DuelSession.BOT_ID, true);
+        return start(player, DuelSession.BOT_ID, true, null, null);
+    }
+
+    /**
+     * The same duel, at a strength the player picked instead of one derived
+     * from their own rating, and — when they asked for one — inside a single
+     * theme. Clamped here rather than trusted: the choice arrives from a
+     * client, and a rating outside the range the picker offers would only feed
+     * {@code DictionaryService.Band} a number nobody meant.
+     *
+     * <p>{@code theme} is null for the full dictionary, which is what the
+     * picker starts on and what every other route into a duel plays with.
+     */
+    public DuelSession startAgainstChosenBot(long player, double botRating, WordTheme theme) {
+        double clamped = Math.max(MIN_BOT_RATING, Math.min(MAX_BOT_RATING, botRating));
+        return start(player, DuelSession.BOT_ID, true, clamped, theme);
     }
 
     /**
@@ -259,12 +289,13 @@ public class DuelService {
      * charged them for losing a duel they were never shown. Duels start rarely,
      * so a lock held across a handful of map writes costs nothing; the
      * announcement stays outside, and so does the database read behind it.
+     *
+     * <p>{@code chosenBotRating} is the strength a player asked for, and null
+     * everywhere else: a fallback bot is rated off the human it was given to,
+     * and a human duel has no bot to rate at all. {@code theme} is null for
+     * every duel but a themed bot practice.
      */
-    private DuelSession start(long playerOne, long playerTwo, boolean bot) {
-        String seed = SEED_WORDS.get(random.nextInt(SEED_WORDS.size()));
-        DuelSession session = new DuelSession(
-                UUID.randomUUID().toString(), playerOne, playerTwo, bot, seed, props.duel().rareLetters());
-
+    private DuelSession start(long playerOne, long playerTwo, boolean bot, Double chosenBotRating, WordTheme theme) {
         // The only database calls on this path, so they are made before the
         // lock: this one is shared by every duel start on the server, and a
         // slow query underneath it would stall all of them. Registering the
@@ -285,7 +316,27 @@ public class DuelService {
             return null;
         }
 
-        Players players = new Players(UserDto.of(userOne), bot ? botProfile() : UserDto.of(userTwo));
+        // Off the row this method already holds rather than a second read, and
+        // above the player rather than level with them — see the offset's own
+        // note in application.yml.
+        double botRating = !bot
+                ? 0
+                : chosenBotRating != null
+                        ? chosenBotRating
+                        : userOne.getRating() + props.matchmaking().botRatingOffset();
+
+        String seed = SEED_WORDS.get(random.nextInt(SEED_WORDS.size()));
+        DuelSession session = new DuelSession(
+                UUID.randomUUID().toString(),
+                playerOne,
+                playerTwo,
+                bot,
+                botRating,
+                theme,
+                seed,
+                rareLettersFor(theme));
+
+        Players players = new Players(UserDto.of(userOne), bot ? botProfile(botRating) : UserDto.of(userTwo));
 
         synchronized (startLock) {
             if (isPlaying(playerOne) || (!bot && isPlaying(playerTwo))) {
@@ -320,11 +371,26 @@ public class DuelService {
         return session;
     }
 
+    /**
+     * The letters this duel's chain may not be left standing on: the two the
+     * whole dictionary is thin on, and — inside a theme — whatever that theme
+     * has no answers for either. Both are dead ends of the same kind, so they
+     * are handed to the same rule rather than given one of their own; see
+     * {@link DuelSession#requiredLetter()}.
+     */
+    private Set<Character> rareLettersFor(WordTheme theme) {
+        if (theme == null) return props.duel().rareLetters();
+        Set<Character> letters = new HashSet<>(props.duel().rareLetters());
+        letters.addAll(dictionary.thinLetters(theme));
+        return letters;
+    }
+
     private void announce(DuelSession session, long playerId) {
         sockets.send(playerId, "match.found", new DuelMessages.MatchFound(
                 session.id(),
                 opponentFor(session, playerId),
                 !session.botOpponent(),
+                themeName(session),
                 session.turn() == playerId,
                 session.chain().get(0).word(),
                 String.valueOf(session.requiredLetter()),
@@ -344,14 +410,38 @@ public class DuelService {
         return playerId == session.playerOne() ? players.two() : players.one();
     }
 
+    /**
+     * The theme's name as the frames carry it, or null for a duel played
+     * against the whole dictionary — which is what a client reads as "no theme
+     * here", since a null field is left out of the frame entirely.
+     *
+     * <p>The name rather than the id: the app draws it as it stands, the same
+     * way it draws every other Uzbek string this server sends.
+     */
+    private String themeName(DuelSession session) {
+        return session.theme() == null ? null : session.theme().label();
+    }
+
     /** The skipped letter as the frames carry it, or null when there was none. */
     private String substitutedFrom(DuelSession session) {
         Character skipped = session.substitutedFrom();
         return skipped == null ? null : String.valueOf(skipped);
     }
 
-    private UserDto botProfile() {
-        return new UserDto(DuelSession.BOT_ID, "wordbot", "Word Bot", "W", null, 1200, 0);
+    /**
+     * Why the chain stepped over that letter, for the note the board draws —
+     * the game's own rare-letter rule, or the player spending their skip. Null
+     * whenever nothing was stepped over at all.
+     */
+    private String substitutionReason(DuelSession session) {
+        if (session.substitutedFrom() == null) return null;
+        return session.letterWasSkipped() ? "power_up" : "rare_letter";
+    }
+
+    private UserDto botProfile(double rating) {
+        // Never provisional: the bot's rating is picked, not earned, so there is
+        // no uncertainty about it to warn anyone off.
+        return new UserDto(DuelSession.BOT_ID, "wordbot", "Word Bot", "W", null, (int) Math.round(rating), 0, false);
     }
 
     // --------------------------------------------------------------- moves
@@ -440,6 +530,12 @@ public class DuelService {
         if (word.length() < props.duel().minWordLength()) return "too_short";
         if (word.charAt(0) != session.requiredLetter()) return "wrong_letter";
         if (session.alreadyUsed(word)) return "already_used";
+        // A themed duel asks the narrower question instead of both: every
+        // theme's list is a subset of the dictionary, so a word inside the
+        // theme is a word the dictionary already vouched for.
+        if (session.theme() != null) {
+            return dictionary.isInTheme(session.theme(), word) ? null : "off_theme";
+        }
         if (!dictionary.isValid(word)) return "not_a_word";
         return null;
     }
@@ -452,6 +548,9 @@ public class DuelService {
             case "wrong_letter" -> "«" + Character.toUpperCase(session.requiredLetter()) + "» harfi bilan boshlanishi kerak";
             case "already_used" -> "Bu so'z zanjirda bor";
             case "not_a_word" -> "Bu so'z ingliz lug'atida yo'q";
+            // Named rather than left at "not a word": the word may be a perfect
+            // one, and the player has to hear that it is the theme refusing it.
+            case "off_theme" -> "«" + themeName(session) + "» mavzusida bunday so'z yo'q";
             case "not_your_turn" -> "Hozir raqibning navbati";
             default -> "So'z qabul qilinmadi";
         };
@@ -459,6 +558,97 @@ public class DuelService {
 
     private void reject(long playerId, String code, String message) {
         sockets.send(playerId, "duel.rejected", new DuelMessages.Rejected(code, message));
+    }
+
+    // ------------------------------------------------------------ power-ups
+
+    /**
+     * What {@link PowerUp#ADD_TIME} is worth: ten seconds on a fifteen-second
+     * turn. Long enough to be worth the one charge there is — three or four
+     * would be spent by the time the button had been found — and short of the
+     * turn's own length, which would hand the player a second turn rather than
+     * more of this one.
+     */
+    private static final int ADD_TIME_MS = 10_000;
+
+    /** Words {@link PowerUp#HINT} offers, as the lose screen offers three. */
+    private static final int HINT_WORDS = 3;
+
+    /**
+     * Spends one of the player's four charges — see {@link PowerUp}.
+     *
+     * <p>Every condition is checked here rather than trusted to the app, which
+     * is the rule this whole class is written to: a tampered client can ask for
+     * anything and the worst it gets is a refusal. A duel against another person
+     * refuses outright, whatever the frame says, because a power-up in a rated
+     * duel is not a feature with a bug in it — it is one player playing a
+     * different game from the other.
+     *
+     * <p>All four are the player's own turn only. Two of them plainly cannot be
+     * anything else, the clock and the letter both being the turn's; the hint is
+     * for the letter that is being answered now; and pressure is aimed at the
+     * bot's reply to the word about to be played, which is scheduled the moment
+     * that word arrives.
+     */
+    public void usePowerUp(long playerId, String type) {
+        PowerUp powerUp = PowerUp.of(type);
+        if (powerUp == null) {
+            sockets.sendError(playerId, "unknown_power_up", "Noma'lum kuchaytirgich");
+            return;
+        }
+        DuelSession session = duelOf(playerId).orElse(null);
+        if (session == null || session.finished()) {
+            sockets.sendError(playerId, "no_duel", "Faol jang topilmadi");
+            return;
+        }
+        synchronized (session) {
+            if (session.finished()) return;
+            if (!session.botOpponent()) {
+                sockets.sendError(playerId, "not_a_bot_duel", "Kuchaytirgichlar faqat bot bilan mashqda ishlaydi");
+                return;
+            }
+            if (session.turn() != playerId) {
+                sockets.sendError(playerId, "not_your_turn", "Hozir raqibning navbati");
+                return;
+            }
+            if (!session.spendPowerUp(powerUp)) {
+                sockets.sendError(playerId, "power_up_spent", "Bu kuchaytirgich allaqachon ishlatilgan");
+                return;
+            }
+
+            List<String> words = List.of();
+            switch (powerUp) {
+                case ADD_TIME -> {
+                    session.extendTurn(ADD_TIME_MS);
+                    // The pending expiry is for a turn that is now longer, and
+                    // cancelling it is best-effort: extendTurn moves the turn
+                    // number so that one, if it is already running, turns itself
+                    // away when it reaches the monitor this thread is holding.
+                    armTurnTimer(session);
+                    broadcastState(session);
+                }
+                case SKIP_LETTER -> {
+                    session.skipLetter();
+                    broadcastState(session);
+                }
+                case HINT -> words = hintsFor(session);
+                case PRESSURE -> session.pressureBot();
+            }
+            sockets.send(playerId, "duel.power_up", new DuelMessages.PowerUpUsed(powerUp.id(), words));
+        }
+    }
+
+    /**
+     * Words that would answer the letter the chain is on — from inside the theme
+     * when there is one, or the suggestions would be words this very duel has
+     * been refusing all along. The lose screen's hint and {@link PowerUp#HINT}
+     * ask the same question, so they ask it in the same place.
+     */
+    private List<String> hintsFor(DuelSession session) {
+        char letter = session.requiredLetter();
+        return session.theme() == null
+                ? dictionary.hints(letter, session.used(), HINT_WORDS)
+                : dictionary.hints(session.theme(), letter, session.used(), HINT_WORDS);
     }
 
     // --------------------------------------------------------------- social
@@ -625,8 +815,6 @@ public class DuelService {
     /** Callers hold the session's monitor. */
     private DuelMessages.SpectateState spectateState(DuelSession session) {
         Players players = duelPlayers.get(session.id());
-        int elapsed = (int) Duration.between(session.turnStartedAt(), Instant.now()).toMillis();
-        int timeLeft = Math.max(0, props.duel().turnSeconds() * 1000 - elapsed);
         List<DuelMessages.SpectateChainEntry> chain = new ArrayList<>();
         for (DuelSession.ChainWord word : session.chain()) {
             chain.add(new DuelMessages.SpectateChainEntry(word.word(), word.playerId(), word.spentMs()));
@@ -639,7 +827,7 @@ public class DuelService {
                 session.turn(),
                 String.valueOf(session.requiredLetter()),
                 substitutedFrom(session),
-                timeLeft,
+                timeLeftMs(session),
                 props.duel().turnSeconds(),
                 session.wordsBy(session.playerOne()),
                 session.wordsBy(session.playerTwo()));
@@ -712,12 +900,25 @@ public class DuelService {
 
     // --------------------------------------------------------------- timers
 
-    /** Callers hold the session's monitor: {@code turnTimer} is an ordinary field. */
+    /**
+     * Callers hold the session's monitor: {@code turnTimer} is an ordinary field.
+     *
+     * <p>Armed for what is left of the turn rather than for a whole one, which
+     * is the same thing at the start of a turn and the point of the method on a
+     * turn {@link PowerUp#ADD_TIME} has lengthened. One definition of when the
+     * turn ends, shared by the timer that enforces it and the number the player
+     * is shown counting down — see {@link #timeLeftMs}.
+     */
     private void armTurnTimer(DuelSession session) {
-        long millis = props.duel().turnSeconds() * 1000L;
         long armedForTurn = session.turnNumber();
-        session.setTurnTimer(
-                scheduler.schedule(() -> onTurnExpired(session, armedForTurn), millis, TimeUnit.MILLISECONDS));
+        session.setTurnTimer(scheduler.schedule(
+                () -> onTurnExpired(session, armedForTurn), timeLeftMs(session), TimeUnit.MILLISECONDS));
+    }
+
+    /** How long whoever holds the turn still has, bought seconds included. */
+    private int timeLeftMs(DuelSession session) {
+        int elapsed = (int) Duration.between(session.turnStartedAt(), Instant.now()).toMillis();
+        return Math.max(0, props.duel().turnSeconds() * 1000 + session.turnBonusMs() - elapsed);
     }
 
     /**
@@ -746,8 +947,27 @@ public class DuelService {
         }
     }
 
+    /**
+     * How long the bot sits on its answer before playing it. It has the word
+     * the moment the turn reaches it — a pause is the only thing between that
+     * and a duel where every reply lands before the player has looked up.
+     */
+    private static final int BOT_DELAY_MIN_MS = 1200;
+
+    private static final int BOT_DELAY_SPREAD_MS = 1200;
+
+    /**
+     * The same pause once {@link PowerUp#PRESSURE} has been spent on it: about
+     * as fast as an answer can arrive and still be read as one.
+     */
+    private static final int PRESSED_BOT_DELAY_MIN_MS = 300;
+
+    private static final int PRESSED_BOT_DELAY_SPREAD_MS = 300;
+
     private void scheduleBotMove(DuelSession session) {
-        long delay = 1200 + random.nextInt(1200);
+        long delay = session.takePressure()
+                ? PRESSED_BOT_DELAY_MIN_MS + random.nextInt(PRESSED_BOT_DELAY_SPREAD_MS)
+                : BOT_DELAY_MIN_MS + random.nextInt(BOT_DELAY_SPREAD_MS);
         scheduler.schedule(() -> playBotMove(session), delay, TimeUnit.MILLISECONDS);
     }
 
@@ -755,8 +975,15 @@ public class DuelService {
         synchronized (session) {
             if (session.finished() || session.turn() != DuelSession.BOT_ID) return;
 
-            String word = dictionary.botMove(
-                    session.requiredLetter(), session.used(), props.duel().minWordLength() + 1);
+            int minLength = props.duel().minWordLength() + 1;
+            String word = session.theme() == null
+                    ? dictionary.botMove(session.requiredLetter(), session.used(), minLength, session.botRating())
+                    : dictionary.botMove(
+                            session.theme(),
+                            session.requiredLetter(),
+                            session.used(),
+                            minLength,
+                            session.botRating());
             if (word == null) {
                 // The bot is stuck: the human wins.
                 finish(session, session.playerOne(), EndReason.NO_MOVES);
@@ -929,9 +1156,8 @@ public class DuelService {
         String stuckLetter = null;
         List<String> hints = List.of();
         if (!won) {
-            char letter = session.requiredLetter();
-            stuckLetter = String.valueOf(Character.toUpperCase(letter));
-            hints = dictionary.hints(letter, session.used(), 3);
+            stuckLetter = String.valueOf(Character.toUpperCase(session.requiredLetter()));
+            hints = hintsFor(session);
         }
 
         DuelMessages.Finished frame = new DuelMessages.Finished(
@@ -1042,19 +1268,19 @@ public class DuelService {
         synchronized (session) {
             if (session.finished()) return;
 
-            int elapsed = (int) Duration.between(session.turnStartedAt(), Instant.now()).toMillis();
-            int timeLeft = Math.max(0, props.duel().turnSeconds() * 1000 - elapsed);
             long opponent = session.opponentOf(playerId);
 
             state = new DuelMessages.DuelState(
                     session.id(),
                     opponentFor(session, playerId),
                     !session.botOpponent(),
+                    themeName(session),
                     chainFor(session, playerId),
                     session.turn() == playerId,
                     String.valueOf(session.requiredLetter()),
                     substitutedFrom(session),
-                    timeLeft,
+                    substitutionReason(session),
+                    timeLeftMs(session),
                     props.duel().turnSeconds(),
                     session.wordsBy(playerId),
                     session.wordsBy(opponent),

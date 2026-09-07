@@ -50,6 +50,9 @@ import uz.wordbattle.dictionary.DictionaryService;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class StaleDuelFinishTest {
 
+    /** An everyday bot, whose pool is only ever borrowed here for a legal word. */
+    private static final double EVERYDAY_BOT = 600;
+
     @MockitoBean
     private MatchResultService results;
 
@@ -204,7 +207,7 @@ class StaleDuelFinishTest {
     private void playFirstWordOf(JsonNode match) throws Exception {
         Set<String> used = new HashSet<>(Set.of(match.path("seedWord").asText()));
         String word = dictionary.botMove(
-                match.path("needLetter").asText().charAt(0), used, props.duel().minWordLength());
+                match.path("needLetter").asText().charAt(0), used, props.duel().minWordLength(), EVERYDAY_BOT);
         assertThat(word).as("no word to answer '%s' with", match.path("needLetter").asText()).isNotNull();
         (match.path("yourTurn").asBoolean() ? quitter : newRival).send("duel.submit", Map.of("word", word));
     }

@@ -19,6 +19,7 @@ import 'screens/onboarding1_screen.dart';
 import 'screens/onboarding2_screen.dart';
 import 'screens/lobby_screen.dart';
 import 'screens/matchmaking_screen.dart';
+import 'screens/bot_battle_screen.dart';
 import 'screens/duel_screen.dart';
 import 'screens/win_screen.dart';
 import 'screens/lose_screen.dart';
@@ -284,11 +285,31 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   DateTime? _inviteStartedAt;
   int _inviteSecondsLeft = 0;
 
+  /// How strong a bot the picker is currently offering to play. Set from this
+  /// player's own rating each time the screen is opened — an opponent about
+  /// their own strength is the one place a slider like this can honestly start
+  /// from — and left alone after that, so a player who dragged it somewhere
+  /// they liked keeps that setting for as long as they stay on the screen.
+  int botRating = 400;
+
+  /// The topics the picker offers, fetched once — see [_loadBotThemes] — and
+  /// the one currently picked, by id. Null is the full dictionary, which is
+  /// what the picker opens on and what every other duel in the app plays with.
+  /// Unlike [botRating] this is not reset when the screen is reopened: it was
+  /// chosen outright rather than derived from anything.
+  List<WordThemeDto> botThemes = const [];
+  String? botTheme;
+
   /// Chat exchanged in the current duel only — never persisted, and cleared
   /// the moment that duel ends or the screen is left.
   List<DuelChatMessage> duelChat = const [];
   DuelReaction? duelReaction;
   int _reactionSeq = 0;
+
+  /// What is left of this duel's power-ups. Only a bot practice has any, and
+  /// only the server may say a charge is gone — this is what it has said so
+  /// far, which is why it is reset with the duel rather than with the screen.
+  DuelPowerUps duelPowerUps = const DuelPowerUps();
 
   /// A friend's duel currently being watched, rebuilt whole from every
   /// `duel.spectate_state` frame — null whenever nobody is being spectated.
@@ -853,6 +874,23 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     }
   }
 
+  /// The bot picker's topic row. Fetched only while it is empty: the themes a
+  /// server build offers cannot change under a running app. Silent on failure
+  /// like [_refreshActiveTournament] — without them the picker is the strength
+  /// slider it was before themes existed, which is a working screen.
+  Future<void> _loadBotThemes() async {
+    if (botThemes.isNotEmpty) return;
+    try {
+      final list = await _api.wordThemes();
+      if (!mounted) return;
+      setState(() => botThemes = list);
+    } on ApiException catch (e) {
+      if (_isSessionOver(e)) _onApiError(e);
+    } catch (_) {
+      // Silent, as above.
+    }
+  }
+
   Future<void> loadHints() async {
     final word = practiceWord;
     if (word == null) return;
@@ -1371,6 +1409,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           incomingInvite = null;
           duelChat = const [];
           duelReaction = null;
+          duelPowerUps = const DuelPowerUps();
           screen = WBScreen.duel;
         });
         _scrollChainToBottom();
@@ -1388,8 +1427,21 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         setState(() {
           duel = current.applyUpdate(event.payload);
           duelError = '';
+          // The suggested words were for the board as it stood when they were
+          // asked for. It has moved, so they go — even when the letter has not,
+          // since a word that was on offer may be the one just played.
+          duelPowerUps = duelPowerUps.withoutHints();
         });
         _scrollChainToBottom();
+      case 'duel.power_up':
+        // The server has spent a charge: the button greys out, and the hint —
+        // the only one of the four with anything to say — hands over its words.
+        final powerUp = DuelPowerUp.byId(event.payload['type'] as String?);
+        if (duel == null || powerUp == null) return;
+        setState(() => duelPowerUps = duelPowerUps.used(
+              powerUp,
+              ((event.payload['words'] as List?) ?? const []).map((word) => word as String).toList(),
+            ));
       case 'duel.rejected':
         setState(() => duelError = event.payload['message'] as String? ?? "So'z qabul qilinmadi");
       case 'duel.chat':
@@ -1408,6 +1460,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           duel = null;
           duelChat = const [];
           duelReaction = null;
+          duelPowerUps = const DuelPowerUps();
           screen = result.won ? WBScreen.win : WBScreen.lose;
         });
         unawaited(_refreshSocial());
@@ -1621,6 +1674,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           finished = null;
           duelChat = const [];
           duelReaction = null;
+          duelPowerUps = const DuelPowerUps();
           banner = event.payload['message'] as String? ?? 'Jang bekor qilindi';
           if (screen == WBScreen.duel) screen = WBScreen.lobby;
         });
@@ -1960,6 +2014,33 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     go(WBScreen.lobby);
   }
 
+  /// The lobby's "Bot bilan jang". The slider opens on this player's own
+  /// rating, rounded to a step it can actually stop on — a value between two
+  /// divisions would be snapped to one on the first drag and look like the
+  /// screen had changed its mind.
+  void openBotBattle() {
+    final mine = (me?.rating ?? BotBattleScreen.minRating).toDouble();
+    final snapped = (mine / BotBattleScreen.step).round() * BotBattleScreen.step;
+    setState(() => botRating = snapped.clamp(BotBattleScreen.minRating, BotBattleScreen.maxRating).round());
+    go(WBScreen.botSetup);
+  }
+
+  /// Nothing changes screen here: the duel arrives as `match.found`, exactly as
+  /// it does for a matched opponent or an accepted challenge, and that frame is
+  /// what raises the board. A refusal comes back as an error frame instead and
+  /// leaves the player on the picker, where they can simply tap again.
+  ///
+  /// A frame that never left the phone is the one case the server cannot answer
+  /// for, and it has to be said out loud: unlike `queue.join`, which the `hello`
+  /// handler repeats on every reconnect, nothing sends this one a second time,
+  /// so an unreported failure is a button that does nothing at all.
+  void startBotBattle() {
+    // `?botTheme` drops the key entirely when no theme is picked, which is what
+    // the server reads as the ordinary full-dictionary duel.
+    if (_socket.send('queue.bot', {'rating': botRating, 'theme': ?botTheme})) return;
+    setState(() => banner = "Aloqa yo'q — jang boshlanmadi");
+  }
+
   void submitWord(String word) {
     if (word.trim().isEmpty) return;
     _socket.send('duel.submit', {'word': word.trim()});
@@ -1978,6 +2059,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   /// Sends immediately — no confirmation, no local echo. The tap itself is
   /// the only feedback the sender needs.
   void sendDuelReaction(String emoji) => _socket.send('duel.reaction', {'emoji': emoji});
+
+  /// Asks for one of the bot practice's four power-ups. Nothing is marked spent
+  /// here: the server answers with `duel.power_up` when it has actually given
+  /// the charge, and with an error frame when it will not — asking on the bot's
+  /// turn, or twice for the same one — which must not cost the charge.
+  void useDuelPowerUp(DuelPowerUp powerUp) => _socket.send('duel.power_up', {'type': powerUp.id});
 
   void challenge(FriendDto friend) => _challengeUserId(friend.user.id);
 
@@ -2176,6 +2263,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       if (exit == 'duel.forfeit') {
         duelChat = const [];
         duelReaction = null;
+        duelPowerUps = const DuelPowerUps();
       }
       if (exit == 'team_duel.forfeit') {
         teamChat = const [];
@@ -2192,6 +2280,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         unawaited(_loadHistory());
       case WBScreen.practice:
         unawaited(_loadPractice());
+      case WBScreen.botSetup:
+        unawaited(_loadBotThemes());
       case WBScreen.friends:
       case WBScreen.lobby:
         unawaited(_refreshSocial());
@@ -2288,7 +2378,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   Widget _screen() {
     final user = me;
     return switch (screen) {
-      WBScreen.loading => const LoadingScreen(),
+      WBScreen.loading => LoadingScreen(),
       // The retry needs no `busy` gate of its own: [_bootstrap] leaves this
       // screen for the spinner in the same `setState` that raises the flag, so
       // there is no repaint in which a disabled button could be drawn — and a
@@ -2324,6 +2414,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           tournamentMatchReady: tournamentMatchReady,
           activeTournament: activeTournament,
           onStartMatch: startMatchmaking,
+          onBotBattle: openBotBattle,
           onFriends: () => go(WBScreen.friends),
           onPractice: () => go(WBScreen.practice),
           onIncoming: () => go(WBScreen.incoming),
@@ -2345,6 +2436,16 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           matchClock: _clock(queuedAt),
           onCancel: cancelMatchmaking,
         ),
+      WBScreen.botSetup => BotBattleScreen(
+          rating: botRating,
+          myRating: user?.rating,
+          themes: botThemes,
+          theme: botTheme,
+          onRatingChanged: (value) => setState(() => botRating = value),
+          onThemeChanged: (value) => setState(() => botTheme = value),
+          onStart: startBotBattle,
+          onBack: () => go(WBScreen.lobby),
+        ),
       WBScreen.duel => DuelScreen(
           duel: duel,
           me: user,
@@ -2355,6 +2456,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onSendChat: sendDuelChat,
           onSendReaction: sendDuelReaction,
           reaction: duelReaction,
+          powerUps: duelPowerUps,
+          onPowerUp: useDuelPowerUp,
         ),
       WBScreen.win => WinScreen(
           result: finished,
@@ -2571,7 +2674,7 @@ class _Banner extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
-          color: const Color(0xFF241B1D),
+          color: WBColors.bannerFill,
           border: Border.all(color: WBColors.redA(.35)),
           borderRadius: BorderRadius.circular(14),
         ),

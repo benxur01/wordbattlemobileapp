@@ -65,7 +65,7 @@ class TeamSpectateDuelScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         alignment: Alignment.center,
-                        child: const Icon(Icons.arrow_back_ios_new, size: 13, color: Colors.white70),
+                        child: Icon(Icons.arrow_back_ios_new, size: 13, color: WBColors.textA(.7)),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -125,7 +125,7 @@ class TeamSpectateDuelScreen extends StatelessWidget {
                           Container(
                             width: 78,
                             height: 78,
-                            decoration: const BoxDecoration(color: WBColors.bgPanel, shape: BoxShape.circle),
+                            decoration: BoxDecoration(color: WBColors.bgPanel, shape: BoxShape.circle),
                             alignment: Alignment.center,
                             child: Text(
                               timeText,

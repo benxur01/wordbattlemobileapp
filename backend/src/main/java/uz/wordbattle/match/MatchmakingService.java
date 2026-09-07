@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import uz.wordbattle.config.AppProperties;
+import uz.wordbattle.dictionary.WordTheme;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserService;
 import uz.wordbattle.ws.SocketRegistry;
@@ -59,6 +60,47 @@ public class MatchmakingService {
         // Try immediately: with someone already waiting there is no reason to
         // sit through a tick first.
         pair();
+    }
+
+    /**
+     * Skips the search entirely and starts a bot duel at the strength the
+     * player chose — the lobby's "Bot bilan jang". No queue is involved and
+     * nothing waits: the {@code match.found} frame goes out from
+     * {@link DuelService#start} before this returns.
+     *
+     * <p>It lives here rather than beside the duel it starts because this is
+     * the class that answers "give me a game", refusals included, and because
+     * a player who wandered into this from a search still holds a queue entry
+     * — one that would otherwise sit there costing {@code pair()} a wasted
+     * start against some unrelated third player.
+     *
+     * <p>{@code themeId} names the topic the whole duel is played inside, and
+     * is null or blank for the full dictionary — which is what the picker
+     * starts on. An id no build of this server knows is refused rather than
+     * quietly played untethered: the player asked for a themed duel, and one
+     * that turned out not to be themed would look like the theme failing to
+     * work rather than failing to arrive.
+     */
+    public void joinAgainstBot(long userId, double botRating, String themeId) {
+        if (duels.isPlaying(userId)) {
+            sockets.sendError(userId, "already_in_duel", "Siz allaqachon jangdasiz");
+            return;
+        }
+        WordTheme theme = null;
+        if (themeId != null && !themeId.isBlank()) {
+            theme = WordTheme.of(themeId);
+            if (theme == null) {
+                sockets.sendError(userId, "unknown_theme", "Bunday mavzu yo'q");
+                return;
+            }
+        }
+        leave(userId);
+        if (duels.startAgainstChosenBot(userId, botRating, theme) == null) {
+            // A duel started underneath us, or the account was banned between
+            // the check above and the start. Either way nothing is coming, and
+            // a picker screen with no answer at all reads as a dead button.
+            sockets.sendError(userId, "duel_unavailable", "Jang boshlanmadi, qaytadan urinib ko'ring");
+        }
     }
 
     public void leave(long userId) {

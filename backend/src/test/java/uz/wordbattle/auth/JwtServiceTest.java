@@ -30,12 +30,15 @@ class JwtServiceTest {
                 new AppProperties.Jwt(secret, Duration.ofDays(1), "wordbattle-test"),
                 new AppProperties.Google(""),
                 new AppProperties.Duel(15, 3, 9, 12, Set.of('x', 'z')),
-                new AppProperties.Matchmaking(75, 25, 400, 3, 12),
+                new AppProperties.Matchmaking(75, 25, 400, 3, 12, 75),
                 new AppProperties.Rating(Duration.ofHours(24)),
                 new AppProperties.Cors(List.of()),
                 new AppProperties.Limits(20, 40, 64),
                 new AppProperties.Admin(""),
-                new AppProperties.Tournament(new AppProperties.Tournament.Global("0 0 20 * * SUN", 32)),
+                new AppProperties.Tournament(
+                        new AppProperties.Tournament.Global(
+                                "0 0 8 * * MON", "0 0 19 * * SUN", 32, Duration.ofHours(48)),
+                        new AppProperties.Tournament.GlobalTeam("0 0 9 * * MON", "0 30 19 * * SUN", 8)),
                 ZoneId.of("Asia/Tashkent"),
                 false);
         return new JwtService(props, generations);

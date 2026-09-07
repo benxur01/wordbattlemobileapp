@@ -14,6 +14,8 @@ public final class DuelMessages {
             String duelId,
             UserDto opponent,
             boolean rated,
+            /** The theme's name, or null for a duel played against the whole dictionary. */
+            String theme,
             boolean yourTurn,
             String seedWord,
             String needLetter,
@@ -40,6 +42,16 @@ public final class DuelMessages {
              */
             UserDto opponent,
             boolean rated,
+            /**
+             * The theme this duel is restricted to, named for the screen to
+             * show — null, and so absent from the frame, for the ordinary
+             * whole-dictionary duel. Repeated on every state frame for the
+             * same reason the two fields above it are: the player whose app
+             * was relaunched mid-duel is never sent {@link MatchFound} again,
+             * and a themed board that stopped saying so would leave them
+             * reading perfectly good words being refused.
+             */
+            String theme,
             List<ChainEntry> chain,
             boolean yourTurn,
             String needLetter,
@@ -50,6 +62,14 @@ public final class DuelMessages {
              * disappear with the chain rather than having to track it.
              */
             String substitutedFrom,
+            /**
+             * Why that letter was stepped over: {@code rare_letter} for the
+             * game's own rule, {@code power_up} for a player who spent their
+             * skip on it. Null exactly when {@code substitutedFrom} is, and only
+             * ever {@code power_up} in a duel against the bot — the only place
+             * {@link PowerUp} exists at all.
+             */
+            String substitutionReason,
             int timeLeftMs,
             int turnSeconds,
             int yourWords,
@@ -57,6 +77,18 @@ public final class DuelMessages {
             boolean opponentThinking) {}
 
     public record Rejected(String code, String message) {}
+
+    /**
+     * A power-up the server has just spent, so the app can grey the button out
+     * — the charge is the server's to give, and a client that marked its own
+     * would lose one to every refusal.
+     *
+     * <p>What the power-up actually did arrives in the state frame it triggers
+     * (a longer clock, a new letter) rather than here. {@code words} is the
+     * exception, being the whole of {@link PowerUp#HINT}: it changes nothing
+     * about the duel and has nowhere else to go. Empty for the other three.
+     */
+    public record PowerUpUsed(String type, List<String> words) {}
 
     public record SpectateChainEntry(String word, long playerId, int spentMs) {}
 

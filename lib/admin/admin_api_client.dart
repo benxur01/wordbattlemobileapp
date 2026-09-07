@@ -98,8 +98,12 @@ class AdminApiClient {
 
   // ----------------------------------------------------------- tournaments
 
-  Future<AdminTournamentRow> createTournament(String name, int size) async =>
-      AdminTournamentRow.fromJson(await _rest.post('/admin/tournaments', {'name': name, 'size': size}) as Map<String, dynamic>);
+  /// [format] is `solo` — one player per seat — or `team`, where [size] counts
+  /// pairs rather than players.
+  Future<AdminTournamentRow> createTournament(String name, int size, String format) async =>
+      AdminTournamentRow.fromJson(
+          await _rest.post('/admin/tournaments', {'name': name, 'size': size, 'format': format})
+              as Map<String, dynamic>);
 
   Future<AdminPage<AdminTournamentRow>> tournaments({int page = 0, int size = 20}) async {
     final json = await _rest.get('/admin/tournaments', {'page': page, 'size': size}) as Map<String, dynamic>;
@@ -111,6 +115,15 @@ class AdminApiClient {
 
   Future<void> inviteToTournament(int tournamentId, int userId) =>
       _rest.post('/admin/tournaments/$tournamentId/invite', {'userId': userId});
+
+  /// One whole seat of a team tournament: [userId] is the pair's primary
+  /// member — the id the bracket seeds and advances it by — and both of them
+  /// answer the invite for themselves.
+  Future<void> inviteTeamToTournament(int tournamentId, int userId, int partnerUserId) =>
+      _rest.post('/admin/tournaments/$tournamentId/invite-team', {
+        'userId': userId,
+        'partnerUserId': partnerUserId,
+      });
 
   Future<AdminTournamentRow> startTournament(int tournamentId) async =>
       AdminTournamentRow.fromJson(await _rest.post('/admin/tournaments/$tournamentId/start') as Map<String, dynamic>);

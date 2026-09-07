@@ -69,22 +69,22 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
   final TextEditingController _search = TextEditingController();
   String _query = '';
 
-  static const _gradients = [
-    wbTealGradient,
-    wbPurpleGradient,
-    wbBlueGradient,
-    wbRoseGradient,
-    wbAmber8Gradient,
-    wbGreyGradient,
-  ];
-  static const _textColors = [
-    WBColors.tealText,
-    WBColors.purpleText,
-    WBColors.blueText,
-    WBColors.roseText,
-    WBColors.amber8Text,
-    WBColors.greyText,
-  ];
+  static List<Gradient> get _gradients => [
+        wbTealGradient,
+        wbPurpleGradient,
+        wbBlueGradient,
+        wbRoseGradient,
+        wbAmber8Gradient,
+        wbGreyGradient,
+      ];
+  static List<Color> get _textColors => [
+        WBColors.tealText,
+        WBColors.purpleText,
+        WBColors.blueText,
+        WBColors.roseText,
+        WBColors.amber8Text,
+        WBColors.greyText,
+      ];
 
   @override
   void dispose() {
@@ -129,7 +129,7 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
                 : widget.onBack;
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 16, 22, 13),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color.fromRGBO(255, 255, 255, .07)))),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: WBColors.whiteA(.07)))),
       child: Row(
         children: [
           Pressable(
@@ -144,7 +144,7 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
-              child: const Icon(Icons.arrow_back_ios_new, size: 14, color: Colors.white70),
+              child: Icon(Icons.arrow_back_ios_new, size: 14, color: WBColors.textA(.7)),
             ),
           ),
           Expanded(

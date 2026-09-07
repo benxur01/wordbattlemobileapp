@@ -43,14 +43,14 @@ class TeamQueueScreen extends StatelessWidget {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      const RadarRings(size: 220, color: WBColors.accent),
+                      RadarRings(size: 220, color: WBColors.accent),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
                             width: 68,
                             height: 68,
-                            decoration: const BoxDecoration(gradient: wbPurpleGradient, shape: BoxShape.circle),
+                            decoration: BoxDecoration(gradient: wbPurpleGradient, shape: BoxShape.circle),
                             alignment: Alignment.center,
                             child: Text(
                               user?.initial ?? '?',
@@ -61,7 +61,7 @@ class TeamQueueScreen extends StatelessWidget {
                           Container(
                             width: 68,
                             height: 68,
-                            decoration: const BoxDecoration(gradient: wbTealGradient, shape: BoxShape.circle),
+                            decoration: BoxDecoration(gradient: wbTealGradient, shape: BoxShape.circle),
                             alignment: Alignment.center,
                             child: Text(
                               partner?.initial ?? '?',

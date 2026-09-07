@@ -81,6 +81,18 @@ public interface UserRepository extends JpaRepository<User, Long>, TokenGenerati
     @Query("select u from User u where u.nickname is not null order by u.rating desc, u.id asc")
     List<User> topByRating(Pageable pageable);
 
+    /**
+     * The ladder a Global tournament picks its guest list off — see {@code
+     * TournamentService#inviteTopRankedSolo}. {@link #topByRating} above is the
+     * leaderboard's, and a banned account still sits on it until whoever reads
+     * it says otherwise; this one cannot serve any, because {@code
+     * TournamentService.startInternal} refuses to seed a banned player and
+     * inviting one would only strand the bracket a seat short.
+     */
+    @Query("select u from User u where u.nickname is not null and u.bannedAt is null "
+            + "order by u.rating desc, u.id asc")
+    List<User> topEligibleByRating(Pageable pageable);
+
     /** 1-based position in the global ladder. */
     @Query("select count(u) + 1 from User u where u.nickname is not null and u.rating > :rating")
     long rankOf(@Param("rating") double rating);

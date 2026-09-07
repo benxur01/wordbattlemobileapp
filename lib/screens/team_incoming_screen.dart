@@ -52,7 +52,7 @@ class _TeamIncomingScreenState extends State<TeamIncomingScreen> with SingleTick
     return BackdropFilter(
       filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
       child: Container(
-        color: WBColors.bgDeep.withValues(alpha: .82),
+        color: WBColors.scrim,
         alignment: Alignment.bottomCenter,
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
         child: FadeTransition(
@@ -66,11 +66,7 @@ class _TeamIncomingScreenState extends State<TeamIncomingScreen> with SingleTick
             child: Container(
               padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color.fromRGBO(30, 28, 44, .98), Color.fromRGBO(12, 12, 20, .98)],
-                ),
+                gradient: wbSheetGradient,
                 border: Border.all(color: WBColors.whiteA(.12)),
                 borderRadius: BorderRadius.circular(28),
               ),

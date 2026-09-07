@@ -5,6 +5,7 @@ import 'package:word_battle/api/models.dart';
 import 'package:word_battle/models.dart';
 import 'package:word_battle/theme.dart';
 import 'package:word_battle/screens/board_screen.dart';
+import 'package:word_battle/screens/bot_battle_screen.dart';
 import 'package:word_battle/screens/duel_screen.dart';
 import 'package:word_battle/screens/friends_screen.dart';
 import 'package:word_battle/screens/history_screen.dart';
@@ -84,10 +85,23 @@ UserDto _user(int id, String nickname, {int rating = 1284, String? city, int str
 final _me = _user(1, 'jasur_07', city: 'Andijon', streak: 7);
 final _opponent = _user(2, 'malika_x', rating: 1301, city: 'Toshkent');
 
-DuelView _duel({bool yourTurn = true, int timeLeftMs = 12000, bool thinking = false}) => DuelView(
+/// The picker's topic row, shaped like `GET /api/themes`.
+const _themes = [
+  WordThemeDto(id: 'animals', name: 'Hayvonlar'),
+  WordThemeDto(id: 'food', name: 'Ovqat'),
+  WordThemeDto(id: 'nature', name: 'Tabiat'),
+  WordThemeDto(id: 'sports', name: 'Sport'),
+  WordThemeDto(id: 'technology', name: 'Texnologiya'),
+  WordThemeDto(id: 'travel', name: 'Sayohat'),
+  WordThemeDto(id: 'body', name: "Tana va sog'liq"),
+  WordThemeDto(id: 'jobs', name: 'Kasblar'),
+];
+
+DuelView _duel({bool yourTurn = true, int timeLeftMs = 12000, bool thinking = false, String? theme}) => DuelView(
       duelId: 'duel-1',
       opponent: _opponent,
       rated: true,
+      theme: theme,
       chain: const [
         ChainWord(word: 'battle', mine: false, spentMs: 1800),
         ChainWord(word: 'elephant', mine: true, spentMs: 2400),
@@ -96,6 +110,7 @@ DuelView _duel({bool yourTurn = true, int timeLeftMs = 12000, bool thinking = fa
       yourTurn: yourTurn,
       needLetter: 'W',
       substitutedFrom: null,
+      substitutionReason: null,
       timeLeftMs: timeLeftMs,
       turnSeconds: 15,
       yourWords: 1,
@@ -110,6 +125,7 @@ final _substitutedDuel = DuelView(
   duelId: 'duel-1',
   opponent: _opponent,
   rated: true,
+  theme: null,
   chain: const [
     ChainWord(word: 'battle', mine: false, spentMs: 1800),
     ChainWord(word: 'elephant', mine: true, spentMs: 2400),
@@ -119,11 +135,38 @@ final _substitutedDuel = DuelView(
   yourTurn: false,
   needLetter: 'A',
   substitutedFrom: 'X',
+  substitutionReason: 'rare_letter',
   timeLeftMs: 9000,
   turnSeconds: 15,
   yourWords: 2,
   opponentWords: 1,
   opponentThinking: true,
+);
+
+/// The bot practice, the only duel with power-ups on the board. Everything they
+/// can put in the input bar at once: the four buttons with a charge already
+/// spent, the words the hint offered, and the note for a letter the player
+/// skipped themselves — under a clock longer than the turn, which is what added
+/// time looks like.
+final _botDuel = DuelView(
+  duelId: 'duel-2',
+  opponent: _user(-1, 'wordbot', rating: 900),
+  rated: false,
+  theme: null,
+  chain: const [
+    ChainWord(word: 'battle', mine: false, spentMs: 1800),
+    ChainWord(word: 'elephant', mine: true, spentMs: 2400),
+    ChainWord(word: 'tomorrow', mine: false, spentMs: 1900),
+  ],
+  yourTurn: true,
+  needLetter: 'W',
+  substitutedFrom: 'O',
+  substitutionReason: 'power_up',
+  timeLeftMs: 21000,
+  turnSeconds: 15,
+  yourWords: 1,
+  opponentWords: 2,
+  opponentThinking: false,
 );
 
 const _win = FinishedDuel(
@@ -427,6 +470,7 @@ Map<String, Widget> buildScreens() => {
         friendsOnlineCount: 2,
         incoming: _invite,
         onStartMatch: () {},
+        onBotBattle: () {},
         onFriends: () {},
         onPractice: () {},
         onIncoming: () {},
@@ -440,6 +484,7 @@ Map<String, Widget> buildScreens() => {
         friendsOnlineCount: 0,
         incoming: null,
         onStartMatch: () {},
+        onBotBattle: () {},
         onFriends: () {},
         onPractice: () {},
         onIncoming: () {},
@@ -447,6 +492,26 @@ Map<String, Widget> buildScreens() => {
         onProfile: () {},
       ),
       'match': MatchmakingScreen(user: _me, matchClock: '0:02', onCancel: () {}),
+      'bot-setup': BotBattleScreen(
+        rating: 1400,
+        myRating: _me.rating,
+        themes: _themes,
+        theme: null,
+        onRatingChanged: (_) {},
+        onThemeChanged: (_) {},
+        onStart: () {},
+        onBack: () {},
+      ),
+      'bot-setup-themed': BotBattleScreen(
+        rating: 800,
+        myRating: _me.rating,
+        themes: _themes,
+        theme: 'animals',
+        onRatingChanged: (_) {},
+        onThemeChanged: (_) {},
+        onStart: () {},
+        onBack: () {},
+      ),
       'duel': DuelScreen(
         duel: _duel(),
         me: _me,
@@ -457,6 +522,8 @@ Map<String, Widget> buildScreens() => {
         onSendChat: (_) {},
         onSendReaction: (_) {},
         reaction: null,
+        powerUps: const DuelPowerUps(),
+        onPowerUp: (_) {},
       ),
       'duel-error': DuelScreen(
         duel: _duel(yourTurn: false, timeLeftMs: 3000, thinking: true),
@@ -468,6 +535,21 @@ Map<String, Widget> buildScreens() => {
         onSendChat: (_) {},
         onSendReaction: (_) {},
         reaction: null,
+        powerUps: const DuelPowerUps(),
+        onPowerUp: (_) {},
+      ),
+      'duel-themed': DuelScreen(
+        duel: _duel(theme: 'Hayvonlar'),
+        me: _me,
+        error: '«Hayvonlar» mavzusida bunday so\'z yo\'q',
+        scrollController: ScrollController(),
+        onSubmit: (_) {},
+        chatLog: const [],
+        onSendChat: (_) {},
+        onSendReaction: (_) {},
+        reaction: null,
+        powerUps: const DuelPowerUps(),
+        onPowerUp: (_) {},
       ),
       'duel-substituted': DuelScreen(
         duel: _substitutedDuel,
@@ -479,6 +561,24 @@ Map<String, Widget> buildScreens() => {
         onSendChat: (_) {},
         onSendReaction: (_) {},
         reaction: null,
+        powerUps: const DuelPowerUps(),
+        onPowerUp: (_) {},
+      ),
+      'duel-bot': DuelScreen(
+        duel: _botDuel,
+        me: _me,
+        error: '',
+        scrollController: ScrollController(),
+        onSubmit: (_) {},
+        chatLog: const [],
+        onSendChat: (_) {},
+        onSendReaction: (_) {},
+        reaction: null,
+        powerUps: const DuelPowerUps(
+          spent: {DuelPowerUp.hint},
+          hints: ['window', 'winter', 'wisdom'],
+        ),
+        onPowerUp: (_) {},
       ),
       'win': WinScreen(result: _win, onRematch: () {}, onHome: () {}),
       'lose': LoseScreen(result: _lose, onRematch: () {}, onPractice: () {}),
