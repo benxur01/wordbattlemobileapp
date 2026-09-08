@@ -246,6 +246,15 @@ void main() {
   });
 
   group('only the turn decides what is sent', () {
+    // The arrow beside the word field. [Pressable] is the app's press-scale
+    // wrapper and the social bar above the board wears eight more of them
+    // (leave, six reactions, chat), so the finder is narrowed to the row the
+    // field itself sits in — the arrow is the only one sharing it.
+    final sendButton = find.descendant(
+      of: find.ancestor(of: find.byType(TextField), matching: find.byType(Row)).first,
+      matching: find.byType(Pressable),
+    );
+
     Future<List<String>> pumpAndCollect(WidgetTester tester, {required bool yourTurn}) async {
       final sent = <String>[];
       await tester.pumpWidget(_Canvas(build: () => DuelScreen(
@@ -277,7 +286,7 @@ void main() {
       expect(sent, ['window']);
 
       await tester.enterText(find.byType(TextField), 'water');
-      await tester.tap(find.byType(Pressable));
+      await tester.tap(sendButton);
       await tester.pump();
       expect(sent, ['window', 'water']);
     });
@@ -290,7 +299,7 @@ void main() {
       // screen — refusing it is the screen's job, not the disabled state's.
       await tester.testTextInput.receiveAction(TextInputAction.send);
       await tester.pump();
-      await tester.tap(find.byType(Pressable));
+      await tester.tap(sendButton);
       await tester.pump();
 
       expect(sent, isEmpty, reason: 'the server would answer not_your_turn');
