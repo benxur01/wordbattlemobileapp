@@ -36,9 +36,16 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.2.2
   web_socket_channel: ^3.0.1
+  # Non-sensitive preferences only — the chosen theme. A plain XML file on
+  # Android and an unencrypted plist on iOS, so nothing worth stealing goes here.
   shared_preferences: ^2.3.2
-  # The only sign-in the app has: the phone gets an idToken, the server checks
-  # it against Google's public keys.
+  # Where the auth tokens live instead: Keychain on iOS, Keystore-backed
+  # encrypted storage on Android. See `api/session.dart` and `admin/admin_root.dart`.
+  flutter_secure_storage: ^11.0.0
+  # One of the two ways in: the phone gets an idToken, the server checks it
+  # against Google's public keys. The other — nickname + password, on the same
+  # onboarding screen — needs no package, it is a plain POST to
+  # `/auth/register` or `/auth/login`.
   google_sign_in: ^7.2.0
   # Already pulled in by the line above; named here because the admin panel's
   # web build imports it directly. A browser has no `authenticate()` to call, so

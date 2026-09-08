@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:word_battle/admin/admin_api_client.dart';
 import 'package:word_battle/admin/admin_login_screen.dart';
 import 'package:word_battle/admin/admin_root.dart';
@@ -68,7 +68,7 @@ void main() {
   group('getting into the panel', () {
     testWidgets('with no saved token the panel asks to sign in', (tester) async {
       useDesktopWindow(tester);
-      SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({});
 
       await tester.pumpWidget(MaterialApp(
         home: AdminRoot(api: AdminApiClient(httpClient: MockClient((_) async => json({})))),
@@ -81,7 +81,7 @@ void main() {
 
     testWidgets('a signed-in account that is not an admin is told so, not left guessing', (tester) async {
       useDesktopWindow(tester);
-      SharedPreferences.setMockInitialValues({'wb_admin_token': 'a-real-token'});
+      FlutterSecureStorage.setMockInitialValues({'wb_admin_token': 'a-real-token'});
 
       // The token is perfectly good — `/users/me` answers it — and the admin
       // routes still refuse it. That is the whole case this screen exists for.
@@ -104,7 +104,7 @@ void main() {
 
     testWidgets('a server that cannot be reached keeps the token and offers a retry', (tester) async {
       useDesktopWindow(tester);
-      SharedPreferences.setMockInitialValues({'wb_admin_token': 'a-real-token'});
+      FlutterSecureStorage.setMockInitialValues({'wb_admin_token': 'a-real-token'});
 
       // The rule the game's own session restore follows: a network that is down
       // says nothing about whether the token is good, so forgetting it here
@@ -116,7 +116,7 @@ void main() {
 
       expect(find.text('Qayta urinish'), findsOneWidget);
       expect(find.text('ADMIN PANEL'), findsNothing);
-      expect((await SharedPreferences.getInstance()).getString('wb_admin_token'), 'a-real-token');
+      expect(await const FlutterSecureStorage().read(key: 'wb_admin_token'), 'a-real-token');
     });
   });
 

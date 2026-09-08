@@ -5,12 +5,18 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- usesCleartextTraffic="false": in a shipped build the JWT and every duel
          frame would otherwise cross the network readable by anyone on the same
-         WiFi. The debug manifest relaxes this for a development server. -->
+         WiFi. The debug manifest relaxes this for a development server.
+         allowBackup="false": the default sends the app's data directory to
+         Google's servers and restores it onto any device the account is on.
+         The auth token is in Keystore-backed storage whose key never leaves the
+         phone, so a restored copy would be undecryptable anyway — but a session
+         is not something to hand to a backup in the first place. -->
     <application
         android:label="Word Battle"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true"
+        android:allowBackup="false"
         android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"

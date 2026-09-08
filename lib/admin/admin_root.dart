@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../api/api_exception.dart';
 import '../api/models.dart';
@@ -59,8 +59,10 @@ class AdminRoot extends StatefulWidget {
 class _AdminRootState extends State<AdminRoot> {
   /// A key of its own, not the game's `wb_token`. The two are different
   /// sessions even when they are the same person, and signing out of one has no
-  /// business ending the other.
+  /// business ending the other. Held in the same secure storage the game's
+  /// token is — an admin token is worth strictly more than a player's.
   static const _tokenKey = 'wb_admin_token';
+  static const _storage = FlutterSecureStorage();
 
   late final AdminApiClient _api = widget.api ?? AdminApiClient();
 
@@ -81,8 +83,7 @@ class _AdminRootState extends State<AdminRoot> {
   // ------------------------------------------------------------- session
 
   Future<void> _restore() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(_tokenKey);
+    final token = await _storage.read(key: _tokenKey);
     if (token == null || token.isEmpty) {
       if (mounted) setState(() => _stage = AdminStage.login);
       return;
@@ -139,8 +140,7 @@ class _AdminRootState extends State<AdminRoot> {
     });
     try {
       final result = await _api.loginWithGoogle(idToken);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, result.token);
+      await _storage.write(key: _tokenKey, value: result.token);
       _api.token = result.token;
       if (!mounted) return;
       setState(() => _me = result.user);
@@ -165,8 +165,7 @@ class _AdminRootState extends State<AdminRoot> {
   }
 
   Future<void> _signOut({String? notice}) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
+    await _storage.delete(key: _tokenKey);
     _api.token = null;
     await adminGoogleSignOut();
     if (!mounted) return;

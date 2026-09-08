@@ -1,9 +1,9 @@
 import 'dart:convert';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:word_battle/api/api_client.dart';
 import 'package:word_battle/api/api_exception.dart';
 import 'package:word_battle/api/session.dart';
@@ -26,9 +26,9 @@ void main() {
             )),
       );
 
-  Future<String?> storedToken() async => (await SharedPreferences.getInstance()).getString('wb_token');
+  Future<String?> storedToken() async => const FlutterSecureStorage().read(key: 'wb_token');
 
-  setUp(() => SharedPreferences.setMockInitialValues({'wb_token': 'saved-token'}));
+  setUp(() => FlutterSecureStorage.setMockInitialValues({'wb_token': 'saved-token'}));
 
   test('an unreachable server keeps the token and reports the failure', () async {
     final session = sessionWith(MockClient((_) => Future.error(const SocketException())));
@@ -77,7 +77,7 @@ void main() {
   });
 
   test('no saved token is not a failure', () async {
-    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
     final session = sessionReturning(200, null);
 
     expect(await session.restore(), isFalse);

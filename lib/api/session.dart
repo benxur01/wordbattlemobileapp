@@ -1,4 +1,4 @@
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'api_client.dart';
 import 'api_exception.dart';
@@ -6,10 +6,15 @@ import 'models.dart';
 
 /// Remembers the login between launches. The token is the only thing stored;
 /// everything else is fetched fresh, so a stale profile can never be shown.
+///
+/// It lives in the Keychain on iOS and in Keystore-backed encrypted storage on
+/// Android rather than in `shared_preferences`, which is a plain XML file any
+/// process with the app's data directory — a backup, a rooted phone — can read.
 class Session {
   Session(this._api);
 
   static const _tokenKey = 'wb_token';
+  static const _storage = FlutterSecureStorage();
 
   final ApiClient _api;
   UserDto? user;
@@ -27,8 +32,7 @@ class Session {
   /// forgetting; a network that is merely down says nothing about it, and the
   /// caller shows the offline screen and retries instead.
   Future<bool> restore() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(_tokenKey);
+    final token = await _storage.read(key: _tokenKey);
     if (token == null || token.isEmpty) return false;
 
     _api.token = token;
@@ -46,15 +50,13 @@ class Session {
   Future<void> save(String token, UserDto loggedIn) async {
     _api.token = token;
     user = loggedIn;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, token);
+    await _storage.write(key: _tokenKey, value: token);
   }
 
   Future<void> clear() async {
     _api.token = null;
     user = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
+    await _storage.delete(key: _tokenKey);
   }
 
   String? get token => _api.token;
