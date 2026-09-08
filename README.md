@@ -67,9 +67,13 @@ kalit bilan imzolanadi).
 
 ### 3. Google Sign-In
 
-Kirish faqat Google orqali. Google Cloud Console → APIs & Services →
-Credentials ichida **ikkita** OAuth client kerak (iOS ham quriladigan bo'lsa —
-uchta):
+Kirishning ikki yo'li bor: Google Sign-In va taxallus + parol (onboarding
+ekranidagi «Ro'yxatdan o'tish» / «Kirish» — server tomonida
+`POST /api/auth/register` va `/api/auth/login`). Parol yo'li Google'siz ham
+ishlaydi; quyidagilar faqat Google tugmasi uchun kerak.
+
+Google Cloud Console → APIs & Services → Credentials ichida **ikkita** OAuth
+client kerak (iOS ham quriladigan bo'lsa — uchta):
 
 1. **Web application** — nomi chalg'itadi: bu vebsayt emas, "serverda ishlaydigan
    client" degani, ya'ni backendning o'zi. ID **allaqachon kodda**

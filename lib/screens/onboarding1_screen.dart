@@ -144,12 +144,12 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
               // The design draws this as an amber plate with an abstract disc
               // where a provider logo would go, and it was built that way
               // first — the disc read as decoration rather than as the Google
-              // button, which is the one thing it has to be, since it is the
-              // only way into the app. So this button follows Google's spec
-              // instead of the design file: their mark, on white, in their
-              // ink. The amber went with it rather than being kept as a tint,
-              // because their brand rules put the mark on a light surface —
-              // recolouring the plate around it is not ours to do.
+              // button, which is the one thing it has to be. So this button
+              // follows Google's spec instead of the design file: their mark,
+              // on white, in their ink. The amber went with it rather than
+              // being kept as a tint, because their brand rules put the mark
+              // on a light surface — recolouring the plate around it is not
+              // ours to do.
               Pressable(
                 onTap: widget.busy ? null : widget.onGoogle,
                 pressScale: .98,

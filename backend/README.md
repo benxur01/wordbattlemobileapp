@@ -52,6 +52,7 @@ bo'lsa Testcontainers, bo'lmasa ichki (embedded) server. Pastdagi
 |---|---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | PostgreSQL ulanishi | `localhost:5432/wordbattle` |
 | `JWT_SECRET` | Tokenlarni imzolash. **Kamida 32 bayt. Standart qiymat yo'q** — berilmasa server ko'tarilmaydi | — |
+| `SPRING_PROFILES_ACTIVE` | Prodda `prod` qiling: shunda namunaviy yoki bo'sh `DB_PASSWORD` bilan server ko'tarilmaydi (`DatabasePasswordGuard`) | bo'sh |
 | `CORS_ALLOWED_ORIGINS` | Brauzer origin'lari (vergul bilan). Bo'sh bo'lsa CORS umuman yo'q — telefon ilovasiga kerak emas | bo'sh |
 | `TIME_ZONE` | Streak va kunlik so'z qaysi kun bo'yicha almashadi | `Asia/Tashkent` |
 | `WS_FRAMES_PER_SECOND` / `WS_FRAME_BURST` | Soketdagi freym cheklovi (bitta o'yinchiga) | `20` / `40` |
@@ -278,8 +279,9 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `team_duel.aborted` | `duelId, message` — server o'chmoqda |
 | `error` | `code, message` |
 
-`duel.rejected` kodlari: `letters_only`, `too_short`, `wrong_letter`,
-`already_used`, `not_a_word`, `not_your_turn`.
+`duel.rejected` kodlari: `letters_only`, `too_long`, `too_short`,
+`wrong_letter`, `already_used`, `not_a_word`, `off_theme` (faqat mavzuli
+janglarda — so'z lug'atda bor, lekin mavzuga kirmaydi), `not_your_turn`.
 
 Uzilish = mag'lubiyat: soket yopilsa server jangni raqib foydasiga tugatadi
 (aks holda simni sug'urish bepul qochish yo'li bo'lardi). Qayta ulanganda
@@ -403,10 +405,13 @@ ustidagi unikal indeks. Ikki o'yinchi bir vaqtda bir nomni so'rasa, biri
 
 1. `JWT_SECRET` va `GOOGLE_WEB_CLIENT_ID` ni to'ldiring, `DEV_LOGIN_ENABLED=false`.
    (Sirsiz server ataylab ko'tarilmaydi.)
-2. HTTPS/WSS terminatsiyasi (nginx yoki cloud LB) qo'ying — ilova release
+2. `SPRING_PROFILES_ACTIVE=prod` qiling va `DB_PASSWORD` ga haqiqiy parol
+   bering (`openssl rand -base64 24`). `prod` profilida namunaviy `wordbattle`
+   paroli bilan server ataylab ko'tarilmaydi — u shu repozitoriyda yozilgan.
+3. HTTPS/WSS terminatsiyasi (nginx yoki cloud LB) qo'ying — ilova release
    build'da cleartext HTTP'ni umuman rad etadi.
-3. Postgres uchun zaxira nusxa (backup) sozlang.
-4. `/actuator/health/readiness` va `/liveness` ni monitoringga ulang.
+4. Postgres uchun zaxira nusxa (backup) sozlang.
+5. `/actuator/health/readiness` va `/liveness` ni monitoringga ulang.
 
 **Miqyoslash haqida.** Hozirgi versiya bitta instansiya uchun: navbat, onlayn
 holat va faol janglar xotirada saqlanadi. Bir nechta nusxa ishga tushirish
@@ -444,7 +449,7 @@ birinchi marta prodda ishga tushadi va yiqilsa server umuman ko'tarilmaydi.
 Shu bo'shliqni ikkita test yopadi. Ikkalasi bitta haqiqiy PostgreSQL 16 ni
 bo'lishadi (`MigrationDatabase`):
 
-- `MigrationChainTest` — bo'sh sxemada V1→V6 zanjiri to'liq bajarilishi
+- `MigrationChainTest` — bo'sh sxemada V1→V16 zanjiri to'liq bajarilishi
   (`baseline-on-migrate: true` V1 ni tashlab ketmasligi ham shu yerda),
   qisman indekslar predikati bilan saqlanishi, qayta `migrate` bo'sh amal
   bo'lishi. Ikkinchi test — **mavjud bazani yangilash**: V2 da ma'lumot
