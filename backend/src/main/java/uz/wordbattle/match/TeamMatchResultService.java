@@ -2,6 +2,7 @@ package uz.wordbattle.match;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -15,6 +16,7 @@ import uz.wordbattle.rating.Glicko2;
 import uz.wordbattle.rating.RatingHistory;
 import uz.wordbattle.rating.RatingHistoryRepository;
 import uz.wordbattle.user.User;
+import uz.wordbattle.user.UserRepository;
 import uz.wordbattle.user.UserService;
 import uz.wordbattle.user.UserWord;
 import uz.wordbattle.user.UserWordRepository;
@@ -38,15 +40,22 @@ import uz.wordbattle.user.UserWordRepository;
  * unrated-practice concept for this mode yet, unlike {@link MatchResultService}'s
  * bot duels — so unlike that class there is no unrated branch here to skip.
  *
- * <p>Unlike {@link MatchResultService}, a deleted account mid-settlement is not
- * given its own reassignment logic: with four players rather than two there is
- * no single "surviving side" to anchor the row on, and unlike a 1v1 duel a
- * team match losing one of its four rows is not a case worth the same
- * bookkeeping {@code playerBehind} exists for there. If any of the four rows is
- * gone by the time this runs, {@link #record} throws, which the caller — see
- * {@code TeamDuelService.recordResult} — already treats exactly like any other
- * settlement failure: nothing is written, every player reads back a zero delta,
- * and the duel is still reported as over.
+ * <p>A player whose row has gone by the time this runs — deleted, in practice —
+ * counts as one who is not there, exactly as {@code MatchResultService.playerBehind}
+ * treats them in a 1v1 duel. They are rated for nothing, written nothing, and
+ * left out of the synthetic opponent their side stands for; the other three
+ * settle normally against a side of one. Only when neither side has anybody
+ * left is there nothing to do at all.
+ *
+ * <p>What that costs is the {@code team_matches} row, and only in that case:
+ * all four of its player columns are {@code not null} and so are all eight of
+ * its rating columns, so there is no shape of it that says "three players
+ * played". The three who remain still get their rating, their battle, their
+ * streak and their learned words — which is the whole of what a settlement is
+ * for, and which they used to lose along with it. This was a deliberate
+ * tradeoff once and it was the wrong one: the throw it ended in reached the
+ * catch-all in {@code TeamDuelService.recordResult}, and a settlement that
+ * failed for one player failed for all four.
  */
 @Service
 public class TeamMatchResultService {
@@ -77,6 +86,7 @@ public class TeamMatchResultService {
     }
 
     private final AppProperties props;
+    private final UserRepository users;
     private final UserService userService;
     private final UserWordRepository userWords;
     private final TeamMatchRepository matches;
@@ -85,12 +95,14 @@ public class TeamMatchResultService {
 
     public TeamMatchResultService(
             AppProperties props,
+            UserRepository users,
             UserService userService,
             UserWordRepository userWords,
             TeamMatchRepository matches,
             TeamMatchWordRepository matchWords,
             RatingHistoryRepository ratingHistory) {
         this.props = props;
+        this.users = users;
         this.userService = userService;
         this.userWords = userWords;
         this.matches = matches;
@@ -99,78 +111,117 @@ public class TeamMatchResultService {
     }
 
     /**
-     * One transaction per finished duel, all four rows read, changed and
-     * written back inside it — same discipline as {@link MatchResultService#record},
-     * and refused at commit the same way by each row's version column if
-     * another settlement races it.
+     * One transaction per finished duel, every row that is still there read,
+     * changed and written back inside it — same discipline as
+     * {@link MatchResultService#record}, and refused at commit the same way by
+     * each row's version column if another settlement races it.
      */
     @Transactional
     public Outcome record(TeamDuelSession session, boolean teamAWon, EndReason reason) {
         Instant now = Instant.now();
         Outcome outcome = new Outcome();
 
-        List<Long> teamA = session.teamA();
-        List<Long> teamB = session.teamB();
-        User a1 = requireLive(teamA.get(0));
-        User a2 = requireLive(teamA.get(1));
-        User b1 = requireLive(teamB.get(0));
-        User b2 = requireLive(teamB.get(1));
+        User a1 = playerBehind(session.teamA().get(0));
+        User a2 = playerBehind(session.teamA().get(1));
+        User b1 = playerBehind(session.teamB().get(0));
+        User b2 = playerBehind(session.teamB().get(1));
 
-        double a1Before = a1.getRating();
-        double a2Before = a2.getRating();
-        double b1Before = b1.getRating();
-        double b2Before = b2.getRating();
+        List<User> teamA = stillHere(a1, a2);
+        List<User> teamB = stillHere(b1, b2);
+        List<User> everyone = new ArrayList<>(teamA);
+        everyone.addAll(teamB);
+        // Nobody left on either side: nothing to rate, nothing to write it to.
+        if (everyone.isEmpty()) return outcome;
 
         Duration period = props.rating().periodDuration();
-        double a1Deviation = inflatedDeviation(a1, now, period);
-        double a2Deviation = inflatedDeviation(a2, now, period);
-        double b1Deviation = inflatedDeviation(b1, now, period);
-        double b2Deviation = inflatedDeviation(b2, now, period);
+        Map<Long, Double> ratingBefore = new HashMap<>();
+        Map<Long, Double> deviation = new HashMap<>();
+        for (User player : everyone) {
+            ratingBefore.put(player.getId(), player.getRating());
+            deviation.put(player.getId(), inflatedDeviation(player, now, period));
+        }
 
-        // The synthetic opponent each side is rated against: the average
-        // rating and deviation of the two real players on the other team.
-        double teamARating = (a1.getRating() + a2.getRating()) / 2.0;
-        double teamADeviation = (a1Deviation + a2Deviation) / 2.0;
-        double teamBRating = (b1.getRating() + b2.getRating()) / 2.0;
-        double teamBDeviation = (b1Deviation + b2Deviation) / 2.0;
-        double teamAVolatility = (a1.getVolatility() + a2.getVolatility()) / 2.0;
-        double teamBVolatility = (b1.getVolatility() + b2.getVolatility()) / 2.0;
+        // Rated only while both sides still have somebody. The synthetic
+        // opponent is built out of real players, so a side with none of them
+        // left is no opponent at all — the same point at which a 1v1 duel
+        // settles unrated for whoever remains.
+        if (!teamA.isEmpty() && !teamB.isEmpty()) {
+            // Both are built before either side is rated: each is the average
+            // of the other team as it stood when the duel ended, and rating a
+            // player moves the numbers the other side's average is taken from.
+            Glicko2.Rating teamBAsOpponent = syntheticOpponent(teamB, deviation);
+            Glicko2.Rating teamAAsOpponent = syntheticOpponent(teamA, deviation);
 
-        Glicko2.Rating teamBAsOpponent = new Glicko2.Rating(teamBRating, teamBDeviation, teamBVolatility);
-        Glicko2.Rating teamAAsOpponent = new Glicko2.Rating(teamARating, teamADeviation, teamAVolatility);
+            for (User player : teamA) rate(player, deviation.get(player.getId()), teamBAsOpponent, teamAWon);
+            for (User player : teamB) rate(player, deviation.get(player.getId()), teamAAsOpponent, !teamAWon);
+            for (User player : everyone) {
+                player.setRatingPeriodAt(now);
+                ratingHistory.save(new RatingHistory(player.getId(), player.getRating()));
+            }
+        }
 
-        rate(a1, a1Deviation, teamBAsOpponent, teamAWon);
-        rate(a2, a2Deviation, teamBAsOpponent, teamAWon);
-        rate(b1, b1Deviation, teamAAsOpponent, !teamAWon);
-        rate(b2, b2Deviation, teamAAsOpponent, !teamAWon);
+        for (User player : teamA) {
+            outcome.put(player.getId(), result(
+                    player, ratingBefore.get(player.getId()), updatePlayer(player, session, teamAWon, now)));
+        }
+        for (User player : teamB) {
+            outcome.put(player.getId(), result(
+                    player, ratingBefore.get(player.getId()), updatePlayer(player, session, !teamAWon, now)));
+        }
 
-        a1.setRatingPeriodAt(now);
-        a2.setRatingPeriodAt(now);
-        b1.setRatingPeriodAt(now);
-        b2.setRatingPeriodAt(now);
-        ratingHistory.save(new RatingHistory(a1.getId(), a1.getRating()));
-        ratingHistory.save(new RatingHistory(a2.getId(), a2.getRating()));
-        ratingHistory.save(new RatingHistory(b1.getId(), b1.getRating()));
-        ratingHistory.save(new RatingHistory(b2.getId(), b2.getRating()));
-
-        int a1NewWords = updatePlayer(a1, session, teamAWon, now);
-        int a2NewWords = updatePlayer(a2, session, teamAWon, now);
-        int b1NewWords = updatePlayer(b1, session, !teamAWon, now);
-        int b2NewWords = updatePlayer(b2, session, !teamAWon, now);
-
-        outcome.put(a1.getId(), result(a1, a1Before, a1NewWords));
-        outcome.put(a2.getId(), result(a2, a2Before, a2NewWords));
-        outcome.put(b1.getId(), result(b1, b1Before, b1NewWords));
-        outcome.put(b2.getId(), result(b2, b2Before, b2NewWords));
-
-        outcome.matchId = persist(
-                session, teamAWon, reason, a1, a2, b1, b2, a1Before, a2Before, b1Before, b2Before, now);
+        // Only a duel all four of whose players are still here can be written
+        // down: see this class's opening for why there is no row shape for the
+        // other case.
+        if (everyone.size() == 4) {
+            outcome.matchId = persist(
+                    session,
+                    teamAWon,
+                    reason,
+                    a1,
+                    a2,
+                    b1,
+                    b2,
+                    ratingBefore.get(a1.getId()),
+                    ratingBefore.get(a2.getId()),
+                    ratingBefore.get(b1.getId()),
+                    ratingBefore.get(b2.getId()),
+                    now);
+        }
         return outcome;
     }
 
-    /** A live player's row, the same "gone means gone" rule {@code UserService.require} enforces. */
-    private User requireLive(long playerId) {
-        return userService.require(playerId);
+    /**
+     * The player this row still belongs to, or null when there is nobody left
+     * behind it — {@code MatchResultService.playerBehind} exactly, and see its
+     * own comment for why a deleted account counts as gone and a banned one
+     * does not.
+     */
+    private User playerBehind(long playerId) {
+        return users.findById(playerId).filter(user -> !user.isDeleted()).orElse(null);
+    }
+
+    private List<User> stillHere(User one, User two) {
+        List<User> present = new ArrayList<>(2);
+        if (one != null) present.add(one);
+        if (two != null) present.add(two);
+        return present;
+    }
+
+    /**
+     * The rating a side stands in as: the average of its players' ratings,
+     * inflated deviations and volatilities. Only the rating and deviation are
+     * ever read by {@link Glicko2#update} — see this class's opening.
+     */
+    private Glicko2.Rating syntheticOpponent(List<User> side, Map<Long, Double> deviation) {
+        double rating = 0;
+        double spread = 0;
+        double volatility = 0;
+        for (User player : side) {
+            rating += player.getRating();
+            spread += deviation.get(player.getId());
+            volatility += player.getVolatility();
+        }
+        return new Glicko2.Rating(rating / side.size(), spread / side.size(), volatility / side.size());
     }
 
     private double inflatedDeviation(User user, Instant now, Duration period) {
