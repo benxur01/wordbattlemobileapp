@@ -504,6 +504,13 @@ public class TeamDuelService {
             sockets.sendError(callerId, "self_spectate", "O'zingizni tomosha qila olmaysiz");
             return;
         }
+        // As the 1v1 path does, and against both boards: whichever kind of duel
+        // the caller is in, its frames and the watched one's would arrive
+        // interleaved on their single socket.
+        if (busyAnywhere(callerId)) {
+            sockets.sendError(callerId, "already_in_duel", "Jang paytida tomosha qilib bo'lmaydi");
+            return;
+        }
         // Cheap first, as the 1v1 path does: no duel lookup is worth doing for
         // someone who is not even flagged as fighting.
         if (!presence.isInBattle(targetUserId)) {
@@ -681,6 +688,14 @@ public class TeamDuelService {
 
     private void settle(TeamDuelSession session, boolean teamAWon, EndReason reason) {
         TeamMatchResultService.Outcome outcome = recordResult(session, teamAWon, reason);
+        // Unreachable — recordResult answers with an unrecorded outcome rather
+        // than null on every path — and kept because DuelService.settle keeps
+        // it: what is downstream of here is four finish frames, and a null
+        // outcome would turn a duel that is merely unsettled into four players
+        // left on a screen that never moves again.
+        if (outcome == null) {
+            outcome = TeamMatchResultService.Outcome.unrecorded();
+        }
 
         // Read and cleared here, before any of the four is told, exactly where
         // DuelService.settle does the same for a 1v1 tournament match — and

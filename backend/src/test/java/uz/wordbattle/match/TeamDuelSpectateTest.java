@@ -11,6 +11,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -37,6 +38,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
  * very failure this feature exists to fix, turned around.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ExtendWith(CancelPendingForfeits.class)
 class TeamDuelSpectateTest {
 
     @LocalServerPort
@@ -51,6 +53,7 @@ class TeamDuelSpectateTest {
     private Client bOne;
     private Client bTwo;
     private Client watcher;
+    private Client watcherOpponent;
 
     /** A connected player: sends frames, and queues everything the server pushes. */
     private class Client extends TextWebSocketHandler {
@@ -193,6 +196,7 @@ class TeamDuelSpectateTest {
         if (bOne != null) bOne.close();
         if (bTwo != null) bTwo.close();
         if (watcher != null) watcher.close();
+        if (watcherOpponent != null) watcherOpponent.close();
     }
 
     @Test
@@ -255,6 +259,31 @@ class TeamDuelSpectateTest {
 
         watcher.send("duel.spectate", Map.of("userId", duel.aOne().id()));
         assertThat(watcher.await("error", 5).path("code").asText()).isEqualTo("not_friends");
+    }
+
+    /**
+     * The 1v1 half of the refusal, which is the half that matters here: a
+     * service knowing only about 2v2 would wave this caller through, and their
+     * own duel's frames and this board's would then share the one socket.
+     */
+    @Test
+    void aWatcherAlreadyFightingElsewhereIsRejectedWithAlreadyInDuel() throws Exception {
+        Duel duel = startTeamDuel("Team busy watcher");
+        Player fan = register("Busy team watcher");
+        Player fanOpponent = register("Busy team watcher opponent");
+        befriend(fan.token(), duel.aOne().token());
+
+        watcher = new Client(fan.token());
+        watcherOpponent = new Client(fanOpponent.token());
+        watcher.await("hello", 5);
+        watcherOpponent.await("hello", 5);
+        watcher.send("queue.join", Map.of());
+        watcherOpponent.send("queue.join", Map.of());
+        watcher.await("match.found", 10);
+        watcherOpponent.await("match.found", 10);
+
+        watcher.send("duel.spectate", Map.of("userId", duel.aOne().id()));
+        assertThat(watcher.await("error", 5).path("code").asText()).isEqualTo("already_in_duel");
     }
 
     @Test

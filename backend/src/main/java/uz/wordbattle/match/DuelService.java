@@ -740,6 +740,14 @@ public class DuelService {
             sockets.sendError(callerId, "self_spectate", "O'zingizni tomosha qila olmaysiz");
             return;
         }
+        // A player mid-duel is the wrong side of this socket to be watching
+        // another one: their own duel's frames and the friend's would arrive
+        // interleaved on the one connection, and the turn timer runs whether or
+        // not they are looking at their own board.
+        if (isPlaying(callerId)) {
+            sockets.sendError(callerId, "already_in_duel", "Jang paytida tomosha qilib bo'lmaydi");
+            return;
+        }
         if (!friends.areFriends(callerId, targetUserId)) {
             sockets.sendError(callerId, "not_friends", "Avval do'st bo'lish kerak");
             return;

@@ -2096,9 +2096,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   /// The friends screen's "Kuzatish", for a friend currently `inBattle`. The
   /// screen only changes once `duel.spectate_state` actually arrives — see
   /// that case in [_applySocketEvent] — so a rejection (`self_spectate`,
-  /// `not_friends`, `not_in_duel`) just surfaces as the ordinary error banner
-  /// and leaves the player exactly where they were, the same way a refused
-  /// `invite.send` does.
+  /// `already_in_duel`, `not_friends`, `not_in_duel`) just surfaces as the
+  /// ordinary error banner and leaves the player exactly where they were, the
+  /// same way a refused `invite.send` does.
   void spectate(FriendDto friend) => _socket.send('duel.spectate', {'userId': friend.user.id});
 
   void stopSpectating() => _socket.send('duel.unspectate');

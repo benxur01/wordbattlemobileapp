@@ -11,6 +11,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -32,6 +33,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
  * client harness from — this one adds a third socket that never plays a word.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ExtendWith(CancelPendingForfeits.class)
 class DuelSpectateTest {
 
     @LocalServerPort
@@ -44,6 +46,7 @@ class DuelSpectateTest {
     private Client host;
     private Client guest;
     private Client watcher;
+    private Client watcherOpponent;
 
     /** A connected player: sends frames, and queues everything the server pushes. */
     private class Client extends TextWebSocketHandler {
@@ -124,6 +127,7 @@ class DuelSpectateTest {
         if (host != null) host.close();
         if (guest != null) guest.close();
         if (watcher != null) watcher.close();
+        if (watcherOpponent != null) watcherOpponent.close();
     }
 
     @Test
@@ -203,6 +207,44 @@ class DuelSpectateTest {
 
         watcher.send("duel.spectate", Map.of("userId", hostId));
         assertThat(watcher.await("error", 5).path("code").asText()).isEqualTo("not_in_duel");
+    }
+
+    /**
+     * A duel of one's own is not a seat in the stands. Both boards would arrive
+     * on the one socket, and the watcher's own turn timer keeps running while
+     * they look at somebody else's game.
+     */
+    @Test
+    void aPlayerAlreadyInADuelIsRejectedWithAlreadyInDuel() throws Exception {
+        String hostToken = login("Busy watched host");
+        String guestToken = login("Busy watched guest");
+        String watcherToken = login("Busy watcher");
+        String watcherOpponentToken = login("Busy watcher opponent");
+        long hostId = userId(hostToken);
+        befriend(hostToken, watcherToken);
+
+        host = new Client(hostToken);
+        guest = new Client(guestToken);
+        host.await("hello", 5);
+        guest.await("hello", 5);
+        host.send("queue.join", Map.of());
+        guest.send("queue.join", Map.of());
+        host.await("match.found", 10);
+        guest.await("match.found", 10);
+
+        // Queued only once the first pair is out of the queue, so these two are
+        // certainly matched with each other.
+        watcher = new Client(watcherToken);
+        watcherOpponent = new Client(watcherOpponentToken);
+        watcher.await("hello", 5);
+        watcherOpponent.await("hello", 5);
+        watcher.send("queue.join", Map.of());
+        watcherOpponent.send("queue.join", Map.of());
+        watcher.await("match.found", 10);
+        watcherOpponent.await("match.found", 10);
+
+        watcher.send("duel.spectate", Map.of("userId", hostId));
+        assertThat(watcher.await("error", 5).path("code").asText()).isEqualTo("already_in_duel");
     }
 
     @Test
