@@ -455,47 +455,90 @@ Future<String?> adminPrompt(
   bool required = false,
   bool destructive = false,
 }) {
-  final controller = TextEditingController(text: initial);
   return showDialog<String>(
     context: context,
-    builder: (context) {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          final value = controller.text.trim();
-          final canConfirm = !required || value.isNotEmpty;
-          return AlertDialog(
-            backgroundColor: WBColors.bgPanel,
-            title: Text(title, style: WBText.grotesk(size: 16, weight: FontWeight.w700)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(message, style: WBText.grotesk(size: 14, color: WBColors.textA(.8))),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  style: WBText.grotesk(size: 14),
-                  decoration: adminInput(hint),
-                  onChanged: (_) => setState(() {}),
-                  onSubmitted: canConfirm ? (text) => Navigator.of(context).pop(text.trim()) : null,
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Bekor qilish')),
-              FilledButton(
-                onPressed: canConfirm ? () => Navigator.of(context).pop(controller.text.trim()) : null,
-                style: FilledButton.styleFrom(
-                  backgroundColor: destructive ? WBColors.red : WBColors.amber,
-                  foregroundColor: destructive ? WBColors.text : WBColors.amberInk,
-                ),
-                child: Text(confirmLabel),
-              ),
-            ],
-          );
-        },
-      );
-    },
+    builder: (context) => _AdminPromptDialog(
+      title: title,
+      message: message,
+      confirmLabel: confirmLabel,
+      hint: hint,
+      initial: initial,
+      isRequired: required,
+      destructive: destructive,
+    ),
   );
+}
+
+/// The body of [adminPrompt]. A widget rather than a `StatefulBuilder` so the
+/// field's controller belongs to the dialog and goes when it does: a panel
+/// session opens these by the dozen, and a controller made beside the
+/// `showDialog` call would outlive every one of them.
+class _AdminPromptDialog extends StatefulWidget {
+  const _AdminPromptDialog({
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+    required this.hint,
+    required this.initial,
+    required this.isRequired,
+    required this.destructive,
+  });
+
+  final String title;
+  final String message;
+  final String confirmLabel;
+  final String hint;
+  final String initial;
+  final bool isRequired;
+  final bool destructive;
+
+  @override
+  State<_AdminPromptDialog> createState() => _AdminPromptDialogState();
+}
+
+class _AdminPromptDialogState extends State<_AdminPromptDialog> {
+  late final TextEditingController _controller = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = _controller.text.trim();
+    final canConfirm = !widget.isRequired || value.isNotEmpty;
+    return AlertDialog(
+      backgroundColor: WBColors.bgPanel,
+      title: Text(widget.title, style: WBText.grotesk(size: 16, weight: FontWeight.w700)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.message, style: WBText.grotesk(size: 14, color: WBColors.textA(.8))),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            style: WBText.grotesk(size: 14),
+            decoration: adminInput(widget.hint),
+            onChanged: (_) => setState(() {}),
+            onSubmitted: canConfirm ? (text) => Navigator.of(context).pop(text.trim()) : null,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Bekor qilish')),
+        FilledButton(
+          onPressed: canConfirm ? () => Navigator.of(context).pop(_controller.text.trim()) : null,
+          style: FilledButton.styleFrom(
+            backgroundColor: widget.destructive ? WBColors.red : WBColors.amber,
+            foregroundColor: widget.destructive ? WBColors.text : WBColors.amberInk,
+          ),
+          child: Text(widget.confirmLabel),
+        ),
+      ],
+    );
+  }
 }

@@ -138,81 +138,100 @@ class _AdminTournamentsScreenState extends State<AdminTournamentsScreen> with Ad
 /// decides what the size below it counts: players in a solo bracket, pairs in a
 /// team one.
 Future<({String name, int size, String format})?> _askCreate(BuildContext context) {
-  final controller = TextEditingController();
-  int size = 8;
-  String format = 'solo';
   return showDialog<({String name, int size, String format})>(
     context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setState) {
-        final name = controller.text.trim();
-        final isTeam = format == 'team';
-        return AlertDialog(
-          backgroundColor: WBColors.bgPanel,
-          title: Text('Yangi turnir', style: WBText.grotesk(size: 16, weight: FontWeight.w700)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+    builder: (context) => const _CreateDialog(),
+  );
+}
+
+/// The body of [_askCreate]. A widget rather than a `StatefulBuilder` so the
+/// name field's controller belongs to the dialog and is disposed with it.
+class _CreateDialog extends StatefulWidget {
+  const _CreateDialog();
+
+  @override
+  State<_CreateDialog> createState() => _CreateDialogState();
+}
+
+class _CreateDialogState extends State<_CreateDialog> {
+  final _controller = TextEditingController();
+  int _size = 8;
+  String _format = 'solo';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _controller.text.trim();
+    final isTeam = _format == 'team';
+    return AlertDialog(
+      backgroundColor: WBColors.bgPanel,
+      title: Text('Yangi turnir', style: WBText.grotesk(size: 16, weight: FontWeight.w700)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            style: WBText.grotesk(size: 14),
+            decoration: adminInput('Turnir nomi'),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 14),
+          Text('Format', style: WBText.grotesk(size: 12.5, color: WBColors.textA(.6))),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
             children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                style: WBText.grotesk(size: 14),
-                decoration: adminInput('Turnir nomi'),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 14),
-              Text('Format', style: WBText.grotesk(size: 12.5, color: WBColors.textA(.6))),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final option in const [(value: 'solo', label: 'Yakka · 1v1'), (value: 'team', label: 'Jamoaviy · 2v2')])
-                    ChoiceChip(
-                      label: Text(option.label),
-                      selected: format == option.value,
-                      onSelected: (_) => setState(() => format = option.value),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                isTeam ? 'Jamoalar soni' : 'Ishtirokchilar soni',
-                style: WBText.grotesk(size: 12.5, color: WBColors.textA(.6)),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final option in const [4, 8, 16, 32])
-                    ChoiceChip(
-                      label: Text('$option'),
-                      selected: size == option,
-                      onSelected: (_) => setState(() => size = option),
-                    ),
-                ],
-              ),
-              if (isTeam) ...[
-                const SizedBox(height: 8),
-                Text(
-                  "$size jamoa — ya'ni ${size * 2} o'yinchi, har bir o'rinda ikkitadan",
-                  style: WBText.grotesk(size: 12, color: WBColors.textA(.45)),
+              for (final option in const [(value: 'solo', label: 'Yakka · 1v1'), (value: 'team', label: 'Jamoaviy · 2v2')])
+                ChoiceChip(
+                  label: Text(option.label),
+                  selected: _format == option.value,
+                  onSelected: (_) => setState(() => _format = option.value),
                 ),
-              ],
             ],
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Bekor qilish')),
-            FilledButton(
-              onPressed: name.isEmpty
-                  ? null
-                  : () => Navigator.of(context).pop((name: name, size: size, format: format)),
-              style: FilledButton.styleFrom(backgroundColor: WBColors.amber, foregroundColor: WBColors.amberInk),
-              child: const Text('Yaratish'),
+          const SizedBox(height: 14),
+          Text(
+            isTeam ? 'Jamoalar soni' : 'Ishtirokchilar soni',
+            style: WBText.grotesk(size: 12.5, color: WBColors.textA(.6)),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final option in const [4, 8, 16, 32])
+                ChoiceChip(
+                  label: Text('$option'),
+                  selected: _size == option,
+                  onSelected: (_) => setState(() => _size = option),
+                ),
+            ],
+          ),
+          if (isTeam) ...[
+            const SizedBox(height: 8),
+            Text(
+              "$_size jamoa — ya'ni ${_size * 2} o'yinchi, har bir o'rinda ikkitadan",
+              style: WBText.grotesk(size: 12, color: WBColors.textA(.45)),
             ),
           ],
-        );
-      },
-    ),
-  );
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Bekor qilish')),
+        FilledButton(
+          onPressed: name.isEmpty
+              ? null
+              : () => Navigator.of(context).pop((name: name, size: _size, format: _format)),
+          style: FilledButton.styleFrom(backgroundColor: WBColors.amber, foregroundColor: WBColors.amberInk),
+          child: const Text('Yaratish'),
+        ),
+      ],
+    );
+  }
 }
