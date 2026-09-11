@@ -141,6 +141,10 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
           ),
           Column(
             children: [
+              _passwordForm(),
+              const SizedBox(height: 22),
+              _divider(),
+              const SizedBox(height: 18),
               // The design draws this as an amber plate with an abstract disc
               // where a provider logo would go, and it was built that way
               // first — the disc read as decoration rather than as the Google
@@ -216,10 +220,6 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
                   ),
                 ),
               ],
-              const SizedBox(height: 22),
-              _divider(),
-              const SizedBox(height: 18),
-              _passwordForm(),
             ],
           ),
         ],
