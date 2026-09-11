@@ -47,6 +47,8 @@ void main() {
 
   // The screens with a text field, with the keyboard covering 320dp.
   for (final key in [
+    'onb1',
+    'onb1-dev',
     'onb2-idle',
     'onb2-taken',
     'duel',

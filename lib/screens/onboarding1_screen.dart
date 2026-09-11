@@ -98,47 +98,48 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
       padding: const EdgeInsets.fromLTRB(26, 0, 26, 30),
       child: Column(
         children: [
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                GlowOrb(
-                  glowColor: WBColors.accent,
-                  borderRadius: BorderRadius.circular(34),
-                  child: Container(
-                    width: 118,
-                    height: 118,
-                    decoration: BoxDecoration(gradient: wbAccentGradient, borderRadius: BorderRadius.circular(34)),
-                    alignment: Alignment.center,
-                    child: Text('W', style: WBText.mono(size: 46, weight: FontWeight.w700, color: WBColors.accentInk)),
-                  ),
-                ),
-                const SizedBox(height: 26),
-                Text('WORD\nBATTLE',
-                    textAlign: TextAlign.center,
-                    style: WBText.grotesk(size: 36, weight: FontWeight.w700, height: 1.05, letterSpacing: -.02)),
-                const SizedBox(height: 12),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 250),
-                  child: Text(
-                    "Ingliz so'zlari bilan jonli jang. Raqibingdan tez o'yla, zanjirni uzma.",
-                    textAlign: TextAlign.center,
-                    style: WBText.grotesk(size: 15, height: 1.5, color: WBColors.textA(.6)),
-                  ),
-                ),
-                // 26px, the outer column's gap — not the 12px gap that sits
-                // between the title and its subtitle inside the text group.
-                const SizedBox(height: 26),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    _Pill(text: '1v1 REAL-TIME'),
-                    _Pill(text: 'GLICKO-2'),
-                  ],
-                ),
-              ],
+          const Spacer(),
+          GlowOrb(
+            glowColor: WBColors.accent,
+            borderRadius: BorderRadius.circular(34),
+            child: Container(
+              width: 118,
+              height: 118,
+              decoration: BoxDecoration(gradient: wbAccentGradient, borderRadius: BorderRadius.circular(34)),
+              alignment: Alignment.center,
+              child: Text('W', style: WBText.mono(size: 46, weight: FontWeight.w700, color: WBColors.accentInk)),
             ),
           ),
+          const SizedBox(height: 26),
+          Text('WORD\nBATTLE',
+              textAlign: TextAlign.center,
+              style: WBText.grotesk(size: 36, weight: FontWeight.w700, height: 1.05, letterSpacing: -.02)),
+          const SizedBox(height: 12),
+          // The subtitle's 250dp measure, written as an inset off the 360dp
+          // content width rather than as the usual maxWidth clamp: the
+          // IntrinsicHeight above measures this column at its full width, and a
+          // clamp is invisible to that measurement — the subtitle would be
+          // measured at the two lines it takes at 360dp and then drawn as the
+          // three it takes at 250dp. Padding is the one inset it subtracts.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 55),
+            child: Text(
+              "Ingliz so'zlari bilan jonli jang. Raqibingdan tez o'yla, zanjirni uzma.",
+              textAlign: TextAlign.center,
+              style: WBText.grotesk(size: 15, height: 1.5, color: WBColors.textA(.6)),
+            ),
+          ),
+          // 26px, the outer column's gap — not the 12px gap that sits
+          // between the title and its subtitle inside the text group.
+          const SizedBox(height: 26),
+          Wrap(
+            spacing: 8,
+            children: [
+              _Pill(text: '1v1 REAL-TIME'),
+              _Pill(text: 'GLICKO-2'),
+            ],
+          ),
+          const Spacer(),
           Column(
             children: [
               _passwordForm(),
