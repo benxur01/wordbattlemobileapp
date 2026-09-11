@@ -18,7 +18,9 @@ val hasReleaseKeystore = keystoreProperties.getProperty("storeFile") != null
 
 android {
     namespace = "com.wordbattle.word_battle"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_secure_storage 11.0.0 requires API 37; flutter.compileSdkVersion
+    // is still 36 for this Flutter SDK.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
