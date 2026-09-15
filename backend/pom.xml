@@ -18,7 +18,7 @@
   <description>Realtime 1v1 English word-chain game server</description>
 
   <properties>
-    <java.version>17</java.version>
+    <java.version>25</java.version>
   </properties>
 
   <dependencies>

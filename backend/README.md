@@ -1,7 +1,7 @@
 # Word Battle — backend
 
 Realtime 1v1 English word-chain server for the Word Battle app.
-Java 17 · Spring Boot 3.5 · PostgreSQL · WebSocket · Glicko-2.
+Java 25 · Spring Boot 3.5 · PostgreSQL · WebSocket · Glicko-2.
 
 Every rule that decides a duel lives here: the turn timer, word validation,
 who won and what it did to the ratings. The app only renders what the server
