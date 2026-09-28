@@ -16,6 +16,13 @@ val keystoreProperties = Properties().apply {
 }
 val hasReleaseKeystore = keystoreProperties.getProperty("storeFile") != null
 
+// The host shared tournament links use (https://<host>/t/<id>), which the App
+// Links filter in AndroidManifest.xml claims. Set wbLinkHost in
+// android/gradle.properties, or pass it as ORG_GRADLE_PROJECT_wbLinkHost in the
+// environment of `flutter build`. It has to be the same string as the app's
+// --dart-define=WB_LINK_HOST: that one writes the links, this one opens them.
+val linkHost = (findProperty("wbLinkHost") as String?) ?: "wordbattle.example.uz"
+
 android {
     namespace = "com.wordbattle.word_battle"
     // flutter_secure_storage 11.0.0 requires API 37; flutter.compileSdkVersion
@@ -38,6 +45,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["linkHost"] = linkHost
     }
 
     signingConfigs {

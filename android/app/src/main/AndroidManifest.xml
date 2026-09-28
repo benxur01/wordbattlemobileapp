@@ -40,12 +40,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             <!-- App Links for shared tournament links (see app_root.dart and
-                 the app_links package). wordbattle.example.uz is a placeholder
-                 for the real production domain — swap it here, in
-                 assetlinks.json's path, and in the share link text once that
-                 domain exists. flutter_deeplinking_enabled is turned off so
-                 this intent reaches the app_links plugin instead of Flutter's
-                 own built-in deep-link routing, which this app does not use. -->
+                 the app_links package). The host is the wbLinkHost Gradle
+                 property (android/app/build.gradle.kts), which has to equal
+                 the app's WB_LINK_HOST dart-define; the server at that host
+                 publishes /.well-known/assetlinks.json from ASSETLINKS_SHA256.
+                 flutter_deeplinking_enabled is turned off so this intent
+                 reaches the app_links plugin instead of Flutter's own
+                 built-in deep-link routing, which this app does not use. -->
             <meta-data
                 android:name="flutter_deeplinking_enabled"
                 android:value="false"/>
@@ -53,7 +54,7 @@
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="wordbattle.example.uz" android:pathPrefix="/t/"/>
+                <data android:scheme="https" android:host="${linkHost}" android:pathPrefix="/t/"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

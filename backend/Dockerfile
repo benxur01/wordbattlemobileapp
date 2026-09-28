@@ -8,7 +8,10 @@ COPY src ./src
 RUN mvn -B -q clean package -DskipTests
 
 # ---- run ----
-FROM eclipse-temurin:17-jre-alpine
+# The same Java major as the build stage and pom.xml's <java.version>: classes
+# compiled for 25 do not load on an older runtime, and the image fails at
+# startup with UnsupportedClassVersionError rather than at build time.
+FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=build /build/target/wordbattle-backend-*.jar app.jar

@@ -58,6 +58,9 @@ dependencies:
   # so it can jump straight to that tournament's bracket. No effect on iOS —
   # there is no Universal Links entitlement yet.
   app_links: ^7.2.1
+  # Opens the privacy policy and the terms — the server's /privacy and /terms
+  # pages — in the phone's browser, from the profile screen.
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

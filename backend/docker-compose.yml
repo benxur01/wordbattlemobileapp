@@ -26,15 +26,43 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Only what is listed here reaches the container; .env is read by compose,
+    # not by the server. The defaults restate application.yml's own rather than
+    # passing an unset variable through as `${VAR:-}`, because Spring takes an
+    # empty value as set and the fallback after the colon in application.yml
+    # would never apply. Change a default there and change it here.
     environment:
       DB_URL: jdbc:postgresql://db:5432/wordbattle
       DB_USER: wordbattle
       DB_PASSWORD: ${DB_PASSWORD:-wordbattle}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET kerak}
-      GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID:-}
+      JWT_TTL: ${JWT_TTL:-P30D}
+      # `-` rather than `:-`, unlike its neighbours: the default applies only
+      # when the variable is unset. Unset gets the project's web client id, as
+      # application.yml does; set to empty it still disables Google login, as
+      # .env.example promises. `:-` would quietly turn that empty back on.
+      GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID-238943789457-tgpjf2jamd6r8m0ottqn0ik9ce76gpe2.apps.googleusercontent.com}
+      # `true` stops a `prod` server from starting at all — see DevLoginGuard.
       DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-false}
+      ADMIN_BOOTSTRAP_USER_ID: ${ADMIN_BOOTSTRAP_USER_ID:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      TIME_ZONE: ${TIME_ZONE:-Asia/Tashkent}
+      AUTH_ATTEMPTS_PER_MINUTE: ${AUTH_ATTEMPTS_PER_MINUTE:-10}
+      AUTH_ATTEMPT_BURST: ${AUTH_ATTEMPT_BURST:-20}
+      WS_FRAMES_PER_SECOND: ${WS_FRAMES_PER_SECOND:-20}
+      WS_FRAME_BURST: ${WS_FRAME_BURST:-40}
+      # `native` only with a reverse proxy in front and this service's port
+      # reachable through nothing else — see application.yml and the README.
+      FORWARD_HEADERS_STRATEGY: ${FORWARD_HEADERS_STRATEGY:-none}
+      # The Android release certificate's SHA-256 fingerprints, comma-separated,
+      # served at /.well-known/assetlinks.json. Empty serves an empty list.
+      ASSETLINKS_SHA256: ${ASSETLINKS_SHA256:-}
+      # Named on /privacy and /terms. The defaults are placeholders.
+      LEGAL_CONTACT_EMAIL: ${LEGAL_CONTACT_EMAIL:-support@example.uz}
+      LEGAL_OPERATOR_NAME: ${LEGAL_OPERATOR_NAME:-Word Battle}
       # Empty by default so the quickstart above works as written. Set it to
-      # `prod` in .env for a real deployment — see DatabasePasswordGuard.
+      # `prod` in .env for a real deployment — see DatabasePasswordGuard and
+      # DevLoginGuard.
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
     ports:
       - "8080:8080"
