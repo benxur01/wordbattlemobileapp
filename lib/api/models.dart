@@ -202,6 +202,41 @@ class FriendRequestDto {
       : '${user.rating}';
 }
 
+/// Why a player is being reported — the server's `UserReport.Reason`, sent by
+/// [wire] name. [label] is what the report dialog offers.
+enum ReportReason {
+  spam('SPAM', 'Spam'),
+  abuse('ABUSE', 'Haqorat yoki tahdid'),
+  cheating('CHEATING', "Nohaq o'yin (cheat, bot)"),
+  inappropriateName('INAPPROPRIATE_NAME', 'Nomaqbul taxallus'),
+  other('OTHER', 'Boshqa sabab');
+
+  const ReportReason(this.wire, this.label);
+
+  final String wire;
+  final String label;
+}
+
+/// Where in the app a report was filed from — the server's `UserReport.Context`,
+/// sent as [name]. A duel's chat is never stored, so this is part of what a
+/// moderator has to go on.
+enum ReportContext { chat, duel, profile }
+
+/// One player this account has blocked — a row of the profile's blocked list.
+class BlockedUserDto {
+  const BlockedUserDto({required this.user, this.blockedAt});
+
+  factory BlockedUserDto.fromJson(Map<String, dynamic> json) => BlockedUserDto(
+        user: UserDto.fromJson(json['user'] as Map<String, dynamic>),
+        // A label and nothing more, so a date that will not parse is treated
+        // as one that was not sent — the same trade [FriendDto.lastSeenAt] makes.
+        blockedAt: DateTime.tryParse(json['blockedAt'] as String? ?? ''),
+      );
+
+  final UserDto user;
+  final DateTime? blockedAt;
+}
+
 class LeaderboardRow {
   const LeaderboardRow({required this.rank, required this.user, required this.self});
 

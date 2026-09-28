@@ -14,8 +14,11 @@ class ChainWord {
   final bool mine;
   final int spentMs;
 
-  /// "1.8s" under the word, matching the design's label.
-  String get spentLabel => '${(spentMs / 1000).toStringAsFixed(1)}s';
+  /// "1.8s" under the word, matching the design's label — or null for the
+  /// chain's opening word, which the server seeds rather than anybody playing
+  /// it. Nobody spent any time on that one, and printed as "0.0s" it read like
+  /// a move answered in no time at all.
+  String? get spentLabel => spentMs == 0 ? null : '${(spentMs / 1000).toStringAsFixed(1)}s';
 }
 
 /// The four helps a bot practice offers, once each — `PowerUp` on the server.
@@ -348,7 +351,7 @@ class SpectateChainWord {
   bool get isSeed => playerId == 0;
 
   /// "1.8s" under the word, matching [ChainWord.spentLabel].
-  String get spentLabel => '${(spentMs / 1000).toStringAsFixed(1)}s';
+  String? get spentLabel => spentMs == 0 ? null : '${(spentMs / 1000).toStringAsFixed(1)}s';
 }
 
 /// A live duel as a third party watches it, rebuilt whole from every
@@ -467,10 +470,14 @@ class PendingTeamInvite {
 /// on their side and leaves it untagged; every other line carries the name of
 /// whichever of the other three sent it.
 class TeamChatMessage {
-  const TeamChatMessage({required this.text, required this.sender});
+  const TeamChatMessage({required this.text, required this.sender, this.senderId});
 
   final String text;
   final String? sender;
+
+  /// Who sent it, for reporting or blocking them from the line itself — null
+  /// for this player's own, like [sender].
+  final int? senderId;
 
   bool get mine => sender == null;
 }
@@ -520,7 +527,7 @@ class TeamChainWord {
   bool get isFoe => !mine && !ally;
 
   /// "1.8s" under the word, matching [ChainWord.spentLabel].
-  String get spentLabel => '${(spentMs / 1000).toStringAsFixed(1)}s';
+  String? get spentLabel => spentMs == 0 ? null : '${(spentMs / 1000).toStringAsFixed(1)}s';
 }
 
 /// The live 2v2 duel, rebuilt from every `team_duel.match_found` /
@@ -671,6 +678,15 @@ class TeamDuelView {
     if (playerId == opponentOne.id) return opponentOne.label;
     if (playerId == opponentTwo.id) return opponentTwo.label;
     return "O'yinchi";
+  }
+
+  /// [labelOf] for when the person is needed rather than their name — null
+  /// for an id that is none of the other three.
+  UserDto? playerOf(int playerId) {
+    if (playerId == partner.id) return partner;
+    if (playerId == opponentOne.id) return opponentOne;
+    if (playerId == opponentTwo.id) return opponentTwo;
+    return null;
   }
 
   TeamDuelView applyUpdate(Map<String, dynamic> json) => TeamDuelView(

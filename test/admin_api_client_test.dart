@@ -292,4 +292,75 @@ void main() {
       expect(match.chainLength, 14);
     });
   });
+
+  group('the reports queue', () {
+    test('a report is read whole, both sides named', () async {
+      final api = clientReturning(200, {
+        'items': [
+          {
+            'id': 12,
+            'reporterId': 7,
+            'reporter': 'umida_plays',
+            'reportedId': 9,
+            'reason': 'inappropriate_name',
+            'details': 'taxallusi haqoratli',
+            'context': 'profile',
+            'status': 'open',
+            'createdAt': '2026-09-24T10:00:00Z',
+          },
+        ],
+        'page': 0,
+        'size': 20,
+        'total': 1,
+        'totalPages': 1,
+      });
+
+      final report = (await api.reports()).items.single;
+
+      expect(report.id, 12);
+      expect(report.reporterLabel, 'umida_plays');
+      // A name the server did not send falls back to the id, as every other
+      // row in the panel does.
+      expect(report.reportedLabel, '#9');
+      expect(report.reasonLabel, 'Nomaqbul taxallus');
+      expect(report.contextLabel, 'Profil');
+      expect(report.details, 'taxallusi haqoratli');
+      expect(report.isOpen, isTrue);
+      expect(report.createdAt?.toUtc(), DateTime.utc(2026, 9, 24, 10));
+      expect(report.resolvedAt, isNull);
+    });
+
+    test('the status and the page go in the query, and a resolve answers with the closed row', () async {
+      final seen = <http.Request>[];
+      final api = AdminApiClient(
+        httpClient: MockClient((request) async {
+          seen.add(request);
+          if (request.method == 'POST') {
+            return http.Response(
+              jsonEncode({
+                'id': 12,
+                'reason': 'spam',
+                'status': 'resolved',
+                'resolvedById': 1,
+                'resolvedBy': 'feruz_admin',
+                'resolvedAt': '2026-09-24T11:00:00Z',
+              }),
+              200,
+            );
+          }
+          return http.Response(jsonEncode({'items': [], 'page': 2, 'size': 20, 'total': 0, 'totalPages': 0}), 200);
+        }),
+      )..token = 'admin-token';
+
+      await api.reports(status: 'resolved', page: 2);
+      final resolved = await api.resolveReport(12);
+
+      expect(seen.first.url.path, '/api/admin/reports');
+      expect(seen.first.url.queryParameters, {'status': 'resolved', 'page': '2', 'size': '20'});
+      expect(seen.last.url.path, '/api/admin/reports/12/resolve');
+      expect(resolved.isOpen, isFalse);
+      expect(resolved.resolvedBy, 'feruz_admin');
+      expect(resolved.contextLabel, '—');
+    });
+  });
 }

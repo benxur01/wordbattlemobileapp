@@ -22,6 +22,9 @@ class ProfileScreen extends StatefulWidget {
     required this.onBoard,
     required this.friendRequestCount,
     required this.onHistory,
+    required this.onBlockedUsers,
+    required this.onPrivacyPolicy,
+    required this.onTerms,
     required this.onLogout,
     required this.onDeleteAccount,
     this.busy = false,
@@ -38,6 +41,14 @@ class ProfileScreen extends StatefulWidget {
   /// Opens the finished-battles list. The numbers above it are totals; this is
   /// where they come from.
   final VoidCallback onHistory;
+
+  /// Opens the list of players this account has blocked — the one place a
+  /// block is taken back.
+  final VoidCallback onBlockedUsers;
+
+  /// Open the server's `/privacy` and `/terms` pages in the phone's browser.
+  final VoidCallback onPrivacyPolicy;
+  final VoidCallback onTerms;
 
   /// Signs out on this device; the account itself stays.
   final VoidCallback onLogout;
@@ -297,6 +308,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 22),
               _appearanceSection(),
               const SizedBox(height: 22),
+              _privacySection(),
+              const SizedBox(height: 22),
               _accountSection(),
             ],
           ),
@@ -377,6 +390,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _ThemeOption(label: 'Tizim', mode: WBThemeMode.system),
               _ThemeOption(label: "Yorug'", mode: WBThemeMode.light),
               _ThemeOption(label: 'Tungi', mode: WBThemeMode.dark),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The blocked-players list, and the two documents both stores insist a
+  /// player can reach from inside the app. The documents are the server's own
+  /// pages, which is why their rows point out of the app rather than onward.
+  Widget _privacySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Maxfiylik', style: WBText.grotesk(size: 13.5, weight: FontWeight.w600)),
+        const SizedBox(height: 11),
+        Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: WBColors.whiteA(.045),
+            border: Border.all(color: WBColors.whiteA(.09)),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              _LinkRow(label: "Bloklangan o'yinchilar", onTap: widget.onBlockedUsers),
+              Container(height: 1, color: WBColors.whiteA(.07)),
+              _LinkRow(label: 'Maxfiylik siyosati', onTap: widget.onPrivacyPolicy, external: true),
+              Container(height: 1, color: WBColors.whiteA(.07)),
+              _LinkRow(label: 'Foydalanish shartlari', onTap: widget.onTerms, external: true),
             ],
           ),
         ),
@@ -559,6 +602,38 @@ class _ThemeOption extends StatelessWidget {
               color: active ? WBColors.accent : WBColors.textA(.55),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One line of the privacy section: a label, and where the tap goes — a
+/// chevron for a screen inside the app, an arrow out for a page the phone's
+/// browser opens.
+class _LinkRow extends StatelessWidget {
+  const _LinkRow({required this.label, required this.onTap, this.external = false});
+
+  final String label;
+  final VoidCallback onTap;
+  final bool external;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      hoverColor: WBColors.whiteA(.06),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(child: Text(label, style: WBText.grotesk(size: 13.5, weight: FontWeight.w600))),
+            const SizedBox(width: 10),
+            if (external)
+              Icon(Icons.open_in_new, size: 15, color: WBColors.textA(.4))
+            else
+              StrokeGlyph.chevronRight(size: 9, thickness: 2, color: WBColors.textA(.4)),
+          ],
         ),
       ),
     );

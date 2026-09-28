@@ -145,6 +145,7 @@ void main() {
               powerUps: const DuelPowerUps(),
               onPowerUp: (_) {},
               onLeave: () {},
+              onOpponentActions: (_) {},
             )));
         await tester.pump();
 
@@ -175,6 +176,7 @@ void main() {
             powerUps: const DuelPowerUps(),
             onPowerUp: (_) {},
             onLeave: () {},
+            onOpponentActions: (_) {},
           ));
 
       await tester.pumpWidget(screen(true));
@@ -212,6 +214,7 @@ void main() {
             powerUps: const DuelPowerUps(),
             onPowerUp: (_) {},
             onLeave: () {},
+            onOpponentActions: (_) {},
           )));
       await tester.pump();
       expect(tester.testTextInput.isVisible, isTrue);
@@ -247,9 +250,9 @@ void main() {
 
   group('only the turn decides what is sent', () {
     // The arrow beside the word field. [Pressable] is the app's press-scale
-    // wrapper and the social bar above the board wears eight more of them
-    // (leave, six reactions, chat), so the finder is narrowed to the row the
-    // field itself sits in — the arrow is the only one sharing it.
+    // wrapper and the social bar above the board wears nine more of them
+    // (leave, six reactions, report, chat), so the finder is narrowed to the
+    // row the field itself sits in — the arrow is the only one sharing it.
     final sendButton = find.descendant(
       of: find.ancestor(of: find.byType(TextField), matching: find.byType(Row)).first,
       matching: find.byType(Pressable),
@@ -270,6 +273,7 @@ void main() {
             powerUps: const DuelPowerUps(),
             onPowerUp: (_) {},
             onLeave: () {},
+            onOpponentActions: (_) {},
           )));
       await tester.pump();
       await tester.enterText(find.byType(TextField), 'window');
@@ -332,6 +336,7 @@ void main() {
           powerUps: const DuelPowerUps(),
           onPowerUp: (_) {},
           onLeave: () {},
+          onOpponentActions: (_) {},
         ),
       ));
       await tester.pump(const Duration(milliseconds: 400));
@@ -381,6 +386,7 @@ void main() {
           powerUps: const DuelPowerUps(),
           onPowerUp: (_) {},
           onLeave: () {},
+          onOpponentActions: (_) {},
         ),
       ));
       await tester.pump(const Duration(milliseconds: 400));

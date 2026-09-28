@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:word_battle/api/api_client.dart';
 import 'package:word_battle/api/api_config.dart';
 import 'package:word_battle/api/api_exception.dart';
+import 'package:word_battle/api/models.dart';
 
 /// The client is where a server error becomes something the UI can act on, and
 /// where the difference between "this call failed" and "this session is over"
@@ -89,6 +90,35 @@ void main() {
 
     expect(seenAuth, 'Bearer secret-token');
     expect(seenUri.toString(), isNot(contains('secret-token')));
+  });
+
+  test('a report goes out by the names the server knows, with nothing blank in it', () async {
+    final sent = <http.Request>[];
+    final api = ApiClient(
+      httpClient: MockClient((request) async {
+        sent.add(request);
+        return http.Response(jsonEncode({'id': 5}), 201, headers: {'content-type': 'application/json'});
+      }),
+    )..token = 'x';
+
+    await api.reportUser(9, ReportReason.inappropriateName,
+        details: "  «yomon so'z»  ", context: ReportContext.chat, matchRef: 'duel-1');
+    await api.reportUser(9, ReportReason.spam, details: '   ');
+
+    expect(sent.first.url.path, '/api/users/9/report');
+    expect(jsonDecode(sent.first.body), {
+      'reason': 'INAPPROPRIATE_NAME',
+      'details': "«yomon so'z»",
+      'context': 'chat',
+      'matchRef': 'duel-1',
+    });
+    expect(jsonDecode(sent.last.body), {'reason': 'SPAM'});
+  });
+
+  test('the legal pages live on the server, outside /api', () {
+    expect(ApiConfig.privacyPolicyUrl.path, '/privacy');
+    expect(ApiConfig.termsUrl.path, '/terms');
+    expect(ApiConfig.privacyPolicyUrl.host, Uri.parse(ApiConfig.baseUrl).host);
   });
 
   test('the socket URL carries no token: it goes in a header instead', () {

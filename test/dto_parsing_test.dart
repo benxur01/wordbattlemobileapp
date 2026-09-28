@@ -132,4 +132,31 @@ void main() {
       expect(friend.status, 'onlayn · jangga tayyor');
     });
   });
+
+  group('a row of the blocked list', () {
+    test('the player and the day they were blocked are read exactly', () {
+      final blocked = BlockedUserDto.fromJson({'user': user(), 'blockedAt': '2026-09-20T08:30:00Z'});
+
+      expect(blocked.user.id, 42);
+      expect(blocked.user.label, 'aziz');
+      expect(blocked.blockedAt?.toUtc(), DateTime.utc(2026, 9, 20, 8, 30));
+    });
+
+    test('a date it cannot read costs the row its date and nothing else', () {
+      final blocked = BlockedUserDto.fromJson({'user': user(), 'blockedAt': 'kecha'});
+
+      expect(blocked.user.id, 42);
+      expect(blocked.blockedAt, isNull);
+    });
+  });
+
+  group('a report on the wire', () {
+    test('every reason and every context goes by the name the server knows it by', () {
+      expect(
+        ReportReason.values.map((reason) => reason.wire).toList(),
+        ['SPAM', 'ABUSE', 'CHEATING', 'INAPPROPRIATE_NAME', 'OTHER'],
+      );
+      expect(ReportContext.values.map((context) => context.name).toList(), ['chat', 'duel', 'profile']);
+    });
+  });
 }

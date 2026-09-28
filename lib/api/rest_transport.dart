@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'api_config.dart';
@@ -31,6 +32,15 @@ class RestTransport {
       };
 
   Future<dynamic> send(Future<http.Response> Function() request) async {
+    // Release builds are HTTPS-only (see [ApiConfig.isCleartext]). One built
+    // without `--dart-define=WB_API=https://…` is left on the http:// default,
+    // and every call would fail as a dead network, telling the player to check
+    // an internet connection that is fine. The socket needs no check of its
+    // own: it is only dialed once a call through here has succeeded.
+    if (kReleaseMode && ApiConfig.isCleartext) {
+      throw ApiException(
+          'insecure_server', "Server manzili sozlanmagan (WB_API). Ilova HTTPS serverga yo'naltirilmagan.");
+    }
     final http.Response response;
     try {
       response = await request().timeout(_timeout);

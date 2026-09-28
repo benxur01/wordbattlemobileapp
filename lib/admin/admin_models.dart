@@ -207,14 +207,94 @@ class AdminAuditEntry {
 
   String get targetLabel => target ?? (targetUserId == null ? '—' : '#$targetUserId');
 
-  /// The three actions `AdminAuditService` writes, in the panel's language.
-  /// An action it does not know is shown as the server wrote it rather than
+  /// The actions `AdminAuditService` writes, in the panel's language. An
+  /// action it does not know is shown as the server wrote it rather than
   /// hidden — a log with rows missing is a log that gets believed wrongly.
   String get actionLabel => switch (action) {
         'user_ban' => 'Bloklandi',
         'user_unban' => 'Blok olindi',
         'user_nickname' => "Taxallus o'zgardi",
+        'report_resolve' => 'Shikoyat yopildi',
         _ => action,
+      };
+}
+
+/// One player's report about another, with both of them named — the panel's
+/// "Shikoyatlar" queue. `reason`, `context` and `status` arrive lower-cased.
+class AdminReportRow {
+  const AdminReportRow({
+    required this.id,
+    required this.reporterId,
+    required this.reporter,
+    required this.reportedId,
+    required this.reported,
+    required this.reason,
+    required this.details,
+    required this.context,
+    required this.matchRef,
+    required this.status,
+    required this.createdAt,
+    required this.resolvedById,
+    required this.resolvedBy,
+    required this.resolvedAt,
+  });
+
+  factory AdminReportRow.fromJson(Map<String, dynamic> json) => AdminReportRow(
+        id: (json['id'] as num).toInt(),
+        reporterId: (json['reporterId'] as num?)?.toInt(),
+        reporter: json['reporter'] as String?,
+        reportedId: (json['reportedId'] as num?)?.toInt(),
+        reported: json['reported'] as String?,
+        reason: json['reason'] as String? ?? '',
+        details: json['details'] as String?,
+        context: json['context'] as String?,
+        matchRef: json['matchRef'] as String?,
+        status: json['status'] as String? ?? '',
+        createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+        resolvedById: (json['resolvedById'] as num?)?.toInt(),
+        resolvedBy: json['resolvedBy'] as String?,
+        resolvedAt: DateTime.tryParse(json['resolvedAt'] as String? ?? ''),
+      );
+
+  final int id;
+  final int? reporterId;
+  final String? reporter;
+  final int? reportedId;
+  final String? reported;
+  final String reason;
+  final String? details;
+
+  /// Where in the app it was filed from: `chat`, `duel` or `profile`.
+  final String? context;
+
+  /// The live duel it was filed during, as the reporter's app named it.
+  final String? matchRef;
+  final String status;
+  final DateTime? createdAt;
+  final int? resolvedById;
+  final String? resolvedBy;
+  final DateTime? resolvedAt;
+
+  bool get isOpen => status == 'open';
+
+  String get reporterLabel => reporter ?? (reporterId == null ? '—' : '#$reporterId');
+
+  String get reportedLabel => reported ?? (reportedId == null ? '—' : '#$reportedId');
+
+  String get reasonLabel => switch (reason) {
+        'spam' => 'Spam',
+        'abuse' => 'Haqorat / tahdid',
+        'cheating' => "Nohaq o'yin",
+        'inappropriate_name' => 'Nomaqbul taxallus',
+        'other' => 'Boshqa',
+        _ => reason,
+      };
+
+  String get contextLabel => switch (context) {
+        'chat' => 'Chat',
+        'duel' => 'Jang',
+        'profile' => 'Profil',
+        _ => context ?? '—',
       };
 }
 

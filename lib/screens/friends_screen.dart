@@ -25,6 +25,7 @@ class FriendsScreen extends StatelessWidget {
     required this.onChallenge,
     required this.onSpectate,
     required this.onTeamInvite,
+    required this.onPlayerActions,
     required this.onHome,
     required this.onBoard,
     required this.onProfile,
@@ -53,6 +54,11 @@ class FriendsScreen extends StatelessWidget {
   /// Invites a friend to form a 2v2 team — offered alongside the ordinary
   /// challenge for anyone online and not already busy.
   final ValueChanged<FriendDto> onTeamInvite;
+
+  /// The report-and-block sheet for the player on a row, opened by tapping
+  /// their avatar or name — every row that shows somebody else offers it,
+  /// since any of them can be the person a player needs to stop hearing from.
+  final ValueChanged<UserDto> onPlayerActions;
   final VoidCallback onHome;
   final VoidCallback onBoard;
   final VoidCallback onProfile;
@@ -299,23 +305,14 @@ class FriendsScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _avatar(user),
-          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: WBText.grotesk(size: 15, weight: FontWeight.w600),
-                ),
-                _metaLine(
-                  [user.rating.toString(), if (user.city != null) user.city!].join(' · '),
-                  user.provisional,
-                ),
-              ],
+            child: _person(
+              user,
+              avatar: _avatar(user),
+              subtitle: _metaLine(
+                [user.rating.toString(), if (user.city != null) user.city!].join(' · '),
+                user.provisional,
+              ),
             ),
           ),
           if (sent)
@@ -359,24 +356,16 @@ class FriendsScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _avatar(request.user),
-          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  request.user.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: WBText.grotesk(size: 15, weight: FontWeight.w600),
-                ),
-                _metaLine(request.meta, request.user.provisional),
-              ],
+            child: _person(
+              request.user,
+              avatar: _avatar(request.user),
+              subtitle: _metaLine(request.meta, request.user.provisional),
             ),
           ),
           Pressable(
             onTap: () => onAccept(request),
+            semanticLabel: 'Qabul qilish',
             child: Container(
               width: 42,
               height: 42,
@@ -394,6 +383,7 @@ class FriendsScreen extends StatelessWidget {
           const SizedBox(width: 8),
           Pressable(
             onTap: () => onDecline(request),
+            semanticLabel: 'Rad etish',
             child: Container(
               width: 42,
               height: 42,
@@ -428,27 +418,18 @@ class FriendsScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _avatar(friend.user, onlineDot: friend.online),
-          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  friend.user.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: WBText.grotesk(size: 15, weight: FontWeight.w600),
+            child: _person(
+              friend.user,
+              avatar: _avatar(friend.user, onlineDot: friend.online),
+              subtitle: Text(
+                friend.status,
+                style: WBText.mono(
+                  size: 11.5,
+                  weight: FontWeight.w500,
+                  color: friend.online ? WBColors.green : WBColors.textA(.5),
                 ),
-                Text(
-                  friend.status,
-                  style: WBText.mono(
-                    size: 11.5,
-                    weight: FontWeight.w500,
-                    color: friend.online ? WBColors.green : WBColors.textA(.5),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           if (challengeable) ...[
@@ -469,6 +450,7 @@ class FriendsScreen extends StatelessWidget {
               onTap: () => onTeamInvite(friend),
               pressScale: .96,
               borderRadius: BorderRadius.circular(14),
+              semanticLabel: 'Jamoaga taklif qilish',
               child: Container(
                 width: 42,
                 height: 42,
@@ -511,6 +493,50 @@ class FriendsScreen extends StatelessWidget {
                 style: WBText.grotesk(size: 13, color: WBColors.textA(.5)),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  /// A row's avatar, name and the line under it, which together open the
+  /// report-and-block sheet for whoever the row is about. The "⋯" after the
+  /// name is what says so. The whole block is the target rather than a button
+  /// of its own at the end of the row, where the challenge buttons leave no
+  /// room: one more there pushed an online friend's status onto a second line.
+  Widget _person(UserDto user, {required Widget avatar, required Widget subtitle}) {
+    return Pressable(
+      onTap: () => onPlayerActions(user),
+      child: Row(
+        children: [
+          avatar,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        user.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: WBText.grotesk(size: 15, weight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.more_horiz,
+                      size: 16,
+                      color: WBColors.textA(.4),
+                      semanticLabel: 'Shikoyat qilish yoki bloklash',
+                    ),
+                  ],
+                ),
+                subtitle,
+              ],
+            ),
+          ),
         ],
       ),
     );

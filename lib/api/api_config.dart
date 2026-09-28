@@ -4,11 +4,36 @@
 ///
 /// The default suits a server running on the development machine with
 /// `adb reverse tcp:8080 tcp:8080`, which makes the phone's localhost the
-/// computer's localhost.
+/// computer's localhost. A release build has to be given an `https://` one;
+/// `RestTransport` refuses to make any call on a cleartext address in release:
+///
+///   flutter build appbundle --release --dart-define=WB_API=https://<domain>
 class ApiConfig {
   const ApiConfig._();
 
   static const String baseUrl = String.fromEnvironment('WB_API', defaultValue: 'http://localhost:8080');
+
+  /// The host shared tournament links point at. There is no production domain
+  /// yet, so the default is a placeholder, and a release build is given the
+  /// real one with `--dart-define=WB_LINK_HOST=<domain>`.
+  ///
+  /// It has to be the same string as the `wbLinkHost` Gradle property the
+  /// Android manifest's App Links filter is built from (see
+  /// android/app/build.gradle.kts): otherwise the app shares links that it
+  /// does not open itself. The server at that host answers
+  /// `/.well-known/assetlinks.json` from its `ASSETLINKS_SHA256`.
+  static const String linkHost = String.fromEnvironment('WB_LINK_HOST', defaultValue: 'wordbattle.example.uz');
+
+  /// The address a tournament is shared as — what `app_root.dart` opens the
+  /// bracket from when Android hands the app one of these links.
+  static String tournamentLink(int tournamentId) => 'https://$linkHost/t/$tournamentId';
+
+  /// The privacy policy and the terms of use: pages the server itself serves,
+  /// outside `/api`, so a correction reaches every installed build at once and
+  /// the stores can be given the same two addresses.
+  static Uri get privacyPolicyUrl => Uri.parse(baseUrl).replace(path: '/privacy');
+
+  static Uri get termsUrl => Uri.parse(baseUrl).replace(path: '/terms');
 
   /// True when the app is talking to a plaintext server. Fine against a
   /// development machine over `adb reverse`; anywhere else it means the token

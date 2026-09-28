@@ -12,6 +12,7 @@ import 'admin_google_button.dart';
 import 'admin_login_screen.dart';
 import 'admin_matches_screen.dart';
 import 'admin_metrics_screen.dart';
+import 'admin_reports_screen.dart';
 import 'admin_tournament_detail_screen.dart';
 import 'admin_tournaments_screen.dart';
 import 'admin_user_detail_screen.dart';
@@ -37,7 +38,7 @@ enum AdminStage {
   panel,
 }
 
-enum AdminTab { metrics, users, tournaments, matches, audit }
+enum AdminTab { metrics, users, reports, tournaments, matches, audit }
 
 /// The panel's root: it owns the session, the client every screen calls
 /// through, and the single place a `401` or a `403` decides what happens next.
@@ -264,6 +265,7 @@ class _AdminRootState extends State<AdminRoot> {
                 onAuthFailure: _onAuthFailure,
                 onBack: () => setState(() => _openUserId = null),
               ),
+        AdminTab.reports => AdminReportsScreen(api: _api, onAuthFailure: _onAuthFailure, onOpenUser: _openUser),
         AdminTab.tournaments => _openTournamentId == null
             ? AdminTournamentsScreen(api: _api, onAuthFailure: _onAuthFailure, onOpenTournament: _openTournament)
             : AdminTournamentDetailScreen(
@@ -299,6 +301,7 @@ class _AdminRootState extends State<AdminRoot> {
           ),
           _navItem(AdminTab.metrics, Icons.insights_outlined, 'Ko‘rsatkichlar', wide),
           _navItem(AdminTab.users, Icons.people_outline, 'Foydalanuvchilar', wide),
+          _navItem(AdminTab.reports, Icons.flag_outlined, 'Shikoyatlar', wide),
           _navItem(AdminTab.tournaments, Icons.emoji_events_outlined, 'Turnirlar', wide),
           _navItem(AdminTab.matches, Icons.sports_esports_outlined, 'Janglar', wide),
           _navItem(AdminTab.audit, Icons.receipt_long_outlined, 'Audit jurnali', wide),

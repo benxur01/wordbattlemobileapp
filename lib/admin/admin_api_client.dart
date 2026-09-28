@@ -131,6 +131,21 @@ class AdminApiClient {
   Future<AdminTournamentRow> cancelTournament(int tournamentId) async =>
       AdminTournamentRow.fromJson(await _rest.post('/admin/tournaments/$tournamentId/cancel') as Map<String, dynamic>);
 
+  // -------------------------------------------------------------- reports
+
+  /// Players' reports about each other, newest first. [status] is `open` —
+  /// the queue — or `resolved`.
+  Future<AdminPage<AdminReportRow>> reports({String status = 'open', int page = 0, int size = 20}) async {
+    final json =
+        await _rest.get('/admin/reports', {'status': status, 'page': page, 'size': size}) as Map<String, dynamic>;
+    return AdminPage.fromJson(json, AdminReportRow.fromJson);
+  }
+
+  /// Closes a report. Idempotent on the server, which writes the audit row
+  /// only for the call that actually closed it.
+  Future<AdminReportRow> resolveReport(int id) async =>
+      AdminReportRow.fromJson(await _rest.post('/admin/reports/$id/resolve') as Map<String, dynamic>);
+
   // ------------------------------------------------------- metrics, audit
 
   /// Doubles as the role check: any token can be sent, but only an admin's is

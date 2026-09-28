@@ -8,6 +8,7 @@ import '../api/models.dart';
 import '../theme.dart';
 import '../widgets/chain_bubble.dart';
 import '../widgets/flame_badge.dart';
+import '../widgets/player_actions.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/progress_ring.dart';
 import '../widgets/provisional_badge.dart';
@@ -34,6 +35,7 @@ class DuelScreen extends StatefulWidget {
     required this.powerUps,
     required this.onPowerUp,
     required this.onLeave,
+    required this.onOpponentActions,
   });
 
   final DuelView? duel;
@@ -65,6 +67,12 @@ class DuelScreen extends StatefulWidget {
   /// this only asks to leave — `AppRoot` puts the question and acts on the
   /// answer, the same way it does for the Android back gesture.
   final VoidCallback onLeave;
+
+  /// Opens the report-and-block sheet for the opponent: from the flag in
+  /// [_SocialBar] with null, or from a long press on one of their chat
+  /// messages with its text. Offered only against a person — the bot has no
+  /// account to report or block.
+  final ValueChanged<String?> onOpponentActions;
 
   @override
   State<DuelScreen> createState() => _DuelScreenState();
@@ -386,6 +394,8 @@ class _DuelScreenState extends State<DuelScreen> {
           onToggleChat: () => setState(() => _chatOpen = !_chatOpen),
           onReact: widget.onSendReaction,
           onLeave: widget.onLeave,
+          // `rated` is the server's own `!botOpponent`.
+          onReport: duel.rated ? () => widget.onOpponentActions(null) : null,
         ),
         if (_chatOpen)
           _ChatPanel(
@@ -394,6 +404,7 @@ class _DuelScreenState extends State<DuelScreen> {
             textController: _chatController,
             focusNode: _chatFocus,
             onSend: _sendChat,
+            onReportLine: duel.rated ? widget.onOpponentActions : null,
           ),
         Expanded(
           child: Stack(
@@ -581,6 +592,7 @@ class _DuelScreenState extends State<DuelScreen> {
                   Pressable(
                     onTap: duel.yourTurn ? _submit : null,
                     pressScale: .95,
+                    semanticLabel: 'Yuborish',
                     child: Opacity(
                       opacity: duel.yourTurn ? 1 : .45,
                       child: Container(
@@ -617,20 +629,25 @@ class _DuelScreenState extends State<DuelScreen> {
   }
 }
 
-/// The way out of the duel, the quick-reaction row and the chat toggle, in one
-/// slim strip so none of them crowds the board above or the word field below.
+/// The way out of the duel, the quick-reaction row, the report flag and the
+/// chat toggle, in one slim strip so none of them crowds the board above or the
+/// word field below.
 class _SocialBar extends StatelessWidget {
   const _SocialBar({
     required this.chatOpen,
     required this.onToggleChat,
     required this.onReact,
     required this.onLeave,
+    required this.onReport,
   });
 
   final bool chatOpen;
   final VoidCallback onToggleChat;
   final ValueChanged<String> onReact;
   final VoidCallback onLeave;
+
+  /// Null against the bot, which takes the flag away.
+  final VoidCallback? onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -652,6 +669,7 @@ class _SocialBar extends StatelessWidget {
                     onTap: () => onReact(emoji),
                     pressScale: .95,
                     borderRadius: BorderRadius.circular(10),
+                    semanticLabel: 'Reaksiya: $emoji',
                     child: Container(
                       width: 32,
                       height: 32,
@@ -669,10 +687,15 @@ class _SocialBar extends StatelessWidget {
               ],
             ),
           ),
+          if (onReport != null) ...[
+            PlayerReportButton(onTap: onReport!),
+            const SizedBox(width: 6),
+          ],
           Pressable(
             onTap: onToggleChat,
             pressScale: .95,
             borderRadius: BorderRadius.circular(10),
+            semanticLabel: 'Xabar',
             child: Container(
               width: 32,
               height: 32,
@@ -711,6 +734,7 @@ class _LeaveButton extends StatelessWidget {
       onTap: onTap,
       pressScale: .95,
       borderRadius: BorderRadius.circular(10),
+      semanticLabel: 'Jangdan chiqish',
       child: Container(
         width: 32,
         height: 32,
@@ -741,6 +765,7 @@ class _ChatPanel extends StatelessWidget {
     required this.textController,
     required this.focusNode,
     required this.onSend,
+    required this.onReportLine,
   });
 
   final List<DuelChatMessage> messages;
@@ -748,6 +773,10 @@ class _ChatPanel extends StatelessWidget {
   final TextEditingController textController;
   final FocusNode focusNode;
   final VoidCallback onSend;
+
+  /// A long press on one of the opponent's lines, handed its text. Null
+  /// against the bot, which never writes any.
+  final ValueChanged<String>? onReportLine;
 
   @override
   Widget build(BuildContext context) {
@@ -774,19 +803,24 @@ class _ChatPanel extends StatelessWidget {
                       for (final message in messages) ...[
                         Align(
                           alignment: message.mine ? Alignment.centerRight : Alignment.centerLeft,
-                          child: Container(
-                            constraints: const BoxConstraints(maxWidth: 240),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: message.mine ? WBColors.accentA(.16) : WBColors.whiteA(.05),
-                              border: Border.all(
-                                color: message.mine ? WBColors.accentA(.34) : WBColors.whiteA(.1),
+                          child: GestureDetector(
+                            onLongPress: message.mine || onReportLine == null
+                                ? null
+                                : () => onReportLine!(message.text),
+                            child: Container(
+                              constraints: const BoxConstraints(maxWidth: 240),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: message.mine ? WBColors.accentA(.16) : WBColors.whiteA(.05),
+                                border: Border.all(
+                                  color: message.mine ? WBColors.accentA(.34) : WBColors.whiteA(.1),
+                                ),
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Text(
-                              message.text,
-                              style: WBText.grotesk(size: 13, weight: FontWeight.w500),
+                              child: Text(
+                                message.text,
+                                style: WBText.grotesk(size: 13, weight: FontWeight.w500),
+                              ),
                             ),
                           ),
                         ),
@@ -844,6 +878,7 @@ class _ChatPanel extends StatelessWidget {
                   onTap: onSend,
                   pressScale: .95,
                   borderRadius: BorderRadius.circular(14),
+                  semanticLabel: 'Xabarni yuborish',
                   child: Container(
                     width: 40,
                     height: 40,

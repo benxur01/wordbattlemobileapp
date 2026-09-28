@@ -109,6 +109,39 @@ class ApiClient {
 
   Future<void> removeFriend(int userId) => _delete('/friends/$userId');
 
+  // -------------------------------------------------------------- safety
+
+  /// Blocks the player: the friendship ends, and until [unblockUser] no chat,
+  /// challenge or friend request passes between the two in either direction.
+  /// Blocking somebody already blocked changes nothing.
+  Future<void> blockUser(int userId) => _post('/users/$userId/block');
+
+  Future<void> unblockUser(int userId) => _delete('/users/$userId/block');
+
+  Future<List<BlockedUserDto>> blockedUsers() async {
+    final list = await _get('/users/me/blocks') as List;
+    return list.map((e) => BlockedUserDto.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Files a report. [details] is the player's own words, left out when blank;
+  /// [matchRef] names the live duel it was filed during. The server allows ten
+  /// a day and answers the eleventh with `429 report_limit`.
+  Future<void> reportUser(
+    int userId,
+    ReportReason reason, {
+    String? details,
+    ReportContext? context,
+    String? matchRef,
+  }) {
+    final trimmed = details?.trim() ?? '';
+    return _post('/users/$userId/report', {
+      'reason': reason.wire,
+      if (trimmed.isNotEmpty) 'details': trimmed,
+      if (context != null) 'context': context.name,
+      'matchRef': ?matchRef,
+    });
+  }
+
   // ------------------------------------------------------------- history
 
   Future<List<MatchSummaryDto>> matchHistory({int limit = 20}) async {

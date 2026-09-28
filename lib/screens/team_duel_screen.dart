@@ -6,6 +6,7 @@ import '../api/duel_models.dart';
 import '../api/models.dart';
 import '../theme.dart';
 import '../widgets/chain_bubble.dart';
+import '../widgets/player_actions.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/progress_ring.dart';
 import '../widgets/stroke_glyph.dart';
@@ -29,6 +30,7 @@ class TeamDuelScreen extends StatefulWidget {
     required this.onSendReaction,
     required this.reaction,
     required this.onLeave,
+    required this.onPlayerActions,
   });
 
   final TeamDuelView? duel;
@@ -53,6 +55,11 @@ class TeamDuelScreen extends StatefulWidget {
   /// The exit button in [_SocialBar] — [DuelScreen.onLeave]'s twin, and just
   /// as much a forfeit: the pair loses the duel, not only the player leaving.
   final VoidCallback onLeave;
+
+  /// Opens the report-and-block sheet: for all three other players from the
+  /// flag in [_SocialBar], with a null chat line, or for one of them from a
+  /// long press on their chat message, with its text.
+  final void Function(List<UserDto> players, String? chatLine) onPlayerActions;
 
   @override
   State<TeamDuelScreen> createState() => _TeamDuelScreenState();
@@ -278,6 +285,7 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
           onToggleChat: () => setState(() => _chatOpen = !_chatOpen),
           onReact: widget.onSendReaction,
           onLeave: widget.onLeave,
+          onReport: () => widget.onPlayerActions([duel.opponentOne, duel.opponentTwo, duel.partner], null),
         ),
         if (_chatOpen)
           _ChatPanel(
@@ -286,6 +294,11 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
             textController: _chatController,
             focusNode: _chatFocus,
             onSend: _sendChat,
+            onReportLine: (message) {
+              final senderId = message.senderId;
+              final sender = senderId == null ? null : duel.playerOf(senderId);
+              if (sender != null) widget.onPlayerActions([sender], message.text);
+            },
           ),
         Expanded(
           child: Stack(
@@ -437,6 +450,7 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
                   Pressable(
                     onTap: duel.yourTurn ? _submit : null,
                     pressScale: .95,
+                    semanticLabel: 'Yuborish',
                     child: Opacity(
                       opacity: duel.yourTurn ? 1 : .45,
                       child: Container(
@@ -473,21 +487,23 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
   }
 }
 
-/// The exit button, the quick-reaction row and the chat toggle —
-/// `DuelScreen._SocialBar` on a board with three other people to send to
-/// instead of one.
+/// The exit button, the quick-reaction row, the report flag and the chat
+/// toggle — `DuelScreen._SocialBar` on a board with three other people to send
+/// to instead of one.
 class _SocialBar extends StatelessWidget {
   const _SocialBar({
     required this.chatOpen,
     required this.onToggleChat,
     required this.onReact,
     required this.onLeave,
+    required this.onReport,
   });
 
   final bool chatOpen;
   final VoidCallback onToggleChat;
   final ValueChanged<String> onReact;
   final VoidCallback onLeave;
+  final VoidCallback onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -508,6 +524,7 @@ class _SocialBar extends StatelessWidget {
                     onTap: () => onReact(emoji),
                     pressScale: .95,
                     borderRadius: BorderRadius.circular(10),
+                    semanticLabel: 'Reaksiya: $emoji',
                     child: Container(
                       width: 32,
                       height: 32,
@@ -525,10 +542,13 @@ class _SocialBar extends StatelessWidget {
               ],
             ),
           ),
+          PlayerReportButton(onTap: onReport),
+          const SizedBox(width: 6),
           Pressable(
             onTap: onToggleChat,
             pressScale: .95,
             borderRadius: BorderRadius.circular(10),
+            semanticLabel: 'Xabar',
             child: Container(
               width: 32,
               height: 32,
@@ -564,6 +584,7 @@ class _LeaveButton extends StatelessWidget {
       onTap: onTap,
       pressScale: .95,
       borderRadius: BorderRadius.circular(10),
+      semanticLabel: 'Jangdan chiqish',
       child: Container(
         width: 32,
         height: 32,
@@ -594,6 +615,7 @@ class _ChatPanel extends StatelessWidget {
     required this.textController,
     required this.focusNode,
     required this.onSend,
+    required this.onReportLine,
   });
 
   final List<TeamChatMessage> messages;
@@ -601,6 +623,9 @@ class _ChatPanel extends StatelessWidget {
   final TextEditingController textController;
   final FocusNode focusNode;
   final VoidCallback onSend;
+
+  /// A long press on a line somebody else wrote.
+  final ValueChanged<TeamChatMessage> onReportLine;
 
   @override
   Widget build(BuildContext context) {
@@ -627,36 +652,39 @@ class _ChatPanel extends StatelessWidget {
                       for (final message in messages) ...[
                         Align(
                           alignment: message.mine ? Alignment.centerRight : Alignment.centerLeft,
-                          child: Container(
-                            constraints: const BoxConstraints(maxWidth: 240),
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: message.mine ? WBColors.accentA(.16) : WBColors.whiteA(.05),
-                              border: Border.all(
-                                color: message.mine ? WBColors.accentA(.34) : WBColors.whiteA(.1),
-                              ),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (message.sender != null) ...[
-                                  Text(
-                                    message.sender!,
-                                    style: WBText.mono(
-                                      size: 9.5,
-                                      weight: FontWeight.w600,
-                                      color: WBColors.textA(.45),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                ],
-                                Text(
-                                  message.text,
-                                  style: WBText.grotesk(size: 13, weight: FontWeight.w500),
+                          child: GestureDetector(
+                            onLongPress: message.mine ? null : () => onReportLine(message),
+                            child: Container(
+                              constraints: const BoxConstraints(maxWidth: 240),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: message.mine ? WBColors.accentA(.16) : WBColors.whiteA(.05),
+                                border: Border.all(
+                                  color: message.mine ? WBColors.accentA(.34) : WBColors.whiteA(.1),
                                 ),
-                              ],
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (message.sender != null) ...[
+                                    Text(
+                                      message.sender!,
+                                      style: WBText.mono(
+                                        size: 9.5,
+                                        weight: FontWeight.w600,
+                                        color: WBColors.textA(.45),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                  ],
+                                  Text(
+                                    message.text,
+                                    style: WBText.grotesk(size: 13, weight: FontWeight.w500),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -714,6 +742,7 @@ class _ChatPanel extends StatelessWidget {
                   onTap: onSend,
                   pressScale: .95,
                   borderRadius: BorderRadius.circular(14),
+                  semanticLabel: 'Xabarni yuborish',
                   child: Container(
                     width: 40,
                     height: 40,

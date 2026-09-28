@@ -18,6 +18,8 @@ enum WBScreen {
   profile,
   /// Finished battles, reached from the profile.
   history,
+  /// Players this account has blocked, reached from the profile.
+  blockedUsers,
   practice,
   friends,
   invite,

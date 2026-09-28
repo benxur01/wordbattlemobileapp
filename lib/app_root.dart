@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'api/api_client.dart';
 import 'api/api_config.dart';
@@ -26,6 +27,7 @@ import 'screens/lose_screen.dart';
 import 'screens/board_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/history_screen.dart';
+import 'screens/blocked_users_screen.dart';
 import 'screens/practice_screen.dart';
 import 'screens/friends_screen.dart';
 import 'screens/spectate_duel_screen.dart';
@@ -45,6 +47,7 @@ import 'screens/organize_tournament_screen.dart';
 import 'screens/organize_tournament_manage_screen.dart';
 import 'screens/tournaments_browse_screen.dart';
 import 'widgets/bottom_nav.dart';
+import 'widgets/player_actions.dart';
 
 /// Drives the whole app off the backend: REST for anything that can wait, and
 /// one WebSocket for matchmaking, duels and challenges.
@@ -75,6 +78,26 @@ QueueAction queueActionFor(AppLifecycleState state, WBScreen screen) {
     AppLifecycleState.paused || AppLifecycleState.detached || AppLifecycleState.hidden => QueueAction.leave,
     AppLifecycleState.resumed => QueueAction.rejoin,
     AppLifecycleState.inactive => QueueAction.none,
+  };
+}
+
+/// Whether the friend counters are in front of the player: the "Do'stlar"
+/// badge for waiting requests and the "N onlayn" line, both read off one fetch
+/// of the friend list and the requests. No socket frame says when either has
+/// changed, so the app has to go and ask.
+///
+/// It used to ask only on the way into the lobby or the friends screen. A
+/// player who stayed put never saw the request just sent to them, and the
+/// online count went on naming whoever had been online when they arrived. Both
+/// screens now ask again on a timer and on coming back to the app — but only
+/// while the app is actually on screen: a phone in a pocket has nobody to show
+/// a badge to. `inactive` still counts as on screen, for the reason it is not a
+/// departure in [queueActionFor].
+bool socialOnScreen(AppLifecycleState state, WBScreen screen) {
+  if (screen != WBScreen.lobby && screen != WBScreen.friends) return false;
+  return switch (state) {
+    AppLifecycleState.resumed || AppLifecycleState.inactive => true,
+    AppLifecycleState.paused || AppLifecycleState.detached || AppLifecycleState.hidden => false,
   };
 }
 
@@ -243,7 +266,17 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   final GoogleAuth _google = GoogleAuth();
   final AppLinks _appLinks = AppLinks();
 
-  WBScreen screen = WBScreen.loading;
+  /// The screen on show. A setter rather than a plain field because [go] is
+  /// far from the only thing that moves it — socket frames, the invite clocks
+  /// and the login paths all set it directly — and every one of those moves
+  /// has to start or stop [_socialRefresh] along with it.
+  WBScreen get screen => _currentScreen;
+  set screen(WBScreen next) {
+    _currentScreen = next;
+    _syncSocialRefresh();
+  }
+
+  WBScreen _currentScreen = WBScreen.loading;
   String? banner; // transient error / notice shown over the current screen
 
   // ---- account ----
@@ -267,11 +300,20 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   Timer? _searchDebounce;
   final Set<int> _sentRequests = {};
 
+  /// Re-reads the friend list and requests while [socialOnScreen] holds —
+  /// started and stopped only by [_syncSocialRefresh].
+  Timer? _socialRefresh;
+  static const _socialRefreshInterval = Duration(seconds: 30);
+
   // ---- board / profile / practice ----
   bool boardGlobal = true;
   LeaderboardDto? board;
   ProfileDto? profile;
   List<MatchSummaryDto>? history;
+
+  /// The profile's blocked-players list. Null until it is loaded, and again
+  /// once a block placed elsewhere in the app has made it stale.
+  List<BlockedUserDto>? blockedUsers;
   PracticeWordDto? practiceWord;
   List<String> practiceHints = const [];
 
@@ -408,6 +450,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     _ticker?.cancel();
     _nickDebounce?.cancel();
     _searchDebounce?.cancel();
+    _socialRefresh?.cancel();
     _socketEvents?.cancel();
     _socketStatus?.cancel();
     _linkSub?.cancel();
@@ -429,6 +472,13 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         _rejoinQueue();
       case QueueAction.none:
         break;
+    }
+    _syncSocialRefresh();
+    // The timer was stopped while the app was away and nothing else says what
+    // changed meanwhile, so coming back reads what opening the screen does.
+    if (state == AppLifecycleState.resumed && socialOnScreen(state, screen)) {
+      unawaited(_refreshSocial());
+      unawaited(_refreshActiveTournament());
     }
   }
 
@@ -645,6 +695,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       profile = null;
       board = null;
       history = null;
+      blockedUsers = null;
       friends = const [];
       friendRequests = const [];
       searchResults = const [];
@@ -826,6 +877,20 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     }
   }
 
+  /// Runs [_socialRefresh] exactly while [socialOnScreen] says the counters
+  /// are in front of the player, and never a second one beside it.
+  void _syncSocialRefresh() {
+    // Null only before the engine's first report, at launch, with the app on
+    // screen.
+    final state = WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
+    if (socialOnScreen(state, screen)) {
+      _socialRefresh ??= Timer.periodic(_socialRefreshInterval, (_) => unawaited(_refreshSocial()));
+    } else {
+      _socialRefresh?.cancel();
+      _socialRefresh = null;
+    }
+  }
+
   Future<void> _loadBoard() async {
     try {
       final data = boardGlobal ? await _api.globalLeaderboard() : await _api.friendsLeaderboard();
@@ -860,6 +925,18 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       final data = await _api.matchHistory();
       if (!mounted) return;
       setState(() => history = data);
+    } on ApiException catch (e) {
+      _onApiError(e);
+    } catch (_) {
+      _onLoadFailure();
+    }
+  }
+
+  Future<void> _loadBlockedUsers() async {
+    try {
+      final data = await _api.blockedUsers();
+      if (!mounted) return;
+      setState(() => blockedUsers = data);
     } on ApiException catch (e) {
       _onApiError(e);
     } catch (_) {
@@ -975,7 +1052,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   }
 
   /// Wires up Android App Links: a tournament shared as
-  /// `https://wordbattle.example.uz/t/<id>` and tapped while the app is
+  /// [ApiConfig.tournamentLink] and tapped while the app is
   /// already installed lands straight on that tournament's bracket — see
   /// [_handleDeepLink]. iOS has no Universal Links entitlement yet, so a
   /// shared link there never reaches this app at all; it just opens in a
@@ -1340,6 +1417,104 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     }
   }
 
+  // ----------------------------------------------------------------- safety
+
+  /// The report-and-block sheet, for other players wherever the app shows
+  /// them. [origin] is where it was opened from, which the report carries.
+  /// [chatLine] is set when it was opened from one of their chat messages and
+  /// starts the report's text off, since the server keeps no duel chat; and
+  /// [matchRef] names the duel it happened in.
+  Future<void> openPlayerActions(
+    List<UserDto> players,
+    ReportContext origin, {
+    String? chatLine,
+    String? matchRef,
+  }) async {
+    final picked = await pickPlayerAction(context, players);
+    if (!mounted) return;
+    if (picked == null) return;
+    final (player, action) = picked;
+    switch (action) {
+      case PlayerAction.report:
+        final draft = await askReport(context, player, details: chatLine == null ? '' : '«$chatLine»');
+        if (!mounted) return;
+        if (draft == null) return;
+        await _report(player, draft, origin, matchRef);
+      case PlayerAction.block:
+        final confirmed = await confirmBlock(context, player);
+        if (!mounted) return;
+        if (!confirmed) return;
+        await _block(player);
+    }
+  }
+
+  Future<void> _report(UserDto player, ReportDraft draft, ReportContext origin, String? matchRef) async {
+    try {
+      await _api.reportUser(player.id, draft.reason, details: draft.details, context: origin, matchRef: matchRef);
+      if (!mounted) return;
+      setState(() => banner = "Shikoyat yuborildi — rahmat, ko'rib chiqamiz");
+    } on ApiException catch (e) {
+      _onSafetyError(e);
+    }
+  }
+
+  /// Blocks the player and takes them off every list on screen at once,
+  /// rather than waiting for the next refresh to agree with the server: the
+  /// friendship, a request of theirs and a search hit all end with the block.
+  Future<void> _block(UserDto player) async {
+    try {
+      await _api.blockUser(player.id);
+      if (!mounted) return;
+      setState(() {
+        friends = friends.where((f) => f.user.id != player.id).toList();
+        friendRequests = friendRequests.where((r) => r.user.id != player.id).toList();
+        searchResults = searchResults.where((u) => u.id != player.id).toList();
+        blockedUsers = null;
+        banner = '${player.label} bloklandi';
+      });
+    } on ApiException catch (e) {
+      _onSafetyError(e);
+    }
+  }
+
+  /// The blocked list's "Blokdan chiqarish". The row goes at once; a refusal
+  /// reloads the list, which puts it back.
+  Future<void> unblockUser(UserDto user) async {
+    setState(() => blockedUsers = blockedUsers?.where((b) => b.user.id != user.id).toList());
+    try {
+      await _api.unblockUser(user.id);
+    } on ApiException catch (e) {
+      _onApiError(e);
+      unawaited(_loadBlockedUsers());
+    }
+  }
+
+  /// Not [_onApiError] for a block or a report: `user_not_found` there is the
+  /// other player's account having gone, which says nothing about this
+  /// session. Only a 401 does.
+  void _onSafetyError(ApiException e) {
+    if (e.isUnauthorized) {
+      _onApiError(e);
+    } else if (mounted) {
+      setState(() => banner = e.message);
+    }
+  }
+
+  /// The profile's "Maxfiylik siyosati" and "Foydalanish shartlari": the
+  /// server's own pages, opened in the phone's browser rather than inside the
+  /// app. The external browser is also what keeps this free of manifest
+  /// entries — url_launcher needs a `<queries>` block only to *ask* whether a
+  /// link can be opened, never to open one.
+  Future<void> openLegalPage(Uri page) async {
+    bool opened;
+    try {
+      opened = await launchUrl(page, mode: LaunchMode.externalApplication);
+    } on PlatformException {
+      opened = false;
+    }
+    if (!opened && mounted) setState(() => banner = "Sahifani ochib bo'lmadi");
+  }
+
   // --------------------------------------------------------------- realtime
 
   /// Every frame the server sends, with the one thing that used to be missing
@@ -1641,6 +1816,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
               TeamChatMessage(
                 text: text,
                 sender: board.labelOf((event.payload['playerId'] as num?)?.toInt() ?? 0),
+                senderId: (event.payload['playerId'] as num?)?.toInt(),
               ),
             ]);
       case 'team_duel.reaction':
@@ -2301,6 +2477,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         unawaited(_loadProfile());
       case WBScreen.history:
         unawaited(_loadHistory());
+      case WBScreen.blockedUsers:
+        unawaited(_loadBlockedUsers());
       case WBScreen.practice:
         unawaited(_loadPractice());
       case WBScreen.botSetup:
@@ -2367,6 +2545,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         go(WBScreen.onb1);
       // Reached from the profile, so back belongs there and not on the lobby.
       case WBScreen.history:
+      case WBScreen.blockedUsers:
         go(WBScreen.profile);
       case WBScreen.invite:
         cancelOutgoingInvite();
@@ -2529,6 +2708,16 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           powerUps: duelPowerUps,
           onPowerUp: useDuelPowerUp,
           onLeave: confirmLeaveDuel,
+          onOpponentActions: (chatLine) {
+            final current = duel;
+            if (current == null) return;
+            unawaited(openPlayerActions(
+              [current.opponent],
+              chatLine == null ? ReportContext.duel : ReportContext.chat,
+              chatLine: chatLine,
+              matchRef: current.duelId,
+            ));
+          },
         ),
       WBScreen.win => WinScreen(
           result: finished,
@@ -2544,6 +2733,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
             final result = finished;
             result == null ? startMatchmaking() : rematch(result);
           },
+          onHome: () => go(WBScreen.lobby),
           onPractice: () => go(WBScreen.practice),
         ),
       WBScreen.teamQueue => TeamQueueScreen(
@@ -2563,6 +2753,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onSendReaction: sendTeamReaction,
           reaction: teamReaction,
           onLeave: confirmLeaveDuel,
+          onPlayerActions: (players, chatLine) => unawaited(openPlayerActions(
+            players,
+            chatLine == null ? ReportContext.duel : ReportContext.chat,
+            chatLine: chatLine,
+            matchRef: teamDuel?.duelId,
+          )),
         ),
       WBScreen.teamWin => TeamWinScreen(
           me: user,
@@ -2617,6 +2813,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onBoard: () => go(WBScreen.board),
           friendRequestCount: friendRequests.length,
           onHistory: () => go(WBScreen.history),
+          onBlockedUsers: () => go(WBScreen.blockedUsers),
+          onPrivacyPolicy: () => unawaited(openLegalPage(ApiConfig.privacyPolicyUrl)),
+          onTerms: () => unawaited(openLegalPage(ApiConfig.termsUrl)),
           onLogout: logout,
           onDeleteAccount: deleteAccount,
           busy: busy,
@@ -2624,6 +2823,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         ),
       WBScreen.history => HistoryScreen(
           matches: history,
+          onBack: () => go(WBScreen.profile),
+        ),
+      WBScreen.blockedUsers => BlockedUsersScreen(
+          users: blockedUsers,
+          onUnblock: unblockUser,
           onBack: () => go(WBScreen.profile),
         ),
       WBScreen.practice => PracticeScreen(
@@ -2645,6 +2849,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onChallenge: challenge,
           onSpectate: spectate,
           onTeamInvite: inviteToTeam,
+          onPlayerActions: (user) => unawaited(openPlayerActions([user], ReportContext.profile)),
           onHome: () => go(WBScreen.lobby),
           onBoard: () => go(WBScreen.board),
           onProfile: () => go(WBScreen.profile),
