@@ -135,6 +135,7 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
           Pressable(
             onTap: onStepBack,
             borderRadius: BorderRadius.circular(12),
+            semanticLabel: 'Orqaga',
             child: Container(
               width: 38,
               height: 38,
@@ -556,6 +557,7 @@ class _OrganizeTournamentScreenState extends State<OrganizeTournamentScreen> {
           Pressable(
             onTap: () => setState(() => _teams.removeAt(index - 1)),
             borderRadius: BorderRadius.circular(10),
+            semanticLabel: 'Jamoani olib tashlash',
             child: Container(
               width: 30,
               height: 30,

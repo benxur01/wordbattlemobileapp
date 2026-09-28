@@ -74,6 +74,7 @@ class TournamentsBrowseScreen extends StatelessWidget {
           Pressable(
             onTap: onBack,
             borderRadius: BorderRadius.circular(12),
+            semanticLabel: 'Orqaga',
             child: Container(
               width: 38,
               height: 38,
@@ -96,6 +97,7 @@ class TournamentsBrowseScreen extends StatelessWidget {
           Pressable(
             onTap: onRefresh,
             borderRadius: BorderRadius.circular(12),
+            semanticLabel: 'Yangilash',
             child: Container(
               width: 38,
               height: 38,

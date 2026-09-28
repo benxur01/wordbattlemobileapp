@@ -188,6 +188,7 @@ class TeamWinScreen extends StatelessWidget {
                     onTap: onHome,
                     hoverColor: WBColors.whiteA(.1),
                     borderRadius: BorderRadius.circular(20),
+                    semanticLabel: 'Bosh sahifa',
                     child: Container(
                       width: 62,
                       height: 62,

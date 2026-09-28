@@ -109,42 +109,54 @@ class LobbyScreen extends StatelessWidget {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: wbPurpleGradient,
-                      borderRadius: BorderRadius.circular(14),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: wbPurpleGradient,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        initial,
+                        style: WBText.grotesk(size: 17, weight: FontWeight.w700, color: WBColors.purpleText),
+                      ),
                     ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      initial,
-                      style: WBText.grotesk(size: 17, weight: FontWeight.w700, color: WBColors.purpleText),
-                    ),
-                  ),
-                  const SizedBox(width: 11),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(label, style: WBText.grotesk(size: 15, weight: FontWeight.w600)),
-                      if (user?.city != null)
-                        Text(
-                          user!.city!,
-                          style: WBText.mono(
-                            size: 11.5,
-                            weight: FontWeight.w500,
-                            color: WBColors.textA(.45),
+                    const SizedBox(width: 11),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: WBText.grotesk(size: 15, weight: FontWeight.w600),
                           ),
-                        ),
-                    ],
-                  ),
-                ],
+                          if (user?.city != null)
+                            Text(
+                              user!.city!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: WBText.mono(
+                                size: 11.5,
+                                weight: FontWeight.w500,
+                                color: WBColors.textA(.45),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 10),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _StatChip(
                     color: WBColors.blue,
@@ -608,6 +620,7 @@ class _TeamReadyBanner extends StatelessWidget {
             onTap: onCancel,
             hoverColor: WBColors.whiteA(.08),
             borderRadius: BorderRadius.circular(11),
+            semanticLabel: 'Jamoani bekor qilish',
             child: Container(
               width: 34,
               height: 34,

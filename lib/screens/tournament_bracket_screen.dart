@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../api/api_config.dart';
 import '../api/models.dart';
 import '../api/tournament_models.dart';
 import '../theme.dart';
@@ -209,6 +210,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
           Pressable(
             onTap: widget.onBack,
             borderRadius: BorderRadius.circular(12),
+            semanticLabel: 'Orqaga',
             child: Container(
               width: 38,
               height: 38,
@@ -248,6 +250,7 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
           Pressable(
             onTap: d == null ? null : () => _share(d),
             borderRadius: BorderRadius.circular(12),
+            semanticLabel: 'Ulashish',
             child: Container(
               width: 38,
               height: 38,
@@ -293,12 +296,10 @@ class _TournamentBracketScreenState extends State<TournamentBracketScreen> {
     );
   }
 
-  /// `wordbattle.example.uz` is a placeholder for the real production domain
-  /// — swap it here once one exists (see backend/README.md's "Turnirlar"
-  /// section for the Android App Links half of this link).
+  /// The link's host comes from `WB_LINK_HOST` — see [ApiConfig.linkHost].
   void _share(TournamentDetail d) {
     SharePlus.instance.share(
-      ShareParams(text: "${d.name} turniriga qo'shil! https://wordbattle.example.uz/t/${d.id}"),
+      ShareParams(text: "${d.name} turniriga qo'shil! ${ApiConfig.tournamentLink(d.id)}"),
     );
   }
 

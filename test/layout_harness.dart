@@ -4,6 +4,7 @@ import 'package:word_battle/api/duel_models.dart';
 import 'package:word_battle/api/models.dart';
 import 'package:word_battle/models.dart';
 import 'package:word_battle/theme.dart';
+import 'package:word_battle/screens/blocked_users_screen.dart';
 import 'package:word_battle/screens/board_screen.dart';
 import 'package:word_battle/screens/bot_battle_screen.dart';
 import 'package:word_battle/screens/duel_screen.dart';
@@ -103,7 +104,7 @@ DuelView _duel({bool yourTurn = true, int timeLeftMs = 12000, bool thinking = fa
       rated: true,
       theme: theme,
       chain: const [
-        ChainWord(word: 'battle', mine: false, spentMs: 1800),
+        ChainWord(word: 'battle', mine: false, spentMs: 0),
         ChainWord(word: 'elephant', mine: true, spentMs: 2400),
         ChainWord(word: 'tomorrow', mine: false, spentMs: 1900),
       ],
@@ -127,7 +128,7 @@ final _substitutedDuel = DuelView(
   rated: true,
   theme: null,
   chain: const [
-    ChainWord(word: 'battle', mine: false, spentMs: 1800),
+    ChainWord(word: 'battle', mine: false, spentMs: 0),
     ChainWord(word: 'elephant', mine: true, spentMs: 2400),
     ChainWord(word: 'tomorrow', mine: false, spentMs: 1900),
     ChainWord(word: 'wax', mine: true, spentMs: 2100),
@@ -154,7 +155,7 @@ final _botDuel = DuelView(
   rated: false,
   theme: null,
   chain: const [
-    ChainWord(word: 'battle', mine: false, spentMs: 1800),
+    ChainWord(word: 'battle', mine: false, spentMs: 0),
     ChainWord(word: 'elephant', mine: true, spentMs: 2400),
     ChainWord(word: 'tomorrow', mine: false, spentMs: 1900),
   ],
@@ -439,6 +440,13 @@ final _history = [
   ),
 ];
 
+/// The blocked list at its widest: the longest name a row can carry beside the
+/// unblock button, and one with no date behind it.
+final _blocked = [
+  BlockedUserDto(user: _user(30, 'shahzod_the_best', rating: 1455), blockedAt: DateTime.utc(2026, 9, 20)),
+  BlockedUserDto(user: _user(31, 'spam_uz', rating: 400)),
+];
+
 Map<String, Widget> buildScreens() => {
       'loading': const LoadingScreen(),
       'offline': LoadingScreen(message: "Serverga ulanib bo'lmadi", onRetry: () {}),
@@ -525,6 +533,7 @@ Map<String, Widget> buildScreens() => {
         powerUps: const DuelPowerUps(),
         onPowerUp: (_) {},
         onLeave: () {},
+        onOpponentActions: (_) {},
       ),
       'duel-error': DuelScreen(
         duel: _duel(yourTurn: false, timeLeftMs: 3000, thinking: true),
@@ -539,6 +548,7 @@ Map<String, Widget> buildScreens() => {
         powerUps: const DuelPowerUps(),
         onPowerUp: (_) {},
         onLeave: () {},
+        onOpponentActions: (_) {},
       ),
       'duel-themed': DuelScreen(
         duel: _duel(theme: 'Hayvonlar'),
@@ -553,6 +563,7 @@ Map<String, Widget> buildScreens() => {
         powerUps: const DuelPowerUps(),
         onPowerUp: (_) {},
         onLeave: () {},
+        onOpponentActions: (_) {},
       ),
       'duel-substituted': DuelScreen(
         duel: _substitutedDuel,
@@ -567,6 +578,7 @@ Map<String, Widget> buildScreens() => {
         powerUps: const DuelPowerUps(),
         onPowerUp: (_) {},
         onLeave: () {},
+        onOpponentActions: (_) {},
       ),
       'duel-bot': DuelScreen(
         duel: _botDuel,
@@ -584,9 +596,10 @@ Map<String, Widget> buildScreens() => {
         ),
         onPowerUp: (_) {},
         onLeave: () {},
+        onOpponentActions: (_) {},
       ),
       'win': WinScreen(result: _win, onRematch: () {}, onHome: () {}),
-      'lose': LoseScreen(result: _lose, onRematch: () {}, onPractice: () {}),
+      'lose': LoseScreen(result: _lose, onRematch: () {}, onHome: () {}, onPractice: () {}),
       'board-global': BoardScreen(
         board: _board,
         tabGlobal: true,
@@ -614,6 +627,9 @@ Map<String, Widget> buildScreens() => {
         onBoard: () {},
         friendRequestCount: 2,
         onHistory: () {},
+        onBlockedUsers: () {},
+        onPrivacyPolicy: () {},
+        onTerms: () {},
         onLogout: () {},
         onDeleteAccount: () {},
       ),
@@ -624,12 +640,17 @@ Map<String, Widget> buildScreens() => {
         onBoard: () {},
         friendRequestCount: 0,
         onHistory: () {},
+        onBlockedUsers: () {},
+        onPrivacyPolicy: () {},
+        onTerms: () {},
         onLogout: () {},
         onDeleteAccount: () {},
       ),
       'history': HistoryScreen(matches: _history, onBack: () {}),
       'history-empty': HistoryScreen(matches: const [], onBack: () {}),
       'history-loading': HistoryScreen(matches: null, onBack: () {}),
+      'blocked-users': BlockedUsersScreen(users: _blocked, onUnblock: (_) {}, onBack: () {}),
+      'blocked-users-empty': BlockedUsersScreen(users: const [], onUnblock: (_) {}, onBack: () {}),
       'practice': PracticeScreen(
         word: const PracticeWordDto(
           word: 'harbour',
@@ -653,6 +674,7 @@ Map<String, Widget> buildScreens() => {
         onChallenge: (_) {},
         onSpectate: (_) {},
         onTeamInvite: (_) {},
+        onPlayerActions: (_) {},
         onHome: () {},
         onBoard: () {},
         onProfile: () {},
@@ -671,6 +693,7 @@ Map<String, Widget> buildScreens() => {
         onChallenge: (_) {},
         onSpectate: (_) {},
         onTeamInvite: (_) {},
+        onPlayerActions: (_) {},
         onHome: () {},
         onBoard: () {},
         onProfile: () {},
@@ -715,6 +738,7 @@ Map<String, Widget> buildScreens() => {
         onSendReaction: (_) {},
         reaction: null,
         onLeave: () {},
+        onPlayerActions: (_, _) {},
       ),
       'team-duel-error': TeamDuelScreen(
         duel: _teamDuel(yourTurn: false, timeLeftMs: 3000),
@@ -727,6 +751,7 @@ Map<String, Widget> buildScreens() => {
         onSendReaction: (_) {},
         reaction: null,
         onLeave: () {},
+        onPlayerActions: (_, _) {},
       ),
       'team-duel-substituted': TeamDuelScreen(
         duel: _teamSubstitutedDuel,
@@ -739,6 +764,7 @@ Map<String, Widget> buildScreens() => {
         onSendReaction: (_) {},
         reaction: null,
         onLeave: () {},
+        onPlayerActions: (_, _) {},
       ),
       'team-win': TeamWinScreen(me: _me, result: _teamWin, onRematch: () {}, onHome: () {}),
       'team-lose': TeamLoseScreen(

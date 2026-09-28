@@ -11,6 +11,7 @@ class Pressable extends StatefulWidget {
     this.pressScale = 0.98,
     this.hoverColor,
     this.borderRadius,
+    this.semanticLabel,
   });
 
   final Widget child;
@@ -18,6 +19,11 @@ class Pressable extends StatefulWidget {
   final double pressScale;
   final Color? hoverColor;
   final BorderRadius? borderRadius;
+
+  /// What a screen reader calls the control when [child] has no words of its
+  /// own — an icon, a glyph, a lone "×". When given it replaces whatever
+  /// [child] would have announced, so the two are never read out together.
+  final String? semanticLabel;
 
   @override
   State<Pressable> createState() => _PressableState();
@@ -29,24 +35,29 @@ class _PressableState extends State<Pressable> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        onTapDown: widget.onTap == null ? null : (_) => setState(() => _down = true),
-        onTapUp: widget.onTap == null ? null : (_) => setState(() => _down = false),
-        onTapCancel: widget.onTap == null ? null : () => setState(() => _down = false),
-        child: AnimatedScale(
-          scale: _down ? widget.pressScale : 1.0,
-          duration: const Duration(milliseconds: 90),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            decoration: BoxDecoration(
-              color: _hover ? widget.hoverColor : Colors.transparent,
-              borderRadius: widget.borderRadius,
+    return Semantics(
+      button: true,
+      enabled: widget.onTap != null,
+      label: widget.semanticLabel,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          onTapDown: widget.onTap == null ? null : (_) => setState(() => _down = true),
+          onTapUp: widget.onTap == null ? null : (_) => setState(() => _down = false),
+          onTapCancel: widget.onTap == null ? null : () => setState(() => _down = false),
+          child: AnimatedScale(
+            scale: _down ? widget.pressScale : 1.0,
+            duration: const Duration(milliseconds: 90),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              decoration: BoxDecoration(
+                color: _hover ? widget.hoverColor : Colors.transparent,
+                borderRadius: widget.borderRadius,
+              ),
+              child: ExcludeSemantics(excluding: widget.semanticLabel != null, child: widget.child),
             ),
-            child: widget.child,
           ),
         ),
       ),

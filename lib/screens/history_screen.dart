@@ -39,6 +39,7 @@ class HistoryScreen extends StatelessWidget {
               Pressable(
                 onTap: onBack,
                 borderRadius: BorderRadius.circular(12),
+                semanticLabel: 'Orqaga',
                 child: Container(
                   width: 38,
                   height: 38,

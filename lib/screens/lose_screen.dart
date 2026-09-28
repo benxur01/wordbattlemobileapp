@@ -9,10 +9,20 @@ import '../widgets/primary_button.dart';
 /// rating change, streak and the "stuck letter" hints all come from the
 /// server's `duel.finished` payload.
 class LoseScreen extends StatelessWidget {
-  const LoseScreen({super.key, required this.result, required this.onRematch, required this.onPractice});
+  const LoseScreen({
+    super.key,
+    required this.result,
+    required this.onRematch,
+    required this.onHome,
+    required this.onPractice,
+  });
 
   final FinishedDuel? result;
   final VoidCallback onRematch;
+
+  /// Not in the design, which left Android's back gesture as the only way to
+  /// the lobby from here — and iOS has no such gesture.
+  final VoidCallback onHome;
   final VoidCallback onPractice;
 
   @override
@@ -192,22 +202,50 @@ class LoseScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 11),
-                Pressable(
-                  onTap: onPractice,
-                  hoverColor: WBColors.whiteA(.05),
-                  borderRadius: BorderRadius.circular(18),
-                  child: Container(
-                    height: 52,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: WBColors.whiteA(.13)),
-                      borderRadius: BorderRadius.circular(18),
+                // Side by side, as [TeamLoseScreen]'s pair is: the way home
+                // costs the footer no extra height.
+                Row(
+                  children: [
+                    Expanded(
+                      child: Pressable(
+                        onTap: onHome,
+                        hoverColor: WBColors.whiteA(.05),
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: WBColors.whiteA(.13)),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Bosh sahifaga',
+                            style: WBText.grotesk(size: 15, weight: FontWeight.w500, color: WBColors.textA(.7)),
+                          ),
+                        ),
+                      ),
                     ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'Avval mashq qilaman',
-                      style: WBText.grotesk(size: 15, weight: FontWeight.w500, color: WBColors.textA(.7)),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Pressable(
+                        onTap: onPractice,
+                        hoverColor: WBColors.whiteA(.05),
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          height: 52,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: WBColors.whiteA(.13)),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Mashq qilaman',
+                            style: WBText.grotesk(size: 15, weight: FontWeight.w500, color: WBColors.textA(.7)),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
             ),

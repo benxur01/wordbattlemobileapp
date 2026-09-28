@@ -9,7 +9,10 @@ class ChainBubble extends StatefulWidget {
 
   final String word;
   final bool isMe;
-  final String ms;
+
+  /// The time the word took, or null when nobody spent any on it — the
+  /// chain's seed — in which case the bubble carries no time label at all.
+  final String? ms;
 
   @override
   State<ChainBubble> createState() => _ChainBubbleState();
@@ -29,6 +32,7 @@ class _ChainBubbleState extends State<ChainBubble> with SingleTickerProviderStat
   Widget build(BuildContext context) {
     final head = widget.word.substring(0, widget.word.length - 1);
     final last = widget.word.substring(widget.word.length - 1);
+    final ms = widget.ms;
 
     final bubble = Container(
       // design: max-width:74% of the chain column (412 − 2×20 padding)
@@ -70,8 +74,10 @@ class _ChainBubbleState extends State<ChainBubble> with SingleTickerProviderStat
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          Text(widget.ms, style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(widget.isMe ? .4 : .35))),
+          if (ms != null) ...[
+            const SizedBox(width: 10),
+            Text(ms, style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(widget.isMe ? .4 : .35))),
+          ],
         ],
       ),
     );
@@ -113,7 +119,9 @@ class TeamChainBubble extends StatefulWidget {
 
   final String word;
   final TeamBubbleSide side;
-  final String ms;
+
+  /// As [ChainBubble.ms]: null leaves the time label off.
+  final String? ms;
 
   /// Shown above the bubble for [TeamBubbleSide.ally] and [TeamBubbleSide.foe]
   /// — null for [TeamBubbleSide.mine], which needs no caption for the same
@@ -139,6 +147,7 @@ class _TeamChainBubbleState extends State<TeamChainBubble> with SingleTickerProv
     final word = widget.word;
     final head = word.substring(0, word.length - 1);
     final last = word.substring(word.length - 1);
+    final ms = widget.ms;
     final onRight = widget.side != TeamBubbleSide.foe;
 
     final Color washTop;
@@ -194,8 +203,10 @@ class _TeamChainBubbleState extends State<TeamChainBubble> with SingleTickerProv
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          Text(widget.ms, style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(onRight ? .4 : .35))),
+          if (ms != null) ...[
+            const SizedBox(width: 10),
+            Text(ms, style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(onRight ? .4 : .35))),
+          ],
         ],
       ),
     );

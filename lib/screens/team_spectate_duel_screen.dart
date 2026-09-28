@@ -56,6 +56,7 @@ class TeamSpectateDuelScreen extends StatelessWidget {
                     Pressable(
                       onTap: onBack,
                       borderRadius: BorderRadius.circular(12),
+                      semanticLabel: 'Orqaga',
                       child: Container(
                         width: 34,
                         height: 34,

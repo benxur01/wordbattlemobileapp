@@ -33,6 +33,15 @@ void main() {
     }
     await mono.load();
 
+    // Icons.* glyphs; without this every Material icon renders as a tofu box.
+    final sdk = Platform.environment['FLUTTER_ROOT'] ?? '';
+    final iconFont = File('$sdk/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
+    if (iconFont.existsSync()) {
+      final icons = FontLoader('MaterialIcons')
+        ..addFont(iconFont.readAsBytes().then((b) => ByteData.view(Uint8List.fromList(b).buffer)));
+      await icons.load();
+    }
+
     Directory('build/screens').createSync(recursive: true);
   });
 

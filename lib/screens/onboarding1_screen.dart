@@ -140,6 +140,12 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
             ],
           ),
           const Spacer(),
+          // A Spacer has no intrinsic height, so the IntrinsicHeight above
+          // measures this column as if the two of them were not there — with
+          // the keyboard open there is nothing left for them to take and they
+          // collapse, leaving the pills sitting on the first field's border.
+          // The outer column's 26px gap, as a floor under the one that closes.
+          const SizedBox(height: 26),
           Column(
             children: [
               _passwordForm(),

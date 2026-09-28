@@ -72,7 +72,7 @@ class WBColors {
 
   static Color _pick(Color dark, Color light) => WBTheme.isLight ? light : dark;
 
-  static Color get bg => _pick(const Color(0xFF262626), const Color(0xFFF5F3ED));
+  static Color get bg => _pick(const Color(0xFF000000), const Color(0xFFF5F3ED));
   static Color get bgPanel => _pick(const Color(0xFF2C2C2A), const Color(0xFFFFFFFF));
 
   /// The phone body colour behind the screens (`#1F1F1E`), used where the

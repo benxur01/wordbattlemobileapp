@@ -172,19 +172,20 @@ class BoardScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: pinned ? 34 : 26,
-            child: Text(
-              '${row.rank}',
-              // A three-digit rank is wider than the column; CSS lets it run into
-              // the gap rather than wrap onto a second line.
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.visible,
-              style: WBText.mono(
-                size: dim ? 15 : 16,
-                weight: dim ? FontWeight.w500 : FontWeight.w700,
-                color: highlight || (row.self && pinned) ? WBColors.accent : WBColors.textA(dim ? .45 : .8),
+          // The design's column fits two digits. A longer rank widens it instead
+          // of running under the avatar, the padding keeping the two apart.
+          ConstrainedBox(
+            constraints: BoxConstraints(minWidth: pinned ? 34 : 26),
+            child: Padding(
+              padding: const EdgeInsets.only(right: 5),
+              child: Text(
+                '${row.rank}',
+                maxLines: 1,
+                style: WBText.mono(
+                  size: dim ? 15 : 16,
+                  weight: dim ? FontWeight.w500 : FontWeight.w700,
+                  color: highlight || (row.self && pinned) ? WBColors.accent : WBColors.textA(dim ? .45 : .8),
+                ),
               ),
             ),
           ),

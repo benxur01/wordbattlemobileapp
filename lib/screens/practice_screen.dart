@@ -9,6 +9,12 @@ import '../widgets/stroke_glyph.dart';
 /// on demand. The design left the input unwired and so does this — practice
 /// duels are not a backend feature yet, so a text box that swallowed words
 /// would be worse than none.
+///
+/// Nor should anything else here read as a duel waiting for a move. The
+/// design's footer asked for a word ("… bilan boshlansin") and dealt the hints
+/// out as a chain's alternating bubbles, so one tap on the hint button looked
+/// like two players had traded moves. The footer only names the letter now,
+/// and the hints are a plain row of chips.
 class PracticeScreen extends StatelessWidget {
   const PracticeScreen({
     super.key,
@@ -39,6 +45,7 @@ class PracticeScreen extends StatelessWidget {
               Pressable(
                 onTap: onBack,
                 borderRadius: BorderRadius.circular(12),
+                semanticLabel: 'Orqaga',
                 child: Container(
                   width: 38,
                   height: 38,
@@ -139,10 +146,11 @@ class PracticeScreen extends StatelessWidget {
                   style: WBText.grotesk(size: 13, height: 1.5, color: WBColors.textA(.5)),
                 )
               else
-                for (var i = 0; i < hints.length; i++) ...[
-                  _hintBubble(hints[i], me: i.isOdd),
-                  const SizedBox(height: 9),
-                ],
+                Wrap(
+                  spacing: 9,
+                  runSpacing: 9,
+                  children: [for (final hint in hints) _hintChip(hint)],
+                ),
             ],
           ),
         ),
@@ -156,8 +164,6 @@ class PracticeScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text("So'z", style: WBText.grotesk(size: 12.5, color: WBColors.textA(.5))),
-                  const SizedBox(width: 7),
                   Container(
                     width: 24,
                     height: 24,
@@ -175,7 +181,7 @@ class PracticeScreen extends StatelessWidget {
                   const SizedBox(width: 7),
                   Expanded(
                     child: Text(
-                      'bilan boshlansin · maslahat olish mumkin',
+                      "harfi bilan boshlanadigan so'zlar",
                       style: WBText.grotesk(size: 12.5, color: WBColors.textA(.5)),
                     ),
                   ),
@@ -232,42 +238,26 @@ class PracticeScreen extends StatelessWidget {
     );
   }
 
-  static Widget _hintBubble(String word, {required bool me}) {
+  static Widget _hintChip(String word) {
     final head = word.substring(0, word.length - 1);
     final last = word.substring(word.length - 1);
-    return _bubble(head, last, me: me);
-  }
-
-  static Widget _bubble(String head, String last, {required bool me}) {
-    return Align(
-      alignment: me ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-        decoration: BoxDecoration(
-          color: me ? WBColors.accentA(.16) : WBColors.whiteA(.05),
-          border: Border.all(color: me ? WBColors.accentA(.32) : WBColors.whiteA(.1)),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(me ? 16 : 5),
-            bottomRight: Radius.circular(me ? 5 : 16),
-          ),
-        ),
-        child: RichText(
-          text: TextSpan(
-            style: WBText.grotesk(
-              size: 17,
-              weight: FontWeight.w600,
-              color: me ? WBColors.text : WBColors.textA(.85),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+      decoration: BoxDecoration(
+        color: WBColors.whiteA(.05),
+        border: Border.all(color: WBColors.whiteA(.1)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.textA(.85)),
+          children: [
+            TextSpan(text: head),
+            TextSpan(
+              text: last,
+              style: TextStyle(color: WBColors.accent),
             ),
-            children: [
-              TextSpan(text: head),
-              TextSpan(
-                text: last,
-                style: TextStyle(color: WBColors.accent),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );

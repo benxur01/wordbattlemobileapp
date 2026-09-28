@@ -15,7 +15,8 @@ class WinScreen extends StatelessWidget {
   final VoidCallback onRematch;
 
   /// The design leaves this square button unwired. On a phone that reads as a
-  /// broken control, so it goes back to the lobby.
+  /// broken control, so it goes back to the lobby — under the home icon
+  /// [TeamWinScreen]'s twin uses, not the design's abstract open-box glyph.
   final VoidCallback onHome;
 
   @override
@@ -181,6 +182,7 @@ class WinScreen extends StatelessWidget {
                     onTap: onHome,
                     hoverColor: WBColors.whiteA(.1),
                     borderRadius: BorderRadius.circular(20),
+                    semanticLabel: 'Bosh sahifa',
                     child: Container(
                       width: 62,
                       height: 62,
@@ -190,11 +192,7 @@ class WinScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       alignment: Alignment.center,
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CustomPaint(painter: _OpenBoxGlyph(color: WBColors.textA(.75))),
-                      ),
+                      child: Icon(Icons.home_outlined, size: 20, color: WBColors.textA(.75)),
                     ),
                   ),
                 ],
@@ -205,39 +203,6 @@ class WinScreen extends StatelessWidget {
       ],
     );
   }
-}
-
-/// The design's second button glyph: a 16px rounded square whose top edge is
-/// transparent. A non-uniform `Border` cannot be combined with a border radius
-/// in a `BoxDecoration`, so it is stroked directly.
-class _OpenBoxGlyph extends CustomPainter {
-  _OpenBoxGlyph({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const r = 4.0;
-    final path = Path()
-      ..moveTo(1, 0)
-      ..lineTo(1, size.height - r - 1)
-      ..arcToPoint(Offset(1 + r, size.height - 1), radius: const Radius.circular(r))
-      ..lineTo(size.width - r - 1, size.height - 1)
-      ..arcToPoint(Offset(size.width - 1, size.height - r - 1), radius: const Radius.circular(r))
-      ..lineTo(size.width - 1, 0);
-
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..strokeJoin = StrokeJoin.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _OpenBoxGlyph old) => old.color != color;
 }
 
 class _MiniStat extends StatelessWidget {
