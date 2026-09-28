@@ -36,15 +36,24 @@ flutter run --dart-define=WB_API=http://localhost:8080
 flutter run --dart-define=WB_API=http://192.168.1.10:8080
 ```
 
-`WB_API` berilmasa `http://localhost:8080` ishlatiladi.
+`WB_API` berilmasa `http://localhost:8080` ishlatiladi — bu faqat debug build
+uchun.
 
 Release build'da manzil **https** bo'lishi shart: shipped APK cleartext HTTP'ni
 rad etadi (`usesCleartextTraffic="false"`). Debug build'da esa `http://` ishlaydi
 — `android/app/src/debug/` dagi network security config shuning uchun bor.
 
 ```bash
-flutter build appbundle --release --dart-define=WB_API=https://api.example.com
+flutter build appbundle --release --dart-define=WB_API=https://<domain>
+# Admin panel (web) ham xuddi shunday:
+flutter build web -t lib/main_admin.dart --dart-define=WB_API=https://<domain>
 ```
+
+`WB_API` siz yoki `http://` manzil bilan qurilgan release build serverga
+umuman so'rov yubormaydi va har urinishda "Server manzili sozlanmagan
+(WB_API). Ilova HTTPS serverga yo'naltirilmagan." xatosini ko'rsatadi
+(`lib/api/rest_transport.dart`). Aks holda u "internetni tekshiring" deb
+yiqilardi va asl sababni hech narsa ko'rsatmasdi.
 
 ### Release imzosi
 
@@ -64,6 +73,50 @@ tomondan tayyor ko'rinadi, lekin Play uni qabul qilmaydi va Google Sign-In ham
 ishlamaydi — buni yuklash paytida bilib qolgandan ko'ra, build paytida bilgan
 yaxshi. Lokal sinov uchun `flutter build apk --release` ishlayveradi (u debug
 kalit bilan imzolanadi).
+
+### Domen olinganda
+
+Haqiqiy domen hali yo'q: ulashiladigan turnir havolalari `wordbattle.example.uz`
+o'rinbosariga qaraydi. Domen (masalan, `wordbattle.uz`) olinganda kodga tegish
+shart emas — faqat quyidagilar beriladi:
+
+| Qayerda | Nima | Misol |
+|---|---|---|
+| ilova build'i | `--dart-define=WB_API=https://<domen>` — server manzili (admin panel web build'i ham) | `https://wordbattle.uz` |
+| ilova build'i | `--dart-define=WB_LINK_HOST=<domen>` — ulashiladigan havola `https://<domen>/t/<id>` shu domenga yoziladi | `wordbattle.uz` |
+| Android build | `wbLinkHost=<domen>` — `android/gradle.properties` da yoki `ORG_GRADLE_PROJECT_wbLinkHost` env orqali. **`WB_LINK_HOST` bilan aynan bir xil** bo'lsin: biri havolani yozadi, ikkinchisi (manifestdagi App Links filtri) uni ilovada ochadi | `wordbattle.uz` |
+| server `.env` | `ASSETLINKS_SHA256` — release imzo sertifikatining SHA-256 barmoq izi, bir nechtasi vergul bilan. Play App Signing bo'lsa Play Console → Setup → App signing dagi "App signing key certificate" | `14:6D:E9:…` |
+| server `.env` | `CORS_ALLOWED_ORIGINS` — faqat admin panel (web) API'dan boshqa origin'da ochilsa | `https://admin.wordbattle.uz` |
+
+```bash
+flutter build appbundle --release \
+  --dart-define=WB_API=https://wordbattle.uz \
+  --dart-define=WB_LINK_HOST=wordbattle.uz
+```
+
+Android havolani ilovaga faqat `https://<WB_LINK_HOST>/.well-known/assetlinks.json`
+(HTTPS orqali, redirektsiz) ilovaning imzosini ko'rsatsa beradi. Bu faylni
+server `ASSETLINKS_SHA256` dan yig'adi, ya'ni `WB_LINK_HOST` shu serverga
+qarashi kerak — eng soddasi `WB_API` bilan bitta domen.
+
+### Maxfiylik siyosati va shartlar
+
+Server ikkita ochiq sahifa beradi: `https://<domen>/privacy` va
+`https://<domen>/terms`. Play Console va App Store Connect aynan shu
+havolalarni so'raydi, ilovada esa ular Profil ekranida turadi. Matn
+[`backend/src/main/resources/legal/`](backend/src/main/resources/legal/) da,
+aloqa manzili va operator nomi server `.env` idan qo'yiladi:
+`LEGAL_CONTACT_EMAIL`, `LEGAL_OPERATOR_NAME` (bermasangiz `support@example.uz`
+va `Word Battle` o'rinbosarlari chiqadi).
+
+⚠️ **Bu matn — shablon, yuridik maslahat emas.** U ilova haqiqatda
+to'playdigan ma'lumotlar (kod va migratsiyalar) asosida yozilgan, lekin
+do'konga chiqarishdan oldin uni yurist ko'rib chiqishi kerak. Ayniqsa:
+operatorning to'liq yuridik nomi, bolalar uchun yosh chegarasi (hozir 13),
+shikoyatlarni "odatda 24 soat ichida" ko'rib chiqish va'dasi (App Store 1.2
+talabi — va'da qilingan ekan, bajarilishi kerak), amaldagi qonunchilik va
+O'zbekistonning shaxsiy ma'lumotlar to'g'risidagi qonuni talablari (masalan,
+fuqarolar ma'lumotlarini O'zbekiston hududidagi serverda saqlash).
 
 ### 3. Google Sign-In
 
@@ -173,7 +226,7 @@ APK istalgan narsani yubora oladi — natija rad javobi bo'ladi.
 | Mashq | `GET /api/practice/word`, `/hints` |
 | Turnir taklifi | `tournament.invite` freymi; javob — `tournament.accept`/`tournament.decline` |
 | Turnir bracketi | `GET /api/tournaments/{id}` — istalgan tizimga kirgan foydalanuvchi uchun ochiq, faqat qatnashchilar uchun emas |
-| Turnirni ulashish | Native share sheet orqali `https://wordbattle.example.uz/t/{id}` — Android ilovani to'g'ridan-to'g'ri bracketga ochadi, iOS'da havola brauzerda ochiladi |
+| Turnirni ulashish | Native share sheet orqali `https://<WB_LINK_HOST>/t/{id}` — Android ilovani to'g'ridan-to'g'ri bracketga ochadi, iOS'da havola brauzerda ochiladi |
 
 **Ulanish uzilsa** soket o'zi qayta ulanadi (1→15 s backoff; birinchi freym
 kelishi bilan hisob nolga qaytadi, shunda ikkinchi uzilish ham 1 soniyadan

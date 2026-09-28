@@ -52,15 +52,38 @@ bo'lsa Testcontainers, bo'lmasa ichki (embedded) server. Pastdagi
 |---|---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | PostgreSQL ulanishi | `localhost:5432/wordbattle` |
 | `JWT_SECRET` | Tokenlarni imzolash. **Kamida 32 bayt. Standart qiymat yo'q** — berilmasa server ko'tarilmaydi | — |
-| `SPRING_PROFILES_ACTIVE` | Prodda `prod` qiling: shunda namunaviy yoki bo'sh `DB_PASSWORD` bilan server ko'tarilmaydi (`DatabasePasswordGuard`) | bo'sh |
+| `SPRING_PROFILES_ACTIVE` | Prodda `prod` qiling: shunda namunaviy yoki bo'sh `DB_PASSWORD` bilan (`DatabasePasswordGuard`) ham, `DEV_LOGIN_ENABLED=true` bilan (`DevLoginGuard`) ham server ko'tarilmaydi | bo'sh |
 | `CORS_ALLOWED_ORIGINS` | Brauzer origin'lari (vergul bilan). Bo'sh bo'lsa CORS umuman yo'q — telefon ilovasiga kerak emas | bo'sh |
 | `TIME_ZONE` | Streak va kunlik so'z qaysi kun bo'yicha almashadi | `Asia/Tashkent` |
 | `WS_FRAMES_PER_SECOND` / `WS_FRAME_BURST` | Soketdagi freym cheklovi (bitta o'yinchiga) | `20` / `40` |
+| `AUTH_ATTEMPTS_PER_MINUTE` / `AUTH_ATTEMPT_BURST` | `/api/auth/login` va `/api/auth/register` ga urinishlar cheklovi (bitta manzilga): daqiqasiga / birdaniga | `10` / `20` |
+| `FORWARD_HEADERS_STRATEGY` | Mijoz manzili qayerdan olinadi — yuqoridagi cheklov shu manzil bo'yicha. `native` ni **faqat** server oldida reverse proxy turganda qiling — pastga qarang | `none` |
 | `JWT_TTL` | Token amal qilish muddati (ISO-8601) | `P30D` |
-| `GOOGLE_WEB_CLIENT_ID` | Google **Web** OAuth client ID; bo'sh bo'lsa Google login o'chadi | bo'sh |
-| `DEV_LOGIN_ENABLED` | `/api/auth/dev` ni yoqadi — **prodda hech qachon** | `false` |
+| `GOOGLE_WEB_CLIENT_ID` | Google **Web** OAuth client ID — ilovadagi `ApiConfig.googleServerClientId` bilan bir xil bo'lishi shart. Ataylab bo'sh qiymat berilsa Google login o'chadi | loyihaning o'z Web client ID si (`application.yml` dagi `238943789457-…`) |
+| `DEV_LOGIN_ENABLED` | `/api/auth/dev` ni yoqadi — **prodda hech qachon**: `prod` profilida `true` bo'lsa server ko'tarilmaydi (`DevLoginGuard`) | `false` |
 | `ADMIN_BOOTSTRAP_USER_ID` | Startda shu `users.id` ga admin roli beriladi — birinchi adminni yaratishning yagona yo'li. Bo'sh bo'lsa hech kimga berilmaydi | bo'sh |
+| `ASSETLINKS_SHA256` | Android release sertifikati(lari)ning SHA-256 barmoq izlari, vergul bilan (`AA:BB:…`, `keytool` chiqargan shaklda). `/.well-known/assetlinks.json` shulardan yig'iladi — pastdagi [Turnirlar](#turnirlar)ga qarang. Bo'sh bo'lsa fayl bo'sh ro'yxat `[]` | bo'sh |
+| `LEGAL_CONTACT_EMAIL` | `/privacy` va `/terms` sahifalaridagi aloqa manzili — o'yinchilar ma'lumotlari va akkaunt o'chirish haqida shu yerga yozadi | `support@example.uz` (o'rinbosar) |
+| `LEGAL_OPERATOR_NAME` | O'sha sahifalarda xizmatni boshqaruvchi sifatida ko'rsatiladigan nom (MChJ yoki YaTT) | `Word Battle` (o'rinbosar) |
 | `PORT` | HTTP porti | `8080` |
+
+`docker compose` bilan faqat `docker-compose.yml` dagi `api.environment` ro'yxatida
+sanalgan o'zgaruvchilar konteynerga yetib boradi — `.env` ni compose o'qiydi,
+server emas. Yangi o'zgaruvchi qo'shilsa, u o'sha ro'yxatga ham yozilishi kerak.
+
+**Reverse proxy ortida.** `FORWARD_HEADERS_STRATEGY=none` (standart) da mijoz
+manzili — TCP ulanishning o'zi, `X-Forwarded-For` o'qilmaydi: server oldida
+hech narsa bo'lmasa bu sarlavhani faqat mijozning o'zi yozgan bo'ladi va har
+urinishda yangi manzil yozib, cheklovni chetlab o'tardi. Server oldida nginx
+yoki balanser turgan bo'lsa esa hamma o'yinchi proxy'ning bitta manzilida,
+bitta cheklovni bo'lishadi — shunda `native` qiling. Tomcat'ning
+`RemoteIpValve` i manzilni `X-Forwarded-For` dan oladi, lekin faqat ulanish
+ishonchli proxy'dan kelganda: standart bo'yicha xususiy, loopback yoki
+link-local manzil (Docker tarmog'idagi nginx konteyneri ham shunga kiradi).
+Ochiq manzildan ulanadigan proxy'ni (masalan, to'g'ridan-to'g'ri Cloudflare)
+`server.tomcat.remoteip.internal-proxies` ga qo'shish kerak. Har ikki holda
+ham API porti faqat proxy orqali ochiq bo'lsin — masalan,
+`docker-compose.yml` da `"127.0.0.1:8080:8080"`.
 
 O'yin qoidalari `application.yml` dagi `wordbattle.duel` va
 `wordbattle.matchmaking` bo'limlarida: navbat 15 s, so'z kamida 3 harf,
@@ -128,8 +151,22 @@ Barchasi `/api` ostida. `*` — token talab qilinmaydi.
 | PUT | `/users/me/city` | `{city}` |
 | GET | `/users/me/profile` | statistika, 30 kunlik reyting grafigi, 8 ta nishon |
 | GET | `/users/{id}/profile` | boshqa o'yinchi profili |
-| GET | `/users/search?q=` | taxallus bo'yicha qidiruv |
+| GET | `/users/search?q=` | taxallus bo'yicha qidiruv (blok bor o'yinchilar ko'rinmaydi) |
 | DELETE | `/users/me` | akkauntni o'chirish — `204`, token shu zahoti o'lik |
+| POST | `/users/{id}/block` | bloklash — `204`; do'stlik va kutayotgan do'stlik so'rovlari (ikkala tomonga) o'chadi; qayta bloklash hech narsani o'zgartirmaydi; o'zini — `400 self_block` |
+| DELETE | `/users/{id}/block` | blokni olish — `204` (tugagan do'stlik qaytmaydi) |
+| GET | `/users/me/blocks` | o'zi bloklaganlar: `[{user, blockedAt}]`, eng yangisi birinchi |
+| POST | `/users/{id}/report` | `{reason, details?, context?, matchRef?}` → `201 {id}`. `reason`: `SPAM`, `ABUSE`, `CHEATING`, `INAPPROPRIATE_NAME`, `OTHER`; `context`: `chat`, `duel`, `profile`; `details` ko'pi bilan 500, `matchRef` 64 belgi. Bir o'yinchidan sutkada 10 tadan ortig'i — `429 report_limit`; o'zi haqida — `400 self_report` |
+
+**Bloklash nima qiladi.** Blokni kim qo'ygan bo'lishidan qat'i nazar, u ikki
+tomonga ham ta'sir qiladi: jangdagi chat va reaksiyalar ular o'rtasida
+yetkazilmaydi (1v1 da ham, 2v2 da ham — 2v2 da qolgan ikki kishi eshitaveradi),
+bir-birini jangga chaqira olmaydi, jamoaga taklif qila olmaydi va do'stlik
+so'rovi yubora olmaydi (`blocked`), navbat ularni juftlamaydi (2v2 navbati ham
+— jamoalar orasida blok bo'lsa), qidiruvda bir-birini ko'rmaydi, mavjud
+do'stlik esa bekor bo'ladi. Rad javobi kim bloklaganini aytmaydi, chat esa
+jim tashlab yuboriladi — xato qaytarsa, bloklangan o'yinchiga bloklanganini
+aytib qo'yardi. Allaqachon boshlangan jang davom etadi, faqat jim.
 
 ### Do'stlar
 | Method | Path | Izoh |
@@ -171,19 +208,23 @@ qilish uchun, qatnashchi bo'lish shart emas.
 | POST | `/tournaments/{id}/accept` · `/decline` | faqat shu taklifning egasi uchun |
 | POST | `/tournaments/{id}/cancel` | faqat tashkilotchi uchun — o'zi tashkil qilgan turnirni bekor qiladi |
 
-Har bir turnir tashqariga `https://<production-domain>/t/<id>` ko'rinishidagi
+Har bir turnir tashqariga `https://<WB_LINK_HOST>/t/<id>` ko'rinishidagi
 havola sifatida ulashilishi mumkin (native share sheet, `organize_tournament_manage_screen.dart`
 va `tournament_bracket_screen.dart`dagi ulashish tugmasi). Android'da bu havola
-App Links orqali ilovani to'g'ridan-to'g'ri o'sha turnirning bracketiga ochadi —
-buning uchun `wordbattle.example.uz` haqiqiy domenga almashtirilishi va
-`static/.well-known/assetlinks.json` dagi `sha256_cert_fingerprints`
-o'rinbosari release keystore'dan olingan haqiqiy barmoq iz bilan
-to'ldirilishi kerak (`keytool -list -v -keystore <keystore yo'li> | grep
-SHA256` — keystore'ning o'zi qanday yaratilishi uchun ildiz papkadagi
-[`README.md`](../README.md#release-imzosi)dagi "Release imzosi" bo'limiga
-qarang). iOS'da esa hozircha
-Universal Links yo'q (Apple Developer akkaunti yo'q), shuning uchun havola
-oddiy brauzerda ochiladi.
+App Links orqali ilovani to'g'ridan-to'g'ri o'sha turnirning bracketiga ochadi.
+Buning uchun uch joy bir xil domenni aytishi kerak: ilovaning
+`--dart-define=WB_LINK_HOST`, Android manifestini quradigan `wbLinkHost` Gradle
+xossasi, va shu domenda turgan bu server — u `GET /.well-known/assetlinks.json`
+ni `ASSETLINKS_SHA256` dan yig'ib beradi (token so'ralmaydi). Barmoq iz release
+keystore'dan olinadi (`keytool -list -v -keystore <keystore yo'li> | grep
+SHA256`), Play App Signing yoqilgan bo'lsa esa Play Console → Setup → App
+signing dagi "App signing key certificate" dan — keystore'ning o'zi qanday
+yaratilishi uchun ildiz papkadagi
+[`README.md`](../README.md#release-imzosi)dagi "Release imzosi" bo'limiga,
+to'liq ro'yxat uchun "Domen olinganda" bo'limiga qarang. `ASSETLINKS_SHA256`
+bo'sh bo'lsa fayl bo'sh ro'yxat qaytaradi va Android havolani brauzerda ochadi.
+iOS'da esa hozircha Universal Links yo'q (Apple Developer akkaunti yo'q),
+shuning uchun havola oddiy brauzerda ochiladi.
 
 ### Admin panel
 
@@ -201,6 +242,8 @@ faqat `ADMIN_BOOTSTRAP_USER_ID` orqali paydo bo'ladi (yuqoridagi jadval).
 | GET | `/admin/matches?page=&size=` | barcha janglar (hech kimga bog'lanmagan) |
 | GET | `/admin/metrics` | foydalanuvchilar, banlanganlar, bugungi janglar, bot/inson |
 | GET | `/admin/audit-log?page=&size=` | har bir o'zgarish — kim, kimga, qachon |
+| GET | `/admin/reports?status=&page=&size=` | o'yinchilar shikoyatlari, eng yangisi birinchi, ikkala tomon nomi bilan. `status`: `open` (standart) yoki `resolved` |
+| POST | `/admin/reports/{id}/resolve` | shikoyatni yopadi — audit jurnaliga `report_resolve` yoziladi; yopilganini qayta yopish hech narsa yozmaydi |
 | POST | `/admin/tournaments` | `{name, size}` — `size` 4/8/16/32 bo'lishi shart |
 | GET | `/admin/tournaments?page=&size=` | barcha turnirlar |
 | GET | `/admin/tournaments/{id}` | qatnashchilar ro'yxati + (boshlangan bo'lsa) bracket |
@@ -213,6 +256,19 @@ tranzaksiyada** yoziladi. Hech narsa o'zgarmagan bo'lsa (masalan, allaqachon
 bloklangan akkauntni qayta bloklash) yozuv ham qo'shilmaydi.
 
 Xatolar bir xil shaklda: `{"code": "...", "message": "...", "timestamp": "..."}`.
+
+### `/api` dan tashqari (token kerak emas)
+
+| Method | Path | Izoh |
+|---|---|---|
+| GET | `/privacy` | Maxfiylik siyosati — o'zbekcha HTML sahifa, pastida inglizcha qisqacha mazmuni. Aloqa manzili va operator nomi `LEGAL_CONTACT_EMAIL` / `LEGAL_OPERATOR_NAME` dan qo'yiladi (HTML-escape qilingan) |
+| GET | `/terms` | Foydalanish shartlari — xuddi shunday |
+| GET | `/.well-known/assetlinks.json` | Android App Links bayonoti, `ASSETLINKS_SHA256` dan; bo'sh bo'lsa `[]` |
+
+Ikkala sahifa matni `src/main/resources/legal/` da. Bu **shablon** — ilova
+haqiqatda to'playdigan ma'lumotlar asosida yozilgan, lekin do'konga
+chiqarishdan oldin uni yurist ko'rib chiqishi kerak (ildiz
+[`README.md`](../README.md#maxfiylik-siyosati-va-shartlar) ga qarang).
 
 ---
 
@@ -231,9 +287,9 @@ Ulanish: `ws://host/ws?token=<jwt>`. Har bir kadr —
 | `duel.submit` | `{word}` | so'z yuboradi |
 | `duel.forfeit` | — | jangdan chiqadi (mag'lubiyat) |
 | `duel.power_up` | `{type}` | kuchaytirgichni sarflaydi: `add_time` (+10 s), `skip_letter`, `hint`, `pressure`. Faqat bot bilan mashqda va faqat o'z navbatida; har biri jangda bir marta. Rad javoblari: `not_a_bot_duel`, `not_your_turn`, `power_up_spent`, `unknown_power_up` |
-| `duel.chat` | `{text}` | raqibga matn yuboradi (jang davomida, saqlanmaydi) |
+| `duel.chat` | `{text}` | raqibga matn yuboradi (jang davomida, saqlanmaydi; o'rtada blok bo'lsa jim tashlab yuboriladi) |
 | `duel.reaction` | `{emoji}` | tayyor emoji ro'yxatidan biri: 🔥😂👏😮🤝😢 |
-| `invite.send` | `{userId}` | do'stni jangga chaqiradi |
+| `invite.send` | `{userId}` | do'stni jangga chaqiradi (o'rtada blok bo'lsa — `blocked` xatosi; `team_invite.send` ham xuddi shunday) |
 | `invite.accept` / `invite.decline` | `{inviteId}` | chaqiruvga javob |
 | `tournament.accept` / `tournament.decline` | `{tournamentId}` | turnir taklifiga javob |
 | `tournament.match_start` | `{tournamentMatchId}` | tayyor turnir jangini boshlaydi — ikkala tomondan biri bossa yetarli |
@@ -394,6 +450,9 @@ Flyway migratsiyalari `src/main/resources/db/migration`:
   yagona eliminatsiya turnirlari (V11). Bracketning har bir bosqichi va slot'i
   turnir boshlanganda bir vaqtda yaratiladi, shuning uchun butun tuzilma
   1-bosqichdanoq ma'lum — keyingi bosqichlar faqat o'yinchi maydonini to'ldiradi.
+- `user_blocks`, `user_reports` — bloklash va shikoyatlar (V17). Akkaunt
+  o'chirilganda uning bloklari (ikkala yo'nalishda) o'chadi, shikoyatlar esa
+  moderatsiya yozuvi sifatida anonim qobiqqa bog'langan holda qoladi.
 
 Taxalluslar registrga bog'liq bo'lmagan holda unikal: `lower(nickname)`
 ustidagi unikal indeks. Ikki o'yinchi bir vaqtda bir nomni so'rasa, biri
@@ -408,8 +467,13 @@ ustidagi unikal indeks. Ikki o'yinchi bir vaqtda bir nomni so'rasa, biri
 2. `SPRING_PROFILES_ACTIVE=prod` qiling va `DB_PASSWORD` ga haqiqiy parol
    bering (`openssl rand -base64 24`). `prod` profilida namunaviy `wordbattle`
    paroli bilan server ataylab ko'tarilmaydi — u shu repozitoriyda yozilgan.
+   `DEV_LOGIN_ENABLED=true` bilan ham ko'tarilmaydi: `/api/auth/dev` so'ragan
+   har kimga parolsiz akkaunt va token beradi.
 3. HTTPS/WSS terminatsiyasi (nginx yoki cloud LB) qo'ying — ilova release
-   build'da cleartext HTTP'ni umuman rad etadi.
+   build'da cleartext HTTP'ni umuman rad etadi. Proxy ortida
+   `FORWARD_HEADERS_STRATEGY=native` qiling va API portini faqat proxy'ga
+   oching — [Konfiguratsiya](#konfiguratsiya) dagi "Reverse proxy ortida"ga
+   qarang.
 4. Postgres uchun zaxira nusxa (backup) sozlang.
 5. `/actuator/health/readiness` va `/liveness` ni monitoringga ulang.
 
