@@ -160,13 +160,19 @@ public class AuthRateLimiter extends OncePerRequestFilter {
 
     /**
      * Who the attempt came from. {@code X-Forwarded-For} is deliberately not
-     * read: nothing sets it in this deployment — the compose file publishes the
-     * API's own port with no proxy in front of it — so the header could only
+     * read here: with nothing in front of the server the header could only
      * arrive from the caller, and honouring it would hand every caller a fresh
-     * allowance per attempt by writing a new address on each one. Put a reverse
-     * proxy in front of this and the header has to be read here instead, for
-     * the one hop the proxy adds, or every player in the world shares a single
-     * bucket belonging to the proxy.
+     * allowance per attempt by writing a new address on each one.
+     *
+     * <p>A reverse proxy in front turns that around — without the header every
+     * player in the world shares a single bucket belonging to the proxy. That
+     * case is handled one layer down rather than here, by
+     * {@code server.forward-headers-strategy=native} (see application.yml):
+     * Tomcat's {@code RemoteIpValve} rewrites the remote address from the
+     * header before any filter runs, and only when the request's peer is a
+     * trusted proxy — which is why the API port then has to be reachable
+     * through the proxy alone. The default, {@code none}, leaves the header
+     * unread, and this returns the TCP peer as it always did.
      */
     private static String clientAddress(HttpServletRequest request) {
         return request.getRemoteAddr();

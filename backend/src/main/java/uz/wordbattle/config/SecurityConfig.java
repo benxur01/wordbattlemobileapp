@@ -72,6 +72,10 @@ public class SecurityConfig {
                         // would get a 401 and App Links verification would
                         // silently never succeed.
                         .requestMatchers("/.well-known/**").permitAll()
+                        // The privacy policy and the terms are read before an
+                        // account exists — by a store reviewer, or a player
+                        // deciding whether to sign up.
+                        .requestMatchers(HttpMethod.GET, "/privacy", "/terms").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Before the catch-all, or the catch-all would answer
                         // for it and every signed-in player would be an admin.

@@ -266,6 +266,8 @@ class TokenRevocationTest {
                 props.auth(),
                 props.admin(),
                 props.tournament(),
+                props.appLinks(),
+                props.legal(),
                 props.timeZone(),
                 props.devLoginEnabled());
         return new JwtService(expiringInThePast, users).issue(id, users.currentFor(id).orElseThrow());

@@ -65,6 +65,8 @@ class FrameRateLimiterTest {
                         new AppProperties.Tournament.Global(
                                 "0 0 8 * * MON", "0 0 19 * * SUN", 32, Duration.ofHours(48)),
                         new AppProperties.Tournament.GlobalTeam("0 0 9 * * MON", "0 30 19 * * SUN", 8)),
+                new AppProperties.AppLinks(List.of()),
+                new AppProperties.Legal("support@example.uz", "Word Battle"),
                 ZoneId.of("Asia/Tashkent"),
                 false);
         return new FrameRateLimiter(props);

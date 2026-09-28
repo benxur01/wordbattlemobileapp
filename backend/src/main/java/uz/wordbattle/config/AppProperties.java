@@ -45,6 +45,8 @@ public record AppProperties(
         @DefaultValue Auth auth,
         @DefaultValue Admin admin,
         @DefaultValue Tournament tournament,
+        @DefaultValue AppLinks appLinks,
+        @DefaultValue Legal legal,
         /**
          * The zone every "which day is it" decision is made in — daily streaks
          * and the practice word of the day. UTC would roll those over at 05:00
@@ -88,6 +90,29 @@ public record AppProperties(
             return bootstrapUserId != null && !bootstrapUserId.isBlank();
         }
     }
+
+    /**
+     * Android App Links for shared tournament links. The app claims {@code
+     * https://<host>/t/<id>} in its manifest, and Android hands such a link to
+     * the app only once {@code /.well-known/assetlinks.json} on that host names
+     * a certificate the installed build is signed with — see {@code
+     * uz.wordbattle.site.AssetLinksController}.
+     *
+     * <p>Empty by default: until there is a production domain and a release key
+     * the file publishes no statement at all, rather than a placeholder a
+     * verifier would read as a claim about a certificate that does not exist.
+     */
+    public record AppLinks(@DefaultValue List<String> sha256Fingerprints) {}
+
+    /**
+     * Who {@code /privacy} and {@code /terms} name as running the game, and
+     * where a player writes about their data — see {@code
+     * uz.wordbattle.site.LegalController}. Both defaults are placeholders that
+     * belong to nobody; a real deployment sets both.
+     */
+    public record Legal(
+            @DefaultValue("support@example.uz") String contactEmail,
+            @DefaultValue("Word Battle") String operatorName) {}
 
     /** Per-connection ceilings, so one client cannot monopolise the server. */
     public record Limits(

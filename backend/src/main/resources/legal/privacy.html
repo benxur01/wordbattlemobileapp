@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maxfiylik siyosati — Word Battle</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #f5f3ed; color: #1f1e1a; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 28px; line-height: 1.25; margin: 0 0 4px; }
+  h2 { font-size: 20px; line-height: 1.3; margin: 32px 0 8px; }
+  h3 { font-size: 16px; margin: 20px 0 4px; }
+  ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  a { color: #2f5c99; }
+  .meta { color: #6b6a63; font-size: 14px; margin: 0 0 24px; }
+  hr { border: 0; border-top: 1px solid rgba(0, 0, 0, .12); margin: 48px 0 0; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #161616; color: #edebe4; }
+    a { color: #8fb8ff; }
+    .meta { color: #a09e97; }
+    hr { border-top-color: rgba(255, 255, 255, .14); }
+  }
+</style>
+</head>
+<body>
+<main>
+<h1>Maxfiylik siyosati</h1>
+<p class="meta">Word Battle · oxirgi yangilanish: 2026-yil 24-sentabr</p>
+
+<p>Ushbu siyosat Word Battle mobil ilovasi va uning serveri (bundan keyin — «Xizmat») qanday
+ma'lumotlarni to'plashi, ulardan nima uchun foydalanishi va ularni qancha saqlashini
+tushuntiradi. Xizmatni {{OPERATOR_NAME}} (bundan keyin — «biz») boshqaradi.</p>
+
+<h2>1. Qanday ma'lumotlarni to'playmiz</h2>
+
+<h3>Akkaunt</h3>
+<ul>
+  <li><b>Taxallus</b> — siz tanlaydigan ochiq nom.</li>
+  <li><b>Parol</b> — faqat taxallus va parol bilan ro'yxatdan o'tsangiz. Parolning o'zi
+    saqlanmaydi: undan bcrypt algoritmi bilan olingan, qayta tiklab bo'lmaydigan xesh saqlanadi.</li>
+  <li><b>Google akkaunti</b> — Google orqali kirsangiz: akkauntingizning o'zgarmas identifikatori
+    va profil ismingiz. Google ism bermasa, ism o'rniga elektron pochta manzilingizning «@»
+    belgisigacha bo'lgan qismi olinadi; manzilning o'zi saqlanmaydi. Google parolingiz bizga
+    hech qachon kelmaydi.</li>
+  <li><b>Shahar</b> — ixtiyoriy, faqat o'zingiz kiritsangiz saqlanadi.</li>
+</ul>
+
+<h3>O'yin</h3>
+<ul>
+  <li>Reyting va uning tarixi, janglar soni, g'alabalar, eng uzun zanjir, kunlik seriya va
+    nishonlar.</li>
+  <li>Janglar tarixi: kim bilan o'ynaganingiz, natija, jangda aytilgan so'zlar va har bir so'zga
+    ketgan vaqt; siz ishlatgan so'zlar ro'yxati.</li>
+  <li>Turnirlardagi ishtirok, takliflarga javoblar va natijalar.</li>
+  <li>Do'stlar ro'yxati va do'stlik so'rovlari.</li>
+</ul>
+
+<h3>Muloqot va xavfsizlik</h3>
+<ul>
+  <li><b>Jangdagi chat va reaksiyalar</b> faqat o'sha jangdagi boshqa o'yinchilarga yetkaziladi
+    va serverda saqlanmaydi.</li>
+  <li><b>Bloklashlar</b> — kimni va qachon bloklaganingiz.</li>
+  <li><b>Shikoyatlar</b> — kim, kim haqida, qaysi sabab bilan, ilovaning qaysi joyidan va qanday
+    izoh bilan shikoyat qilgani.</li>
+  <li><b>Moderatsiya yozuvlari</b> — akkaunt bloklangan bo'lsa, qachon bloklangani;
+    administratorlar akkauntlar ustida bajargan amallar jurnali (masalan, bloklash sababi,
+    taxallusning o'zgartirilishi, shikoyatning hal qilinishi).</li>
+</ul>
+
+<h3>Texnik ma'lumotlar</h3>
+<ul>
+  <li>Akkaunt yaratilgan va oxirgi marta faol bo'lgan vaqt.</li>
+  <li>IP manzil — kirish va ro'yxatdan o'tishga urinishlar sonini cheklash uchun (parolni taxmin
+    qilishdan himoya) faqat server xotirasida vaqtincha ishlatiladi va bazaga yozilmaydi. Server
+    jurnallarida texnik yozuvlar (masalan, akkaunt raqami va ulanish vaqti) qisqa muddat
+    saqlanishi mumkin.</li>
+  <li>Qurilmangizda: kirish tokeni qurilmaning himoyalangan xotirasida (iOS Keychain, Android
+    Keystore) va tanlangan ko'rinish (tungi yoki yorug') sozlamasi.</li>
+</ul>
+
+<p>Biz joylashuv, kontaktlar, rasmlar, mikrofon yoki reklama identifikatorini to'plamaymiz.
+Ilovada reklama, analitika yoki kuzatuv (tracking) dasturlari yo'q.</p>
+
+<h2>2. Ma'lumotlardan nima uchun foydalanamiz</h2>
+<ul>
+  <li>O'yinni ishlatish: kirish, raqib topish, janglarni o'tkazish, reytingni hisoblash, reyting
+    jadvallari, do'stlar va turnirlar.</li>
+  <li>Xavfsizlik va moderatsiya: shikoyatlarni ko'rib chiqish, qoidabuzarlarni bloklash,
+    o'yinchilarning bir-birini bloklashi, suiiste'molning oldini olish.</li>
+  <li>Xizmatning barqaror ishlashi va xatolarni tuzatish.</li>
+</ul>
+<p>Ma'lumotlaringizni sotmaymiz, ijaraga bermaymiz va reklama uchun ishlatmaymiz.</p>
+
+<h2>3. Boshqa o'yinchilar nimani ko'radi</h2>
+<p>Taxallusingiz, profil ismingiz, shahringiz (kiritgan bo'lsangiz), reytingingiz va o'yin
+statistikangiz boshqa o'yinchilarga reyting jadvalida, qidiruvda, do'stlar ro'yxatida va
+janglarda ko'rinadi. Do'stlaringiz onlayn yoki jangda ekaningizni ko'radi. Chat xabarlaringizni
+faqat o'sha jangdagi o'yinchilar ko'radi. Bloklashlaringizni va shikoyatlaringizni boshqa
+o'yinchilar ko'rmaydi; shikoyatlarni faqat administratorlar ko'radi.</p>
+
+<h2>4. Uchinchi tomonlar</h2>
+<ul>
+  <li><b>Google</b> — Google orqali kirishda. Google bergan kirish tokenini Google'ning ochiq
+    kalitlari bilan tekshiramiz. Google ma'lumotlaringizni o'z maxfiylik siyosatiga muvofiq qayta
+    ishlaydi.</li>
+  <li><b>Xosting provayderi</b> — server va ma'lumotlar bazasi joylashgan infratuzilma.</li>
+</ul>
+<p>Qonun talab qilgan hollardan tashqari ma'lumotlaringizni boshqa hech kimga bermaymiz.</p>
+
+<h2>5. Saqlash muddati va akkauntni o'chirish</h2>
+<p>Ma'lumotlar akkauntingiz mavjud ekan saqlanadi. Akkauntni istalgan vaqtda ilovaning o'zida
+o'chirishingiz mumkin: <b>Profil → «Akkauntni o'chirish»</b>. O'chirish darhol amalga oshadi va
+uni qaytarib bo'lmaydi:</p>
+<ul>
+  <li>taxallus, profil ismi, shahar va Google identifikatori o'chiriladi;</li>
+  <li>do'stlar, do'stlik so'rovlari, bloklashlar, reyting tarixi va ishlatilgan so'zlar ro'yxati
+    o'chiriladi;</li>
+  <li>barcha kirish tokenlari o'sha zahoti bekor bo'ladi va akkauntga qayta kirib bo'lmaydi.</li>
+</ul>
+<p>Akkaunt o'rnida nomsiz, anonim yozuv qoladi: raqiblaringizning janglar tarixi unga bog'langan
+va bu tarix ularning ham yozuvi. Bunday janglarda siz nomsiz ko'rsatilasiz. Shikoyatlar va
+moderatsiya jurnali xavfsizlik uchun saqlanib qoladi — ular ham faqat shu anonim yozuvga bog'langan
+bo'ladi.</p>
+<p>Ilovaga kira olmasangiz, o'chirish so'rovini
+<a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a> manziliga yuboring.</p>
+
+<h2>6. Bolalar</h2>
+<p>Xizmat 13 yoshga to'lmagan bolalarga mo'ljallanmagan va biz ulardan ongli ravishda ma'lumot
+to'plamaymiz. Farzandingiz bizga ma'lumot bergan deb hisoblasangiz,
+<a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a> manziliga yozing — akkauntni
+o'chiramiz.</p>
+
+<h2>7. Xavfsizlik</h2>
+<p>Ilova bilan server o'rtasidagi aloqa shifrlanadi (HTTPS). Parollar faqat bcrypt xeshi
+ko'rinishida saqlanadi. Kirish tokenlari «Chiqish» bosilganda, akkaunt o'chirilganda yoki
+bloklanganda serverning o'zida bekor qilinadi. Hech bir tizim mutlaq xavfsiz emas, lekin
+ma'lumotlaringizni himoya qilish uchun oqilona choralar ko'ramiz.</p>
+
+<h2>8. Huquqlaringiz</h2>
+<p>O'zingiz haqingizdagi ma'lumotlarni so'rashingiz, ularni tuzatishni yoki o'chirishni talab
+qilishingiz mumkin — <a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a> manziliga yozing.
+Akkauntni ilovada o'zingiz ham o'chirishingiz mumkin (5-bo'lim).</p>
+
+<h2>9. O'zgarishlar</h2>
+<p>Siyosat o'zgarsa, yangi matn shu sahifada e'lon qilinadi va yuqoridagi sana yangilanadi.</p>
+
+<h2>10. Aloqa</h2>
+<p>{{OPERATOR_NAME}} — <a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a>.
+Xizmatdan foydalanish qoidalari: <a href="/terms">Foydalanish shartlari</a>.</p>
+
+<hr>
+
+<section lang="en">
+<h2>Privacy Policy — English summary</h2>
+<p>The Uzbek text above is the full policy; this is a summary of it. Word Battle is operated by
+{{OPERATOR_NAME}}.</p>
+<ul>
+  <li><b>What we collect:</b> your nickname; a bcrypt hash of your password, if you register with
+    one; your Google account ID and profile name, if you sign in with Google (your email address
+    itself is not stored); your city, if you enter it; your rating, statistics and match history,
+    including the words played; friends and friend requests; tournament participation; the players
+    you block and the reports you file; moderation records such as bans and admin actions; when
+    your account was created and last active.</li>
+  <li><b>Not stored:</b> duel chat messages and reactions are delivered to the other players in
+    that duel and never stored. Your IP address is used only in memory, to limit sign-in
+    attempts.</li>
+  <li><b>Why:</b> to run the game (matchmaking, ratings, leaderboards, friends, tournaments) and to
+    keep it safe (reports, blocking, bans).</li>
+  <li><b>No ads, no tracking, no selling:</b> the app contains no advertising, analytics or
+    tracking SDKs, and we never sell or rent your data.</li>
+  <li><b>Visible to other players:</b> nickname, profile name, city, rating and statistics; your
+    friends also see whether you are online. Blocks and reports are not shown to other
+    players.</li>
+  <li><b>Third parties:</b> Google, for Google sign-in, and our hosting provider.</li>
+  <li><b>Retention and deletion:</b> data is kept while your account exists. You can delete your
+    account at any time in the app (Profile → "Akkauntni o'chirish"). Deletion is immediate and
+    irreversible: your nickname, name, city and Google ID, your friends, requests, blocks, rating
+    history and word list are removed, and every session ends. A nameless record remains so that
+    your opponents' match history stays intact; reports and moderation records are kept for
+    safety.</li>
+  <li><b>Children:</b> the service is not directed at children under 13.</li>
+  <li><b>Contact:</b> <a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a></li>
+</ul>
+</section>
+</main>
+</body>
+</html>

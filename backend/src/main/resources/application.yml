@@ -22,6 +22,23 @@ spring:
 server:
   port: ${PORT:8080}
   shutdown: graceful
+  # Where a request is taken to come from — the address AuthRateLimiter keeps
+  # its buckets under. `none` is the TCP peer and nothing else: X-Forwarded-For
+  # is never read, because with nothing in front of this server only the caller
+  # can have written it, and a caller who writes a new address on every attempt
+  # gets a new allowance with it. Spelled out rather than left unset, since
+  # unset lets Spring switch the header on by itself on a platform it
+  # recognises (Kubernetes, Cloud Foundry, Heroku).
+  #
+  # Behind a reverse proxy (nginx, a load balancer) set
+  # FORWARD_HEADERS_STRATEGY=native, or every player shares the proxy's one
+  # bucket. Tomcat's RemoteIpValve then takes the client address from
+  # X-Forwarded-For, but only on requests whose peer is a trusted proxy: by
+  # default a private, loopback or link-local address. A proxy that connects
+  # from a public one — Cloudflare's edge, say — has to be named in
+  # server.tomcat.remoteip.internal-proxies as well. Either way the API port
+  # must then be reachable through the proxy alone.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
 
 management:
   endpoints:
@@ -145,6 +162,20 @@ wordbattle:
       cron: "0 0 9 * * MON"
       finalize-cron: "0 30 19 * * SUN"
       size: 8
+  app-links:
+    # SHA-256 fingerprints of the certificates the Android app is signed with,
+    # comma-separated, as keytool prints them (AA:BB:…). With Play App Signing
+    # that is the app signing key from Play Console, plus the upload key if
+    # builds signed with it are installed directly. Served at
+    # /.well-known/assetlinks.json on whatever host this server answers for,
+    # which has to be the app's WB_LINK_HOST. Empty serves an empty list, which
+    # verifies nothing and claims nothing.
+    sha256-fingerprints: ${ASSETLINKS_SHA256:}
+  legal:
+    # Named on /privacy and /terms: where a player writes about their data, and
+    # who runs the service. Placeholders until there is a real operator.
+    contact-email: ${LEGAL_CONTACT_EMAIL:support@example.uz}
+    operator-name: ${LEGAL_OPERATOR_NAME:Word Battle}
   dev-login-enabled: ${DEV_LOGIN_ENABLED:false}
 
 logging:
