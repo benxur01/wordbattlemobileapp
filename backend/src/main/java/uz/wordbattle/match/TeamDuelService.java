@@ -30,6 +30,7 @@ import uz.wordbattle.friend.PresenceService;
 import uz.wordbattle.match.MatchEntity.EndReason;
 import uz.wordbattle.match.TeamDuelMessages.TeamChainEntry;
 import uz.wordbattle.match.TeamDuelMessages.TeamSpectateChainEntry;
+import uz.wordbattle.moderation.BlockService;
 import uz.wordbattle.tournament.TournamentService;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserDto;
@@ -127,6 +128,7 @@ public class TeamDuelService {
     private final FriendService friends;
     private final DuelService oneOnOneDuels;
     private final TournamentService tournaments;
+    private final BlockService blocks;
 
     /**
      * {@code oneOnOneDuels} is read only for {@link DuelService#isPlaying(long)}
@@ -153,7 +155,8 @@ public class TeamDuelService {
             TeamMatchResultService results,
             FriendService friends,
             DuelService oneOnOneDuels,
-            @Lazy TournamentService tournaments) {
+            @Lazy TournamentService tournaments,
+            BlockService blocks) {
         this.props = props;
         this.dictionary = dictionary;
         this.sockets = sockets;
@@ -163,6 +166,7 @@ public class TeamDuelService {
         this.friends = friends;
         this.oneOnOneDuels = oneOnOneDuels;
         this.tournaments = tournaments;
+        this.blocks = blocks;
     }
 
     /** Ends every live 2v2 duel unrated on shutdown — see {@code DuelService.shutdown}. */
@@ -461,10 +465,17 @@ public class TeamDuelService {
         broadcastToOthers(session, playerId, "team_duel.reaction", Map.of("playerId", playerId, "emoji", emoji));
     }
 
-    /** Everyone in the duel but the sender, who already knows what they sent. */
+    /**
+     * Everyone in the duel but the sender, who already knows what they sent,
+     * and anyone a block stands between the sender and — skipped as quietly as
+     * {@code DuelService} drops a 1v1 frame, and for the same reason. The rest
+     * of the four still get it: one player's block is not the others' business.
+     */
     private void broadcastToOthers(TeamDuelSession session, long senderId, String type, Object payload) {
-        for (long recipientId : session.order()) {
-            if (recipientId == senderId) continue;
+        List<Long> others = session.order().stream().filter(id -> id != senderId).toList();
+        Set<Long> silenced = blocks.blockedAmong(senderId, others);
+        for (long recipientId : others) {
+            if (silenced.contains(recipientId)) continue;
             sockets.send(recipientId, type, payload);
         }
     }

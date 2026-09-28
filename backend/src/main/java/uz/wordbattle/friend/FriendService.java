@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uz.wordbattle.common.ApiException;
 import uz.wordbattle.friend.FriendRequestEntity.Status;
+import uz.wordbattle.moderation.BlockService;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserDto;
 import uz.wordbattle.user.UserService;
@@ -25,16 +26,19 @@ public class FriendService {
     private final FriendRequestRepository requests;
     private final UserService users;
     private final PresenceService presence;
+    private final BlockService blocks;
 
     public FriendService(
             FriendshipRepository friendships,
             FriendRequestRepository requests,
             UserService users,
-            PresenceService presence) {
+            PresenceService presence,
+            BlockService blocks) {
         this.friendships = friendships;
         this.requests = requests;
         this.users = users;
         this.presence = presence;
+        this.blocks = blocks;
     }
 
     /** One query for every friend, not one query per friend. */
@@ -106,6 +110,11 @@ public class FriendService {
             throw ApiException.badRequest("self_request", "O'zingizga do'stlik so'rovi yubora olmaysiz");
         }
         users.require(toUserId);
+        // The same refusal whichever of the two placed the block, so it tells
+        // neither of them which one did.
+        if (blocks.blockedEitherWay(fromUserId, toUserId)) {
+            throw ApiException.forbidden("blocked", "Bu o'yinchiga do'stlik so'rovi yuborib bo'lmaydi");
+        }
         if (areFriends(fromUserId, toUserId)) {
             throw ApiException.conflict("already_friends", "Siz allaqachon do'stsiz");
         }

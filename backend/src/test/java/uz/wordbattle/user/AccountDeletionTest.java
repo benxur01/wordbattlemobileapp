@@ -30,13 +30,14 @@ import uz.wordbattle.friend.FriendRequestRepository;
 import uz.wordbattle.friend.FriendshipRepository;
 import uz.wordbattle.match.DuelService;
 import uz.wordbattle.match.MatchRepository;
+import uz.wordbattle.moderation.UserBlockRepository;
 import uz.wordbattle.rating.RatingHistoryRepository;
 import uz.wordbattle.ws.SocketRegistry;
 
 /**
  * Deleting an account: the one operation in this app that is meant to destroy
  * data, and the one the store the app ships through will look for. It reaches
- * five repositories, strips a row of everything personal without deleting it,
+ * six repositories, strips a row of everything personal without deleting it,
  * and cuts the player out of whatever they were doing at the time — so it is
  * checked from both ends, the API the phone calls and the rows left behind.
  */
@@ -67,6 +68,9 @@ class AccountDeletionTest {
     private FriendRequestRepository friendRequests;
 
     @Autowired
+    private UserBlockRepository userBlocks;
+
+    @Autowired
     private MatchRepository matches;
 
     /** Spied so a duel can be started from inside the deletion window. */
@@ -92,6 +96,10 @@ class AccountDeletionTest {
         // An unanswered challenge from a third player, which belongs to the
         // account just as much as an accepted one does.
         request(stranger, leavingId);
+        // A block each way: the player's own list, and a place on somebody
+        // else's.
+        block(leaving, userId(login("Anvar")));
+        block(login("Laylo"), leavingId);
 
         // Something in every table the deletion is supposed to reach: a settled
         // duel for the rating chart, and a word the player had learned.
@@ -120,6 +128,8 @@ class AccountDeletionTest {
         assertThat(friendships.findByUserId(leavingId)).isEmpty();
         assertThat(friendships.findByUserId(friendId)).isEmpty();
         assertThat(friendRequests.countByToUserIdAndStatus(leavingId, Status.PENDING)).isZero();
+        assertThat(userBlocks.findAll())
+                .noneMatch(block -> block.getBlockerId() == leavingId || block.getBlockedId() == leavingId);
         assertThat(userWords.countByUserId(leavingId)).isZero();
         assertThat(ratingHistory.findByUserIdAndRecordedAtAfterOrderByRecordedAtAsc(leavingId, Instant.EPOCH))
                 .isEmpty();
@@ -402,6 +412,11 @@ class AccountDeletionTest {
                 .getResponse()
                 .getContentAsString();
         return mapper.readTree(body).get("id").asLong();
+    }
+
+    private void block(String token, long userId) throws Exception {
+        mvc.perform(post("/api/users/" + userId + "/block").header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
     }
 
     private void befriend(String a, String b) throws Exception {

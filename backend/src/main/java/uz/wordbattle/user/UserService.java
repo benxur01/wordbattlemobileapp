@@ -195,7 +195,8 @@ public class UserService {
         // `%` and `_` are LIKE wildcards: unescaped, a search for "%" matched
         // every player on the server.
         String pattern = q.replace("!", "!!").replace("%", "!%").replace("_", "!_");
-        return users.searchByNicknamePrefix(pattern, PageRequest.of(0, Math.max(1, Math.min(limit, 50)))).stream()
+        return users.searchByNicknamePrefix(pattern, excludeUserId, PageRequest.of(0, Math.max(1, Math.min(limit, 50))))
+                .stream()
                 .filter(u -> !u.getId().equals(excludeUserId))
                 .toList();
     }

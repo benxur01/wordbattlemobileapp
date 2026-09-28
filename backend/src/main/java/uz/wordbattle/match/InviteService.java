@@ -8,6 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import uz.wordbattle.config.AppProperties;
 import uz.wordbattle.friend.FriendService;
+import uz.wordbattle.moderation.BlockService;
 import uz.wordbattle.user.UserDto;
 import uz.wordbattle.user.UserService;
 import uz.wordbattle.ws.SocketRegistry;
@@ -30,6 +31,7 @@ public class InviteService {
     private final FriendService friends;
     private final DuelService duels;
     private final MatchmakingService matchmaking;
+    private final BlockService blocks;
 
     public InviteService(
             AppProperties props,
@@ -37,18 +39,27 @@ public class InviteService {
             UserService users,
             FriendService friends,
             DuelService duels,
-            MatchmakingService matchmaking) {
+            MatchmakingService matchmaking,
+            BlockService blocks) {
         this.props = props;
         this.sockets = sockets;
         this.users = users;
         this.friends = friends;
         this.duels = duels;
         this.matchmaking = matchmaking;
+        this.blocks = blocks;
     }
 
     public void send(long fromUserId, long toUserId) {
         if (fromUserId == toUserId) {
             sockets.sendError(fromUserId, "self_invite", "O'zingizni chaqira olmaysiz");
+            return;
+        }
+        // Ahead of the friendship check, which a block has already ended, so
+        // the refusal names the block rather than a friendship nobody removed
+        // by hand.
+        if (blocks.blockedEitherWay(fromUserId, toUserId)) {
+            sockets.sendError(fromUserId, "blocked", "Bu o'yinchini jangga chaqirib bo'lmaydi");
             return;
         }
         if (!friends.areFriends(fromUserId, toUserId)) {
@@ -113,6 +124,13 @@ public class InviteService {
         }
         if (duels.isPlaying(userId)) {
             sockets.sendError(userId, "already_in_duel", "Siz allaqachon jangdasiz");
+            return;
+        }
+        // A block placed while the invite waited out its timeout.
+        if (blocks.blockedEitherWay(userId, invite.fromUserId())) {
+            invites.remove(inviteId);
+            sockets.sendError(userId, "blocked", "Bu o'yinchi bilan jang boshlab bo'lmaydi");
+            sockets.send(invite.fromUserId(), "invite.expired", Map.of("inviteId", inviteId));
             return;
         }
         if (duels.isPlaying(invite.fromUserId())) {

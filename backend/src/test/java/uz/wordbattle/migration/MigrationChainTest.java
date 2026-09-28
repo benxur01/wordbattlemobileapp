@@ -47,12 +47,13 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(16);
+        assertThat(result.migrationsExecuted).isEqualTo(17);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
                 .containsExactly(
-                        "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16");
+                        "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
+                        "17");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -78,7 +79,9 @@ class MigrationChainTest {
                         "tournament_participants",
                         "tournament_matches",
                         "team_matches",
-                        "team_match_words");
+                        "team_match_words",
+                        "user_blocks",
+                        "user_reports");
 
         // Where the chain leaves the table everything else edits: V3 traded the
         // Telegram identity for Google's, V4 added the deletion marker, V5 the
@@ -134,6 +137,15 @@ class MigrationChainTest {
                 .contains("UNIQUE")
                 .contains("partner_user_id IS NOT NULL");
 
+        // V17's blocks are keyed on the pair, so a second block of the same
+        // player is the same row; and a player can neither block nor report
+        // themselves, which the database refuses as well as the API.
+        assertThat(indexDefinition("fresh", "user_blocks_pkey")).contains("(blocker_id, blocked_id)");
+        assertThat(query("fresh", "select c.conname from pg_constraint c"
+                        + " join pg_namespace n on n.oid = c.connamespace"
+                        + " where c.contype = 'c' and n.nspname = current_schema()"))
+                .contains("ck_user_block_not_self", "ck_user_report_not_self");
+
         // Every restart re-runs migrate against a schema that is already up to
         // date; it has to be a no-op rather than an error.
         assertThat(migrate("fresh", null).migrationsExecuted).isZero();
@@ -174,7 +186,7 @@ class MigrationChainTest {
                 where a.nickname = 'aziza_m' and b.nickname = 'bekzod_99'
                 """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(14);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(15);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -269,6 +281,11 @@ class MigrationChainTest {
         assertThat(columnsOf("upgrade", "tournament_participants")).contains("partner_user_id", "partner_status");
         assertThat(columnsOf("upgrade", "tournament_matches"))
                 .contains("player_one_partner_user_id", "player_two_partner_user_id", "team_match_id");
+
+        // V17 adds two tables and nothing else: nobody could block or report
+        // anybody before it shipped, so an upgraded server starts with neither.
+        assertThat(tables("upgrade")).contains("user_blocks", "user_reports");
+        assertThat(query("upgrade", "select count(*) from user_reports")).containsExactly("0");
     }
 
     // --------------------------------------------------------------- helpers

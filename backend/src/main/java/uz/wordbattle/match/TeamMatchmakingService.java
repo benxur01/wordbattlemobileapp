@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import uz.wordbattle.config.AppProperties;
+import uz.wordbattle.moderation.BlockService;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserService;
 import uz.wordbattle.ws.SocketRegistry;
@@ -43,6 +44,7 @@ public class TeamMatchmakingService {
     private final TeamService teams;
     private final UserService users;
     private final SocketRegistry sockets;
+    private final BlockService blocks;
 
     public TeamMatchmakingService(
             AppProperties props,
@@ -50,13 +52,15 @@ public class TeamMatchmakingService {
             DuelService duels,
             TeamService teams,
             UserService users,
-            SocketRegistry sockets) {
+            SocketRegistry sockets,
+            BlockService blocks) {
         this.props = props;
         this.teamDuels = teamDuels;
         this.duels = duels;
         this.teams = teams;
         this.users = users;
         this.sockets = sockets;
+        this.blocks = blocks;
     }
 
     public void join(long userId) {
@@ -133,7 +137,13 @@ public class TeamMatchmakingService {
                     continue;
                 }
                 double gap = Math.abs(first.rating() - other.rating());
-                if (gap <= Math.max(band, bandFor(other)) && gap < bestGap) {
+                // MatchmakingService.pair's block check, across two teams: a
+                // block between any member of one and any member of the other.
+                if (gap <= Math.max(band, bandFor(other))
+                        && gap < bestGap
+                        && !blocks.blockedAcross(
+                                List.of(first.memberOne(), first.memberTwo()),
+                                List.of(other.memberOne(), other.memberTwo()))) {
                     best = other;
                     bestGap = gap;
                 }

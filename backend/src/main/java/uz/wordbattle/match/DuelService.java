@@ -31,6 +31,7 @@ import uz.wordbattle.friend.FriendService;
 import uz.wordbattle.friend.PresenceService;
 import uz.wordbattle.match.DuelMessages.ChainEntry;
 import uz.wordbattle.match.MatchEntity.EndReason;
+import uz.wordbattle.moderation.BlockService;
 import uz.wordbattle.tournament.TournamentService;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserDto;
@@ -171,6 +172,7 @@ public class DuelService {
     private final MatchResultService results;
     private final TournamentService tournaments;
     private final FriendService friends;
+    private final BlockService blocks;
 
     /**
      * {@code tournaments} is {@code @Lazy}: {@link TournamentService} starts a
@@ -187,7 +189,8 @@ public class DuelService {
             PresenceService presence,
             MatchResultService results,
             @Lazy TournamentService tournaments,
-            FriendService friends) {
+            FriendService friends,
+            BlockService blocks) {
         this.props = props;
         this.dictionary = dictionary;
         this.sockets = sockets;
@@ -196,6 +199,7 @@ public class DuelService {
         this.results = results;
         this.tournaments = tournaments;
         this.friends = friends;
+        this.blocks = blocks;
     }
 
     /**
@@ -685,7 +689,9 @@ public class DuelService {
         }
         if (!allowSocialFrame(playerId)) return;
 
-        sockets.send(session.opponentOf(playerId), "duel.chat", Map.of("text", trimmed));
+        long opponent = session.opponentOf(playerId);
+        if (silencedBetween(playerId, opponent)) return;
+        sockets.send(opponent, "duel.chat", Map.of("text", trimmed));
     }
 
     /** A reaction from the fixed emoji set, shown to the opponent only. */
@@ -701,7 +707,19 @@ public class DuelService {
         }
         if (!allowSocialFrame(playerId)) return;
 
-        sockets.send(session.opponentOf(playerId), "duel.reaction", Map.of("emoji", emoji));
+        long opponent = session.opponentOf(playerId);
+        if (silencedBetween(playerId, opponent)) return;
+        sockets.send(opponent, "duel.reaction", Map.of("emoji", emoji));
+    }
+
+    /**
+     * Whether a block stands between the two, in which case nothing social
+     * passes between them for the rest of the duel. The frame is dropped
+     * quietly rather than refused: a refusal would tell a blocked sender that
+     * they had been blocked. A bot has no account to block or be blocked by.
+     */
+    private boolean silencedBetween(long senderId, long recipientId) {
+        return recipientId != DuelSession.BOT_ID && blocks.blockedEitherWay(senderId, recipientId);
     }
 
     /**

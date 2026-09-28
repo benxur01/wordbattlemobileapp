@@ -12,6 +12,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import uz.wordbattle.config.AppProperties;
 import uz.wordbattle.dictionary.WordTheme;
+import uz.wordbattle.moderation.BlockService;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserService;
 import uz.wordbattle.ws.SocketRegistry;
@@ -34,12 +35,15 @@ public class MatchmakingService {
     private final DuelService duels;
     private final UserService users;
     private final SocketRegistry sockets;
+    private final BlockService blocks;
 
-    public MatchmakingService(AppProperties props, DuelService duels, UserService users, SocketRegistry sockets) {
+    public MatchmakingService(
+            AppProperties props, DuelService duels, UserService users, SocketRegistry sockets, BlockService blocks) {
         this.props = props;
         this.duels = duels;
         this.users = users;
         this.sockets = sockets;
+        this.blocks = blocks;
     }
 
     public void join(long userId) {
@@ -154,8 +158,13 @@ public class MatchmakingService {
                 }
                 double gap = Math.abs(first.rating() - other.rating());
                 // Either side's window is enough: the one who has waited longer
-                // has already widened theirs.
-                if (gap <= Math.max(band, bandFor(other)) && gap < bestGap) {
+                // has already widened theirs. A block between the two rules the
+                // pair out whatever the ratings say — asked last, so the
+                // database is only consulted about a pair that would otherwise
+                // be made.
+                if (gap <= Math.max(band, bandFor(other))
+                        && gap < bestGap
+                        && !blocks.blockedEitherWay(first.userId(), other.userId())) {
                     best = other;
                     bestGap = gap;
                 }

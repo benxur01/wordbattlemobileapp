@@ -69,14 +69,23 @@ public interface UserRepository extends JpaRepository<User, Long>, TokenGenerati
     @Query("select count(u) > 0 from User u where lower(u.nickname) = lower(:nickname)")
     boolean nicknameTaken(@Param("nickname") String nickname);
 
-    /** {@code q} arrives already escaped for LIKE, with {@code !} as the escape. */
+    /**
+     * {@code q} arrives already escaped for LIKE, with {@code !} as the escape.
+     * Anyone a block stands between the searcher and is left out, whichever of
+     * the two placed it: neither should find the other to send a request the
+     * server would refuse.
+     */
     @Query("""
             select u from User u
             where u.nickname is not null
               and lower(u.nickname) like lower(concat(:q, '%')) escape '!'
+              and not exists (
+                  select b.blockerId from UserBlock b
+                  where (b.blockerId = :searcherId and b.blockedId = u.id)
+                     or (b.blockerId = u.id and b.blockedId = :searcherId))
             order by u.rating desc
             """)
-    List<User> searchByNicknamePrefix(@Param("q") String q, Pageable pageable);
+    List<User> searchByNicknamePrefix(@Param("q") String q, @Param("searcherId") Long searcherId, Pageable pageable);
 
     @Query("select u from User u where u.nickname is not null order by u.rating desc, u.id asc")
     List<User> topByRating(Pageable pageable);

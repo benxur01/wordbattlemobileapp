@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -19,6 +20,8 @@ import uz.wordbattle.auth.AuthPrincipal;
 import uz.wordbattle.auth.CurrentUser;
 import uz.wordbattle.match.MatchEntity;
 import uz.wordbattle.match.MatchRepository;
+import uz.wordbattle.moderation.ReportService;
+import uz.wordbattle.moderation.UserReport;
 import uz.wordbattle.user.User;
 import uz.wordbattle.user.UserRepository;
 import uz.wordbattle.user.UserService;
@@ -46,6 +49,7 @@ public class AdminController {
     private final MatchRepository matches;
     private final UserRepository users;
     private final UserService userService;
+    private final ReportService reports;
 
     public AdminController(
             AdminUserService admins,
@@ -53,13 +57,15 @@ public class AdminController {
             AdminMetricsService metrics,
             MatchRepository matches,
             UserRepository users,
-            UserService userService) {
+            UserService userService,
+            ReportService reports) {
         this.admins = admins;
         this.audit = audit;
         this.metrics = metrics;
         this.matches = matches;
         this.users = users;
         this.userService = userService;
+        this.reports = reports;
     }
 
     /** One page of anything, in a shape that does not change between endpoints. */
@@ -138,6 +144,26 @@ public class AdminController {
             String target,
             String detail,
             Instant createdAt) {}
+
+    /**
+     * A player's report, with both sides named. {@code reason}, {@code context}
+     * and {@code status} are lower-cased, as every enum this API sends is.
+     */
+    public record ReportRow(
+            Long id,
+            Long reporterId,
+            String reporter,
+            Long reportedId,
+            String reported,
+            String reason,
+            String details,
+            String context,
+            String matchRef,
+            String status,
+            Instant createdAt,
+            Long resolvedById,
+            String resolvedBy,
+            Instant resolvedAt) {}
 
     public record BanRequest(@Size(max = 255, message = "Ko'pi bilan 255 ta belgi") String reason) {}
 
@@ -218,6 +244,25 @@ public class AdminController {
                 match.getFinishedAt()));
     }
 
+    // ---------------------------------------------------------------- reports
+
+    /** {@code status} is {@code open} — the queue, and the default — or {@code resolved}. */
+    @GetMapping("/reports")
+    public Paged<ReportRow> reports(
+            @RequestParam(value = "status", defaultValue = "open") String status,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "20") int size) {
+        Page<UserReport> found = reports.list(status, pageOf(page, size, Sort.unsorted()));
+        Map<Long, String> names = namesOf(involvedIn(found.getContent()));
+        return Paged.of(found, report -> reportRow(report, names));
+    }
+
+    @PostMapping("/reports/{id}/resolve")
+    public ReportRow resolveReport(@CurrentUser AuthPrincipal principal, @PathVariable("id") Long id) {
+        UserReport report = reports.resolve(principal.userId(), id);
+        return reportRow(report, namesOf(involvedIn(List.of(report))));
+    }
+
     // ---------------------------------------------------------------- metrics
 
     @GetMapping("/metrics")
@@ -262,6 +307,35 @@ public class AdminController {
         if (ids.isEmpty()) return Map.of();
         return users.findAllById(ids).stream()
                 .collect(Collectors.toMap(User::getId, AdminController::nameOf));
+    }
+
+    /** Everyone a page of reports names: who filed each, about whom, and who closed it. */
+    private static Set<Long> involvedIn(List<UserReport> found) {
+        Set<Long> ids = new HashSet<>();
+        for (UserReport report : found) {
+            ids.add(report.getReporterId());
+            ids.add(report.getReportedId());
+            if (report.getResolvedBy() != null) ids.add(report.getResolvedBy());
+        }
+        return ids;
+    }
+
+    private static ReportRow reportRow(UserReport report, Map<Long, String> names) {
+        return new ReportRow(
+                report.getId(),
+                report.getReporterId(),
+                names.get(report.getReporterId()),
+                report.getReportedId(),
+                names.get(report.getReportedId()),
+                report.getReason().name().toLowerCase(Locale.ROOT),
+                report.getDetails(),
+                report.getContext() == null ? null : report.getContext().name().toLowerCase(Locale.ROOT),
+                report.getMatchRef(),
+                report.getStatus().name().toLowerCase(Locale.ROOT),
+                report.getCreatedAt(),
+                report.getResolvedBy(),
+                report.getResolvedBy() == null ? null : names.get(report.getResolvedBy()),
+                report.getResolvedAt());
     }
 
     /** A nickname, a display name, or the id — whichever the row still has. */

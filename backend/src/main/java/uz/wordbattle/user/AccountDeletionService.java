@@ -10,6 +10,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import uz.wordbattle.common.ApiException;
 import uz.wordbattle.friend.FriendRequestRepository;
 import uz.wordbattle.friend.FriendshipRepository;
+import uz.wordbattle.moderation.UserBlockRepository;
 import uz.wordbattle.rating.RatingHistoryRepository;
 
 /**
@@ -17,7 +18,9 @@ import uz.wordbattle.rating.RatingHistoryRepository;
  * to be reachable from inside the app.
  *
  * <p>Everything that belongs to the player alone is deleted outright:
- * friendships, pending requests, their learned-word list, their rating chart.
+ * friendships, pending requests, blocks in either direction, their
+ * learned-word list, their rating chart. Reports they filed or that were filed
+ * about them stay: those are the moderation record, and point at the shell.
  * The {@code users} row itself is kept but stripped of every identifying field
  * — other players' match history points at it, and erasing their record of a
  * duel they played is not this player's to do. What remains is an anonymous
@@ -49,6 +52,7 @@ public class AccountDeletionService {
     private final UserRepository users;
     private final FriendshipRepository friendships;
     private final FriendRequestRepository friendRequests;
+    private final UserBlockRepository userBlocks;
     private final UserWordRepository userWords;
     private final RatingHistoryRepository ratingHistory;
     private final SessionEnder sessionEnder;
@@ -58,6 +62,7 @@ public class AccountDeletionService {
             UserRepository users,
             FriendshipRepository friendships,
             FriendRequestRepository friendRequests,
+            UserBlockRepository userBlocks,
             UserWordRepository userWords,
             RatingHistoryRepository ratingHistory,
             SessionEnder sessionEnder,
@@ -65,6 +70,7 @@ public class AccountDeletionService {
         this.users = users;
         this.friendships = friendships;
         this.friendRequests = friendRequests;
+        this.userBlocks = userBlocks;
         this.userWords = userWords;
         this.ratingHistory = ratingHistory;
         this.sessionEnder = sessionEnder;
@@ -117,6 +123,7 @@ public class AccountDeletionService {
         friendships.deleteByUserId(userId);
         friendships.deleteByFriendId(userId);
         friendRequests.deleteByFromUserIdOrToUserId(userId, userId);
+        userBlocks.deleteByBlockerIdOrBlockedId(userId, userId);
         userWords.deleteByUserId(userId);
         ratingHistory.deleteByUserId(userId);
 

@@ -14,4 +14,6 @@ public interface FriendRequestRepository extends JpaRepository<FriendRequestEnti
     long countByToUserIdAndStatus(Long toUserId, Status status);
 
     void deleteByFromUserIdOrToUserId(Long fromUserId, Long toUserId);
+
+    void deleteByFromUserIdAndToUserIdAndStatus(Long fromUserId, Long toUserId, Status status);
 }

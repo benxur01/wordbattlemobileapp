@@ -40,12 +40,10 @@ public class LeaderboardController {
         User me = userService.require(principal.userId());
         List<User> top = users.topByRating(PageRequest.of(0, Math.max(1, Math.min(limit, 100))));
 
-        List<Row> rows = new ArrayList<>();
-        for (int i = 0; i < top.size(); i++) {
-            User user = top.get(i);
-            rows.add(new Row(i + 1, UserDto.of(user), user.getId().equals(me.getId())));
-        }
-        return new Board(rows, new Row(userService.rankOf(me), UserDto.of(me), true));
+        // The list is the head of the whole ladder, so the rank each row gets
+        // is exactly rankOf its rating — the number the pinned row and the
+        // profile show.
+        return new Board(ranked(top, me), new Row(userService.rankOf(me), UserDto.of(me), true));
     }
 
     /** Me plus my friends, ranked among themselves. */
@@ -68,17 +66,31 @@ public class LeaderboardController {
         List<User> people = new ArrayList<>();
         people.add(me);
         people.addAll(userService.allByIds(friends.friendIds(me.getId())));
-        people.sort(Comparator.comparingDouble(User::getRating).reversed());
+        // Ties in the same order as the global board's, rather than whichever
+        // order the roster happened to be read in.
+        people.sort(Comparator.comparingDouble(User::getRating).reversed().thenComparing(User::getId));
 
-        List<Row> rows = new ArrayList<>();
-        Row mine = null;
-        for (int i = 0; i < people.size(); i++) {
-            User user = people.get(i);
-            boolean self = user.getId().equals(me.getId());
-            Row row = new Row(i + 1, UserDto.of(user), self);
-            rows.add(row);
-            if (self) mine = row;
+        List<Row> rows = ranked(people, me);
+        return new Board(rows, rows.stream().filter(Row::self).findFirst().orElseThrow());
+    }
+
+    /**
+     * Numbers players already sorted highest rating first, by competition
+     * ranking — 1, 1, 3: a player level with the one above shares their rank,
+     * and whoever comes after a tie is numbered by position. That is how
+     * {@link UserService#rankOf} counts, one plus everyone strictly higher.
+     * The boards used to number by position alone, so two players on the same
+     * rating were first and second on the list while the pinned row and the
+     * profile called them both first.
+     */
+    private static List<Row> ranked(List<User> sorted, User me) {
+        List<Row> rows = new ArrayList<>(sorted.size());
+        long rank = 0;
+        for (int i = 0; i < sorted.size(); i++) {
+            User user = sorted.get(i);
+            if (i == 0 || user.getRating() != sorted.get(i - 1).getRating()) rank = i + 1;
+            rows.add(new Row(rank, UserDto.of(user), user.getId().equals(me.getId())));
         }
-        return new Board(rows, mine);
+        return rows;
     }
 }
