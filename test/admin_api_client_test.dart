@@ -362,5 +362,20 @@ void main() {
       expect(resolved.resolvedBy, 'feruz_admin');
       expect(resolved.contextLabel, '—');
     });
+
+    test('logout posts to /api/auth/logout with token', () async {
+      final seen = <http.Request>[];
+      final api = AdminApiClient(
+        httpClient: MockClient((request) async {
+          seen.add(request);
+          return http.Response('', 204);
+        }),
+      )..token = 'admin-token';
+
+      await api.logout();
+
+      expect(seen.single.url.path, '/api/auth/logout');
+      expect(seen.single.headers['authorization'], 'Bearer admin-token');
+    });
   });
 }

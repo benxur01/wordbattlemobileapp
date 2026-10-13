@@ -56,6 +56,19 @@ class PasswordRegistrationTest {
     }
 
     @Test
+    void refusesPasswordsThatExceedBcryptInputLimit() throws Exception {
+        register("parol_e", "a".repeat(72) + "1")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation_failed"));
+
+        // 36 Cyrillic letters fit the DTO's character limit but exceed BCrypt's
+        // 72-byte UTF-8 limit; the service must reject them before hashing.
+        register("parol_f", "я".repeat(36) + "1")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("password_too_long"));
+    }
+
+    @Test
     void acceptsALetterAndADigitAndSignsBackInWithIt() throws Exception {
         register("parol_d", "jasur07").andExpect(status().isOk()).andExpect(jsonPath("$.token").isNotEmpty());
 

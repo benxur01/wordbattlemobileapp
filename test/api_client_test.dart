@@ -92,6 +92,21 @@ void main() {
     expect(seenUri.toString(), isNot(contains('secret-token')));
   });
 
+  test('logout posts to /api/auth/logout with the bearer token', () async {
+    final sent = <http.Request>[];
+    final api = ApiClient(
+      httpClient: MockClient((request) async {
+        sent.add(request);
+        return http.Response('', 204);
+      }),
+    )..token = 'test-token';
+
+    await api.logout();
+
+    expect(sent.single.url.path, '/api/auth/logout');
+    expect(sent.single.headers['authorization'], 'Bearer test-token');
+  });
+
   test('a report goes out by the names the server knows, with nothing blank in it', () async {
     final sent = <http.Request>[];
     final api = ApiClient(

@@ -153,6 +153,25 @@ class _AdminRootState extends State<AdminRoot> {
     }
   }
 
+  Future<void> _loginWithPassword(String nickname, String password) async {
+    setState(() {
+      _stage = AdminStage.restoring;
+      _notice = null;
+    });
+    try {
+      final result = await _api.loginWithPassword(nickname, password);
+      await _storage.write(key: _tokenKey, value: result.token);
+      _api.token = result.token;
+      if (!mounted) return;
+      setState(() => _me = result.user);
+      await _verify();
+    } on ApiException catch (e) {
+      _loginFailed(e);
+    } catch (e) {
+      _loginFailed(ApiException('bad_response', "Javobni o'qib bo'lmadi: $e"));
+    }
+  }
+
   /// Every way a sign-in can fail ends here, on the screen that started it —
   /// including `403 account_banned`, which is about the account rather than the
   /// admin role and so is a message rather than the permission screen. See
@@ -166,6 +185,11 @@ class _AdminRootState extends State<AdminRoot> {
   }
 
   Future<void> _signOut({String? notice}) async {
+    try {
+      await _api.logout();
+    } catch (_) {
+      // Best-effort: network or server failure must not prevent local sign out.
+    }
     await _storage.delete(key: _tokenKey);
     _api.token = null;
     await adminGoogleSignOut();
@@ -231,6 +255,7 @@ class _AdminRootState extends State<AdminRoot> {
         AdminStage.login => AdminLoginScreen(
             notice: _notice,
             onIdToken: (idToken) => unawaited(_login(idToken)),
+            onPasswordLogin: (nickname, password) => unawaited(_loginWithPassword(nickname, password)),
             onError: _loginFailed,
           ),
         AdminStage.denied => AdminDeniedScreen(

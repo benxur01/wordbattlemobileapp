@@ -42,6 +42,18 @@ class AdminApiClient {
     );
   }
 
+  /// Signs an admin in using their nickname and password chosen at registration.
+  Future<({String token, UserDto user})> loginWithPassword(String nickname, String password) async {
+    final json = await _rest.post('/auth/login', {'nickname': nickname, 'password': password}) as Map<String, dynamic>;
+    return (
+      token: json['token'] as String,
+      user: UserDto.fromJson(json['user'] as Map<String, dynamic>),
+    );
+  }
+
+  /// Signs out on the server, revoking the token across all devices.
+  Future<void> logout() => _rest.post('/auth/logout');
+
   /// Who the token belongs to, for the name in the panel's header.
   Future<UserDto> me() async => UserDto.fromJson(await _rest.get('/users/me') as Map<String, dynamic>);
 

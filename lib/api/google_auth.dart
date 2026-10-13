@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'api_config.dart';
@@ -16,15 +17,29 @@ class GoogleAuth {
   /// Runs the account sheet and returns the idToken, or null when the player
   /// dismissed it — a cancel is not an error worth a banner.
   Future<String?> signIn() async {
+    if (kIsWeb) {
+      throw ApiException('google_web_button_required', 'Web uchun Google render qiladigan tugmadan foydalaning');
+    }
+    final isIOS = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+    if (isIOS) {
+      throw ApiException('google_ios_requires_apple', ApiConfig.googleUnavailableMessage);
+    }
+    if (!ApiConfig.googleSupportedOnPlatform) {
+      throw ApiException('google_unsupported', ApiConfig.googleUnavailableMessage);
+    }
     if (!ApiConfig.googleConfigured) {
-      throw ApiException('google_not_configured',
-          "Google kirish sozlanmagan — ApiConfig.googleServerClientId ni to'ldiring");
+      throw ApiException(
+        'google_not_configured',
+        "Google kirish sozlanmagan — ApiConfig.googleServerClientId ni to'ldiring",
+      );
     }
 
     try {
       if (!_initialized) {
         // Exactly once per launch, per the plugin's contract.
-        await GoogleSignIn.instance.initialize(serverClientId: ApiConfig.googleServerClientId);
+        await GoogleSignIn.instance.initialize(
+          serverClientId: ApiConfig.googleServerClientId,
+        );
         _initialized = true;
       }
       if (!GoogleSignIn.instance.supportsAuthenticate()) {

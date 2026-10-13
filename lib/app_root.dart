@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -48,6 +49,7 @@ import 'screens/organize_tournament_manage_screen.dart';
 import 'screens/tournaments_browse_screen.dart';
 import 'widgets/bottom_nav.dart';
 import 'widgets/player_actions.dart';
+import 'admin/admin_google_button.dart';
 
 /// Drives the whole app off the backend: REST for anything that can wait, and
 /// one WebSocket for matchmaking, duels and challenges.
@@ -365,6 +367,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   TeamSpectateState? teamSpectating;
   final ScrollController teamSpectateScrollController = ScrollController();
 
+  /// Which screen the player was on before opening spectator view.
+  WBScreen? screenBeforeSpectate;
+
   // ---- team duels ----
   /// The friend this player has formed a 2v2 team with — null whenever no
   /// team is currently formed. Set by `team.formed`, cleared by
@@ -570,9 +575,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
   // ------------------------------------------------------------------- auth
 
-  /// The onboarding button: the phone gets an idToken from Google, the server
-  /// checks it with Google and hands back the session the rest of the app runs
-  /// on. The only production way in.
+  /// Native onboarding flow: the platform account sheet returns an idToken,
+  /// which the server checks before issuing the app session.
   Future<void> loginWithGoogle() async {
     if (busy) return;
     setState(() {
@@ -592,9 +596,23 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     }
   }
 
+  /// Browser sign-in uses Google's rendered button and event stream rather
+  /// than `GoogleAuth.authenticate()`, which the web plugin does not support.
+  Future<void> loginWithGoogleToken(String idToken) async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      banner = null;
+    });
+    try {
+      await _completeLogin(await _api.loginWithGoogle(idToken));
+    } on ApiException catch (e) {
+      _loginFailed(e);
+    }
+  }
+
   /// Development escape hatch, offered only while [ApiConfig.googleServerClientId]
-  /// is still the placeholder — without it there would be no way into the app
-  /// before the real client ID is pasted in. It disappears the moment one is.
+  /// is empty or a placeholder. It disappears as soon as a client ID is set.
   Future<void> loginDev() async {
     if (busy) return;
     setState(() {
@@ -687,7 +705,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     _socketEvents = null;
     _socketStatus = null;
     await _socket.disconnect();
-    if (forgetGoogle) await _google.signOut();
+    if (forgetGoogle) {
+      // The browser sign-in button owns the web plugin initialization; the
+      // phone flow uses this GoogleAuth instance instead.
+      if (kIsWeb) {
+        await adminGoogleSignOut();
+      } else {
+        await _google.signOut();
+      }
+    }
     await _session.clear();
     if (!mounted) return;
     setState(() {
@@ -737,7 +763,14 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   }
 
   /// The profile screen's "Chiqish".
-  Future<void> logout() => _endSession(null);
+  Future<void> logout() async {
+    try {
+      await _api.logout();
+    } catch (_) {
+      // Best-effort: network or server failure must not prevent local sign out.
+    }
+    await _endSession(null);
+  }
 
   /// The profile screen's "Akkauntni o'chirish", after its confirmation.
   Future<void> deleteAccount() async {
@@ -1882,6 +1915,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         // every move by either player — the full board each time, the same
         // way `duel.update` restates a played duel rather than diffing it.
         setState(() {
+          screenBeforeSpectate ??=
+              (screen == WBScreen.spectateDuel || screen == WBScreen.teamSpectateDuel) ? WBScreen.friends : screen;
           spectating = SpectateState.fromJson(event.payload);
           screen = WBScreen.spectateDuel;
         });
@@ -1890,7 +1925,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         final reason = event.payload['reason'] as String?;
         setState(() {
           spectating = null;
-          if (screen == WBScreen.spectateDuel) screen = WBScreen.friends;
+          final fallback = screenBeforeSpectate ?? WBScreen.friends;
+          screenBeforeSpectate = null;
+          if (screen == WBScreen.spectateDuel) screen = fallback;
           if (reason == 'aborted') banner = 'Kuzatilayotgan jang bekor qilindi';
         });
       case 'team_duel.spectate_state':
@@ -1898,6 +1935,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         // duel: the same frame on every move, with four participants on it
         // instead of two.
         setState(() {
+          screenBeforeSpectate ??=
+              (screen == WBScreen.spectateDuel || screen == WBScreen.teamSpectateDuel) ? WBScreen.friends : screen;
           teamSpectating = TeamSpectateState.fromJson(event.payload);
           screen = WBScreen.teamSpectateDuel;
         });
@@ -1906,7 +1945,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         final reason = event.payload['reason'] as String?;
         setState(() {
           teamSpectating = null;
-          if (screen == WBScreen.teamSpectateDuel) screen = WBScreen.friends;
+          final fallback = screenBeforeSpectate ?? WBScreen.friends;
+          screenBeforeSpectate = null;
+          if (screen == WBScreen.teamSpectateDuel) screen = fallback;
           if (reason == 'aborted') banner = 'Kuzatilayotgan jang bekor qilindi';
         });
       case 'error':
@@ -2284,18 +2325,22 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   /// simply walks away has to say so, or its registry keeps counting them as
   /// watching a duel nobody is looking at any more.
   void leaveSpectating() {
+    final target = screenBeforeSpectate ?? WBScreen.friends;
+    screenBeforeSpectate = null;
     stopSpectating();
     setState(() => spectating = null);
-    go(WBScreen.friends);
+    go(target);
   }
 
   /// [leaveSpectating] for a watched 2v2 duel. The frame on the way out is the
   /// same one: `duel.unspectate` stops either kind of watch, since the app was
   /// never told which of the two it asked for.
   void leaveTeamSpectating() {
+    final target = screenBeforeSpectate ?? WBScreen.friends;
+    screenBeforeSpectate = null;
     stopSpectating();
     setState(() => teamSpectating = null);
-    go(WBScreen.friends);
+    go(target);
   }
 
   /// A rematch challenges the exact person just played, when that is
@@ -2642,6 +2687,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onDevLogin: ApiConfig.googleConfigured ? null : loginDev,
           onRegister: registerWithPassword,
           onLogin: loginWithPassword,
+          showGoogle: ApiConfig.googleConfiguredForPlatform,
+          googleButton: kIsWeb
+              ? AdminGoogleButton(
+                  onIdToken: (token) => unawaited(loginWithGoogleToken(token)),
+                  onError: _loginFailed,
+                  enabled: !busy,
+                )
+              : null,
+          googleUnavailableMessage: ApiConfig.googleUnavailableMessage,
           busy: busy,
         ),
       WBScreen.onb2 => Onboarding2Screen(

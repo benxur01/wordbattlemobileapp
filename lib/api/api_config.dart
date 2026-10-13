@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Where the backend lives. Override at build time:
 ///
 ///   flutter run --dart-define=WB_API=http://192.168.1.10:8080
@@ -61,9 +63,39 @@ class ApiConfig {
     defaultValue: '238943789457-tgpjf2jamd6r8m0ottqn0ik9ce76gpe2.apps.googleusercontent.com',
   );
 
-  /// False while the placeholder above is still in place, so the app can say
-  /// so instead of opening a sign-in sheet that is bound to fail.
-  static bool get googleConfigured => !googleServerClientId.startsWith('TODO');
+  /// Empty and placeholder client IDs both mean the provider is unavailable;
+  /// don't show a button that can only fail during plugin initialization.
+  static bool get googleConfigured {
+    final clientId = googleServerClientId.trim();
+    return clientId.isNotEmpty && !clientId.startsWith('TODO');
+  }
+
+  /// Google sign-in is currently disabled on iOS because Sign in with Apple
+  /// has not been implemented yet. If Google is offered on iOS, Apple requires
+  /// an equivalent sign-in option. Nickname/password login remains available.
+  /// Google Sign-In's supported app platforms are Android, macOS and web.
+  /// Nickname/password login remains available on the other platforms.
+  static bool get googleSupportedOnPlatform {
+    if (kIsWeb) return true;
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android || TargetPlatform.macOS => true,
+      TargetPlatform.iOS || TargetPlatform.linux || TargetPlatform.windows || TargetPlatform.fuchsia => false,
+    };
+  }
+
+  static bool get googleConfiguredForPlatform =>
+      googleConfigured && googleSupportedOnPlatform && (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS);
+
+  static String get googleUnavailableMessage {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      return "iOS'da Google kirish Apple bilan teng kirish usuli qo'shilguncha o'chirilgan. "
+          "Taxallus va parol bilan davom eting.";
+    }
+    if (!googleSupportedOnPlatform) {
+      return "Google kirish bu platformada mavjud emas. Taxallus va parol bilan davom eting.";
+    }
+    return "Google kirish bu build'da sozlanmagan. Taxallus va parol bilan davom eting.";
+  }
 
   static Uri rest(String path, [Map<String, dynamic>? query]) {
     final base = Uri.parse(baseUrl);

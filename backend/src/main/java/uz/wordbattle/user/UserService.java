@@ -1,5 +1,6 @@
 package uz.wordbattle.user;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -16,6 +17,8 @@ import uz.wordbattle.config.AppProperties;
 public class UserService {
 
     private static final int MIN_PASSWORD_LENGTH = 6;
+    /** BCrypt processes at most 72 UTF-8 bytes; reject longer inputs before hashing. */
+    private static final int MAX_PASSWORD_BYTES = 72;
 
     private final UserRepository users;
     private final AppProperties props;
@@ -123,6 +126,9 @@ public class UserService {
         if (rawPassword == null || rawPassword.trim().length() < MIN_PASSWORD_LENGTH) {
             throw ApiException.badRequest("password_too_short", "Parol kamida 6 ta belgidan iborat bo'lishi kerak");
         }
+        if (passwordBytes(rawPassword) > MAX_PASSWORD_BYTES) {
+            throw ApiException.badRequest("password_too_long", "Parol hajmi 72 baytdan oshmasin");
+        }
         if (!hasLetterAndDigit(rawPassword)) {
             throw ApiException.badRequest(
                     "password_too_simple", "Parolda kamida bitta harf va bitta raqam bo'lishi kerak");
@@ -175,11 +181,18 @@ public class UserService {
      */
     @Transactional
     public User authenticateWithPassword(String rawNickname, String rawPassword) {
+        if (rawPassword == null || passwordBytes(rawPassword) > MAX_PASSWORD_BYTES) {
+            throw ApiException.unauthorized("invalid_credentials", "Login yoki parol xato");
+        }
         User user = users.findByNicknameIgnoreCase(NicknamePolicy.normalise(rawNickname)).orElse(null);
         if (user == null || user.getPasswordHash() == null || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
             throw ApiException.unauthorized("invalid_credentials", "Login yoki parol xato");
         }
         return seen(user);
+    }
+
+    private static int passwordBytes(String password) {
+        return password.getBytes(StandardCharsets.UTF_8).length;
     }
 
     @Transactional

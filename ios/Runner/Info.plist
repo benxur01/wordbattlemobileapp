@@ -22,8 +22,9 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
-	<!-- Google Sign-In sends the result back to the app through this scheme.
-	     It is the iOS client id turned inside out: drop the trailing
+	<!-- Reserved for future iOS Google Sign-In. Once that flow is implemented,
+	     Google sends the result back through this scheme. It is the iOS client
+	     id turned inside out: drop the trailing
 	     `.apps.googleusercontent.com` from GIDClientID below and put it in
 	     front instead — `com.googleusercontent.apps.<what is left>`. Cloud
 	     Console shows the finished value as "iOS URL scheme". -->
@@ -40,12 +41,10 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<!-- Google Sign-In, iOS side. Both ids have to live here rather than in
-	     Dart: the plugin only hands Dart's ids to the SDK when a *client* id
-	     comes with them, and the app passes `serverClientId` alone
-	     (`lib/api/google_auth.dart`). So that call is dropped on iOS and
-	     GoogleSignIn configures itself from these two keys instead.
-	     Full walkthrough: README → "3. Google Sign-In" → "iOS". -->
+	<!-- Reserved for future iOS Google sign-in. The app intentionally does not
+	     show or invoke Google login on iOS until Sign in with Apple is implemented.
+	     If both are added, keep GIDClientID and the callback URL scheme in sync;
+	     see README → "3. Google Sign-In" → "iOS". -->
 
 	<!-- TODO: the iOS OAuth client — Cloud Console → APIs & Services →
 	     Credentials → Create credentials → OAuth client ID → iOS, registered
@@ -55,13 +54,11 @@
 	<key>GIDClientID</key>
 	<string>TODO-PASTE-IOS-CLIENT-ID.apps.googleusercontent.com</string>
 
-	<!-- TODO: the Web client — the very same string as
-	     ApiConfig.googleServerClientId and the server's GOOGLE_WEB_CLIENT_ID.
-	     It decides who the idToken is addressed to; leave it out and sign-in
-	     still succeeds on the phone, but the backend rejects every token
-	     because `aud` names the iOS app rather than the server. -->
+	<!-- Reserved for future iOS Google sign-in. When that flow is implemented,
+	     this must equal ApiConfig.googleServerClientId and the server's
+	     GOOGLE_WEB_CLIENT_ID, or the backend will reject the token audience. -->
 	<key>GIDServerClientID</key>
-	<string>TODO-PASTE-WEB-CLIENT-ID.apps.googleusercontent.com</string>
+	<string>238943789457-tgpjf2jamd6r8m0ottqn0ik9ce76gpe2.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

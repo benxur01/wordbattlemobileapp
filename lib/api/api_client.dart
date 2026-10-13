@@ -60,6 +60,9 @@ class ApiClient {
     return _loginResult(json);
   }
 
+  /// Signs out on the server, revoking the token across all devices.
+  Future<void> logout() => _post('/auth/logout');
+
   ({String token, UserDto user, bool needsNickname}) _loginResult(Map<String, dynamic> json) => (
         token: json['token'] as String,
         user: UserDto.fromJson(json['user'] as Map<String, dynamic>),

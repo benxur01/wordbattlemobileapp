@@ -21,6 +21,10 @@ class Onboarding1Screen extends StatefulWidget {
     this.onDevLogin,
     required this.onRegister,
     required this.onLogin,
+    this.showGoogle = true,
+    this.googleButton,
+    this.googleUnavailableMessage =
+        "Google kirish bu build'da sozlanmagan. Taxallus va parol bilan davom eting.",
     this.busy = false,
   });
 
@@ -35,6 +39,15 @@ class Onboarding1Screen extends StatefulWidget {
 
   /// The nickname+password form's submit while it is in "Kirish" mode.
   final void Function(String nickname, String password) onLogin;
+
+  /// False when Google login is unavailable on this platform or unconfigured.
+  final bool showGoogle;
+
+  /// Optional platform-native button, used by the browser's Google flow.
+  final Widget? googleButton;
+
+  /// Explains why Google sign-in is unavailable on this build.
+  final String googleUnavailableMessage;
 
   /// True while a login request is in flight — every button here must not fire twice.
   final bool busy;
@@ -149,66 +162,23 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
           Column(
             children: [
               _passwordForm(),
-              const SizedBox(height: 22),
-              _divider(),
-              const SizedBox(height: 18),
-              // The design draws this as an amber plate with an abstract disc
-              // where a provider logo would go, and it was built that way
-              // first — the disc read as decoration rather than as the Google
-              // button, which is the one thing it has to be. So this button
-              // follows Google's spec instead of the design file: their mark,
-              // on white, in their ink. The amber went with it rather than
-              // being kept as a tint, because their brand rules put the mark
-              // on a light surface — recolouring the plate around it is not
-              // ours to do.
-              Pressable(
-                onTap: widget.busy ? null : widget.onGoogle,
-                pressScale: .98,
-                child: Container(
-                  height: 62,
-                  decoration: BoxDecoration(
-                    color: _googleSurface,
-                    borderRadius: BorderRadius.circular(20),
-                    // Google's own button stroke. On this near-black page it
-                    // barely registers as a line — its job is to stop the
-                    // white plate's corners fraying into the background.
-                    border: Border.all(color: _googleStroke),
-                    // The amber button glowed in its own colour to lift it off
-                    // the page, and a white one still has to: with no shadow
-                    // at all it reads as a hole cut in the background, and a
-                    // dark shadow is invisible on #08080D. Same blur and drop
-                    // as the amber had, in white and at half the alpha —
-                    // white carries much further than amber does.
-                    boxShadow: [BoxShadow(color: WBColors.whiteA(.13), blurRadius: 34, offset: const Offset(0, 14))],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (widget.busy)
-                        // Dark on light now, the way the old spinner was dark
-                        // on amber — the amber pair vanished on white.
-                        SpinnerRing(
-                          size: 22,
-                          trackColor: _googleInk.withValues(alpha: .2),
-                          activeColor: _googleInk,
-                          strokeWidth: 2.5,
-                        )
-                      else
-                        // 20dp against a 17px label: Google asks for a mark
-                        // about the height of the text it sits beside.
-                        const GoogleLogo(size: 20),
-                      const SizedBox(width: 10),
-                      Text(
-                        widget.busy ? 'Kirilmoqda…' : 'Google orqali kirish',
-                        style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: _googleInk),
-                      ),
-                    ],
-                  ),
+              if (!widget.showGoogle) ...[
+                const SizedBox(height: 12),
+                Text(
+                  widget.googleUnavailableMessage,
+                  textAlign: TextAlign.center,
+                  style: WBText.grotesk(size: 12.5, color: WBColors.textA(.5)),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Text('Tezkor kirish — Google orqali bitta bosishda',
-                  textAlign: TextAlign.center, style: WBText.grotesk(size: 12.5, color: WBColors.textA(.5))),
+              ],
+              if (widget.showGoogle) ...[
+                const SizedBox(height: 22),
+                _divider(),
+                const SizedBox(height: 18),
+                widget.googleButton ?? _nativeGoogleButton(),
+                const SizedBox(height: 14),
+                Text('Tezkor kirish — Google orqali bitta bosishda',
+                    textAlign: TextAlign.center, style: WBText.grotesk(size: 12.5, color: WBColors.textA(.5))),
+              ],
               if (widget.onDevLogin != null) ...[
                 const SizedBox(height: 12),
                 Pressable(
@@ -244,6 +214,43 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
         ),
         Expanded(child: Container(height: 1, color: WBColors.whiteA(.08))),
       ],
+    );
+  }
+
+  /// The native Google button. Browsers use Google's rendered button
+  /// through [widget.googleButton], as required by the web sign-in plugin.
+  Widget _nativeGoogleButton() {
+    return Pressable(
+      onTap: widget.busy ? null : widget.onGoogle,
+      pressScale: .98,
+      child: Container(
+        height: 62,
+        decoration: BoxDecoration(
+          color: _googleSurface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _googleStroke),
+          boxShadow: [BoxShadow(color: WBColors.whiteA(.13), blurRadius: 34, offset: const Offset(0, 14))],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (widget.busy)
+              SpinnerRing(
+                size: 22,
+                trackColor: _googleInk.withValues(alpha: .2),
+                activeColor: _googleInk,
+                strokeWidth: 2.5,
+              )
+            else
+              const GoogleLogo(size: 20),
+            const SizedBox(width: 10),
+            Text(
+              widget.busy ? 'Kirilmoqda…' : 'Google orqali kirish',
+              style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: _googleInk),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -332,7 +339,7 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
             autocorrect: false,
             enableSuggestions: false,
             textInputAction: textInputAction,
-            maxLength: obscureText ? null : 16,
+            maxLength: obscureText ? 72 : 16,
             style: WBText.grotesk(size: 16, weight: FontWeight.w600),
             decoration: InputDecoration(
               counterText: '',
