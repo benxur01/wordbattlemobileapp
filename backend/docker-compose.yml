@@ -65,7 +65,10 @@ services:
       # DevLoginGuard.
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
     ports:
-      - "8080:8080"
+      # Keep the plain HTTP port on loopback. A host-level HTTPS proxy can
+      # reach it, while remote clients cannot bypass TLS. For LAN development
+      # only, set API_BIND_ADDRESS=0.0.0.0 in the local .env.
+      - "${API_BIND_ADDRESS:-127.0.0.1}:8080:8080"
     restart: unless-stopped
 
 volumes:

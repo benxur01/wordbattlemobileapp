@@ -33,6 +33,7 @@ adb reverse tcp:8080 tcp:8080
 flutter run --dart-define=WB_API=http://localhost:8080
 
 # Yoki bir tarmoqdagi server:
+# backend/.env faylida API_BIND_ADDRESS=0.0.0.0 qiling (faqat lokal development uchun)
 flutter run --dart-define=WB_API=http://192.168.1.10:8080
 ```
 
@@ -108,6 +109,8 @@ havolalarni so'raydi, ilovada esa ular Profil ekranida turadi. Matn
 aloqa manzili va operator nomi server `.env` idan qo'yiladi:
 `LEGAL_CONTACT_EMAIL`, `LEGAL_OPERATOR_NAME` (bermasangiz `support@example.uz`
 va `Word Battle` o'rinbosarlari chiqadi).
+Production profilida server ushbu o'rinbosar qiymatlar bilan ishga tushmaydi;
+haqiqiy operator nomi va aloqa manzilini `.env` da kiriting.
 
 ⚠️ **Bu matn — shablon, yuridik maslahat emas.** U ilova haqiqatda
 to'playdigan ma'lumotlar (kod va migratsiyalar) asosida yozilgan, lekin
@@ -125,8 +128,9 @@ ekranidagi «Ro'yxatdan o'tish» / «Kirish» — server tomonida
 `POST /api/auth/register` va `/api/auth/login`). Parol yo'li Google'siz ham
 ishlaydi; quyidagilar faqat Google tugmasi uchun kerak.
 
-Google Cloud Console → APIs & Services → Credentials ichida **ikkita** OAuth
-client kerak (iOS ham quriladigan bo'lsa — uchta):
+Google Cloud Console → APIs & Services → Credentials ichida Android va Web
+uchun **ikkita** OAuth client kerak. iOS Google login hozircha o'chirilgan;
+Apple Sign-In'dan keyin uni ham qo'shsangiz iOS client uchinchi bo'ladi:
 
 1. **Web application** — nomi chalg'itadi: bu vebsayt emas, "serverda ishlaydigan
    client" degani, ya'ni backendning o'zi. ID **allaqachon kodda**
@@ -139,11 +143,11 @@ client kerak (iOS ham quriladigan bo'lsa — uchta):
    debug keystore, release keystore hamda Play App Signing (Play Console →
    Setup → App signing). Bu client kodda ishlatilmaydi, lekin usiz Google
    oynasi ochilmaydi.
-3. **iOS** — faqat iOS build uchun. Bundle ID `com.wordbattle.wordBattle`,
-   va Android'dan farqli o'laroq bu client ID kodda ishlatiladi — pastga qarang.
+3. **iOS** — faqat keyin iOS Google login integratsiyasi qo'shilsa kerak bo'ladi.
+   Bundle ID `com.wordbattle.wordBattle`; tafsilotlar pastda.
 
 Web client ID kodda turgani uchun onboarding'da **Google tugmasi** ko'rinadi.
-Dev login tugmasi faqat ID `TODO` bo'lganda paydo bo'ladi — ya'ni hozir yo'q.
+Dev login tugmasi Google client ID bo'sh yoki `TODO` bo'lganda paydo bo'ladi.
 
 ⚠️ **Test users.** Yangi OAuth client "Testing" holatida bo'ladi va faqat
 Cloud Console → **Audience → Test users** ro'yxatidagi akkauntlar kira oladi;
@@ -153,9 +157,17 @@ tekshiruvi (verification) talab qilinmaydi.
 
 #### iOS
 
-iOS client ID `--dart-define` bilan berilmaydi — u
-[`ios/Runner/Info.plist`](ios/Runner/Info.plist) ichida yashaydi. Faylda uchta
-`TODO-PASTE` joyi bor, hammasi izoh bilan belgilangan:
+iOS build'da Google kirishi hozircha ataylab o'chirilgan: iOS'da uchinchi tomon
+kirishini taklif qilishdan oldin Apple bilan kirish ham qo'shilishi kerak.
+Taxallus va parol orqali kirish ishlaydi. Apple Sign-In integratsiyasi va App
+Store sozlamalari bajarilmaguncha iOS Google OAuth client ID'sini yoki URL
+scheme'ni kiritmang.
+
+Apple Sign-In qo'shilgandan keyin Google'ni ham iOS'da yoqmoqchi bo'lsangiz,
+alohida iOS OAuth client va ilova kodida iOS `clientId` ni plugin'ga uzatish
+qo'shilishi kerak. Hozir bu kod yo'q; pastdagi qadamlar faqat shu integratsiya
+qo'shilgandan keyin qo'llanadi. Callback URL scheme
+[`ios/Runner/Info.plist`](ios/Runner/Info.plist) ichida ro'yxatdan o'tishi kerak.
 
 | `Info.plist` kaliti | Qiymat |
 |---|---|
@@ -181,26 +193,25 @@ Qadamlar:
    package (`com.wordbattle.word_battle`) bilan bir xil **emas** — iOS'da
    camelCase, Android'da pastki chiziq. Client aynan shu satr bo'yicha
    ro'yxatdan o'tadi, bir harf farq qilsa kirish ishlamaydi.
-2. `Info.plist` dagi uchta joyni to'ldiring:
-   `grep -n TODO-PASTE ios/Runner/Info.plist`.
-3. `flutter build ipa` (macOS + Xcode kerak). `Podfile` repoda yo'q — birinchi
+2. `Info.plist` dagi `GIDClientID` va URL scheme qiymatlarini to'ldiring.
+   `GIDServerClientID` Web client ID bilan aynan bir xil qolishi kerak.
+3. Kod iOS client ID ni o'qib Google plugin'iga uzatadigan qilib yangilang;
+   keyin build vaqtida uni bering:
+   `flutter build ipa --dart-define=WB_GOOGLE_IOS_CLIENT_ID=<iOS-client-ID>`.
+   `WB_API` ni ham HTTPS serverga yo'naltiring. `Podfile` repoda yo'q — birinchi
    build'da Flutter uni o'zi yaratadi. Minimal iOS **13.0**: loyiha ham
    (`IPHONEOS_DEPLOYMENT_TARGET`), plagin ham shuni so'raydi, ya'ni tegish shart
    emas.
 
-**`GIDServerClientID` ni tashlab ketmang.** Usiz ham Google oynasi ochiladi va
-kirish qurilmada muvaffaqiyatli tugaydi, lekin token iOS client nomiga
-yoziladi va server uni rad etadi. Ilova `serverClientId` ni Dart tomondan ham
-uzatadi, biroq iOS plagini uni faqat client ID bilan birga qabul qiladi —
-shuning uchun iOS'da yagona manba shu `Info.plist`.
+**`GIDServerClientID` ni tashlab ketmang.** U Web client ID bilan mos
+bo'lmasa, Google tokenini server rad etadi. iOS Google integratsiyasi
+qo'shilganda ilova `clientId` va `serverClientId` ni Google plaginiga
+uzatishi, iOS client ID va URL scheme esa bir-biriga mos bo'lishi shart.
 
-Shu sababdan **Dev login** tugmasi iOS'da ishonchli belgi emas: u faqat Web
-client ID ga qarab yo'qoladi, `Info.plist` hali `TODO` bo'lsa ham. iOS'da
-ikkalasini birga to'ldiring.
-
-App Store'ga chiqarishdan oldin yana bittasi: Apple qoidalari uchinchi tomon
-kirishini taklif qiladigan ilovadan **Sign in with Apple** ni ham talab qiladi.
-Hozir ilovada u yo'q, ya'ni review shu sababdan qaytishi mumkin.
+Hozir iOS'da Google tugmasi yo'q, shuning uchun ilova taxallus/parol bilan
+kiradi. iOS'da Google yoki boshqa uchinchi tomon kirishini yoqishdan oldin
+**Sign in with Apple** integratsiyasi va Apple Developer capability'sini ham
+qo'shish kerak.
 
 ---
 
@@ -213,7 +224,7 @@ APK istalgan narsani yubora oladi — natija rad javobi bo'ladi.
 
 | Ekran | Manba |
 |---|---|
-| Onboarding 1 | `POST /api/auth/google` (yoki dev login) |
+| Onboarding 1 | Android/web: `POST /api/auth/google`; parol: `POST /api/auth/register` yoki `/api/auth/login`; dev: `POST /api/auth/dev` |
 | Onboarding 2 | `GET /api/users/nickname/check` (har 400 ms), `PUT /api/users/me/nickname` |
 | Lobbi | `hello` freym: profil, onlayn soni; `GET /api/friends` |
 | Raqib qidirish | `queue.join` → `match.found` (35 s dan keyin bot, reytingingizdan +75) |
@@ -323,10 +334,10 @@ o'z litsenziyalari ostida: [THIRD_PARTY.md](THIRD_PARTY.md).
   qoplangan — lekin hech kim haqiqiy Google akkaunti bilan kirib ko'rmagan.
   Birinchi sinovdan oldin: Cloud Console → Audience → **Test users** ga o'z
   akkauntingizni qo'shing (yuqoriga qarang).
-- **iOS'da Google Sign-In** — `Info.plist` kalitlari joyida, lekin ichida uchta
-  `TODO-PASTE` turibdi va hech kim uni macOS'da qurib ko'rmagan. Kerak: Cloud
-  Console'dan iOS client (bundle `com.wordbattle.wordBattle`) va Sign in with
-  Apple — README → "3. Google Sign-In" → "iOS".
+- **iOS release sozlamalari** — hozircha Google login o'chirilgan, taxallus va
+  parol bilan kirish ishlaydi. Apple Developer capability hamda App Store
+  sozlamalari hisob egasi tomonidan bajarilishi kerak; Apple login qo'shilgach
+  iOS Google OAuth'ni yoqish ham mumkin.
 - **Push (FCM)** — oflayn do'stga chaqiruv bormaydi.
 - **Bitta qurilmadan chiqish — hammasidan chiqish.** Token bekor qilish akkaunt
   bo'yicha hisoblagichga bog'langan (`users.token_generation`), tokenning

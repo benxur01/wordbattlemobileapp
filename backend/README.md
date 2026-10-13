@@ -65,11 +65,13 @@ bo'lsa Testcontainers, bo'lmasa ichki (embedded) server. Pastdagi
 | `ASSETLINKS_SHA256` | Android release sertifikati(lari)ning SHA-256 barmoq izlari, vergul bilan (`AA:BB:…`, `keytool` chiqargan shaklda). `/.well-known/assetlinks.json` shulardan yig'iladi — pastdagi [Turnirlar](#turnirlar)ga qarang. Bo'sh bo'lsa fayl bo'sh ro'yxat `[]` | bo'sh |
 | `LEGAL_CONTACT_EMAIL` | `/privacy` va `/terms` sahifalaridagi aloqa manzili — o'yinchilar ma'lumotlari va akkaunt o'chirish haqida shu yerga yozadi | `support@example.uz` (o'rinbosar) |
 | `LEGAL_OPERATOR_NAME` | O'sha sahifalarda xizmatni boshqaruvchi sifatida ko'rsatiladigan nom (MChJ yoki YaTT) | `Word Battle` (o'rinbosar) |
+| `API_BIND_ADDRESS` | Host'da HTTP port qaysi manzilga publish qilinadi. Reverse proxy bilan xavfsiz standart `127.0.0.1`; faqat LAN development'da `0.0.0.0` qiling | `127.0.0.1` |
 | `PORT` | HTTP porti | `8080` |
 
 `docker compose` bilan faqat `docker-compose.yml` dagi `api.environment` ro'yxatida
 sanalgan o'zgaruvchilar konteynerga yetib boradi — `.env` ni compose o'qiydi,
-server emas. Yangi o'zgaruvchi qo'shilsa, u o'sha ro'yxatga ham yozilishi kerak.
+server emas. `API_BIND_ADDRESS` bundan mustasno: u faqat host port mapping'iga
+ta'sir qiladi va konteynerga uzatilmaydi.
 
 **Reverse proxy ortida.** `FORWARD_HEADERS_STRATEGY=none` (standart) da mijoz
 manzili — TCP ulanishning o'zi, `X-Forwarded-For` o'qilmaydi: server oldida
@@ -83,7 +85,12 @@ link-local manzil (Docker tarmog'idagi nginx konteyneri ham shunga kiradi).
 Ochiq manzildan ulanadigan proxy'ni (masalan, to'g'ridan-to'g'ri Cloudflare)
 `server.tomcat.remoteip.internal-proxies` ga qo'shish kerak. Har ikki holda
 ham API porti faqat proxy orqali ochiq bo'lsin — masalan,
-`docker-compose.yml` da `"127.0.0.1:8080:8080"`.
+`docker-compose.yml` ning standart sozlamasi `"127.0.0.1:8080:8080"`.
+Compose ichidagi proxy uchun host port publish qilish shart emas; u API'ga
+Compose tarmog'idagi `api:8080` manzili orqali ulanishi mumkin.
+
+LAN'dagi telefon bilan development qilishda `backend/.env` ichida
+`API_BIND_ADDRESS=0.0.0.0` qiling. Production'da bu qiymatni ochiq qoldirmang.
 
 O'yin qoidalari `application.yml` dagi `wordbattle.duel` va
 `wordbattle.matchmaking` bo'limlarida: navbat 15 s, so'z kamida 3 harf,
@@ -93,8 +100,10 @@ O'yin qoidalari `application.yml` dagi `wordbattle.duel` va
 
 ## Autentifikatsiya
 
-1. Ilova Google Sign-In'dan `idToken` oladi va uni `/api/auth/google` ga yuboradi.
-2. Server imzoni Google'ning ochiq kalitlari bilan tekshiradi (RS256, JWK set
+1. Ro'yxatdan o'tish va kirish uchun ilova `/api/auth/register` yoki
+   `/api/auth/login` ga taxallus/parol yuboradi. Google yo'lida ilova Google
+   Sign-In'dan `idToken` olib `/api/auth/google` ga yuboradi.
+2. Google tokenining imzosini server Google'ning ochiq kalitlari bilan tekshiradi (RS256, JWK set
    keshlanadi), `iss` va `aud` (Web client ID) ni solishtiradi, muddati
    o'tganini rad etadi, so'ng JWT qaytaradi.
 3. Barcha keyingi so'rovlar: `Authorization: Bearer <token>`.
@@ -139,6 +148,8 @@ Barchasi `/api` ostida. `*` — token talab qilinmaydi.
 | Method | Path | Izoh |
 |---|---|---|
 | POST\* | `/auth/google` | `{idToken}` → `{token, user, needsNickname}` |
+| POST\* | `/auth/register` | `{nickname, password}` — yangi akkaunt yaratib token beradi |
+| POST\* | `/auth/login` | `{nickname, password}` — parol bilan token oladi |
 | POST\* | `/auth/dev` | `{displayName}` — faqat `DEV_LOGIN_ENABLED=true` |
 | POST\* | `/auth/logout` | akkauntning barcha tokenlarini bekor qiladi — har doim `204`, tokensiz chaqirilsa hech nima qilmaydi |
 
@@ -469,6 +480,8 @@ ustidagi unikal indeks. Ikki o'yinchi bir vaqtda bir nomni so'rasa, biri
    paroli bilan server ataylab ko'tarilmaydi — u shu repozitoriyda yozilgan.
    `DEV_LOGIN_ENABLED=true` bilan ham ko'tarilmaydi: `/api/auth/dev` so'ragan
    har kimga parolsiz akkaunt va token beradi.
+   `LEGAL_CONTACT_EMAIL` va `LEGAL_OPERATOR_NAME` ni ham haqiqiy qiymatlarga
+   almashtiring; production server namunaviy qiymatlar bilan ishga tushmaydi.
 3. HTTPS/WSS terminatsiyasi (nginx yoki cloud LB) qo'ying — ilova release
    build'da cleartext HTTP'ni umuman rad etadi. Proxy ortida
    `FORWARD_HEADERS_STRATEGY=native` qiling va API portini faqat proxy'ga
