@@ -1,11 +1,11 @@
 {
-    "name": "word_battle",
-    "short_name": "word_battle",
+    "name": "Word Battle",
+    "short_name": "Word Battle",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Real-time English word-chain battles. Challenge friends, climb the leaderboard, and compete in tournaments.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

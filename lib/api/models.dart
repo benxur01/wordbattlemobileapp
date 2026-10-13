@@ -178,6 +178,7 @@ class FriendDto {
     final seen = lastSeenAt;
     if (seen == null) return 'oflayn';
     final gap = DateTime.now().difference(seen);
+    if (gap.isNegative || gap.inMinutes < 1) return 'hozirgina';
     if (gap.inMinutes < 60) return '${gap.inMinutes} daqiqa oldin';
     if (gap.inHours < 24) return '${gap.inHours} soat oldin';
     return '${gap.inDays} kun oldin';
