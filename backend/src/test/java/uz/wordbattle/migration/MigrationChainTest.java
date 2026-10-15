@@ -47,13 +47,13 @@ class MigrationChainTest {
     void anEmptySchemaGetsEveryMigrationInOrder() throws SQLException {
         MigrateResult result = migrate("fresh", null);
 
-        assertThat(result.migrationsExecuted).isEqualTo(17);
+        assertThat(result.migrationsExecuted).isEqualTo(18);
         assertThat(query(
                         "fresh",
                         "select version from flyway_schema_history where type = 'SQL' order by installed_rank"))
                 .containsExactly(
                         "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",
-                        "17");
+                        "17", "18");
         // Two row types are expected: the SQL migrations, and the rank-0 row
         // Flyway writes to record that it created the schema itself. A BASELINE
         // row is the one that must never appear — it marks a migration applied
@@ -81,7 +81,8 @@ class MigrationChainTest {
                         "team_matches",
                         "team_match_words",
                         "user_blocks",
-                        "user_reports");
+                        "user_reports",
+                        "auth_recovery_codes");
 
         // Where the chain leaves the table everything else edits: V3 traded the
         // Telegram identity for Google's, V4 added the deletion marker, V5 the
@@ -89,7 +90,8 @@ class MigrationChainTest {
         // against, V7 the clock Glicko-2's inactivity growth counts from, V9
         // the two the admin panel reads — who may use it, and whose account has
         // been taken away — and V10 the password hash a nickname-and-password
-        // account signs in with.
+        // account signs in with; V18 adds a verified recovery address and
+        // short-lived, hashed email challenges.
         assertThat(columnsOf("fresh", "users"))
                 .contains(
                         "google_subject",
@@ -99,7 +101,10 @@ class MigrationChainTest {
                         "rating_period_at",
                         "is_admin",
                         "banned_at",
-                        "password_hash")
+                        "password_hash",
+                        "recovery_email",
+                        "recovery_email_verified_at",
+                        "pending_recovery_email")
                 .doesNotContain("telegram_id");
 
         // V8 put the same optimistic lock on the other table two calls can
@@ -186,7 +191,7 @@ class MigrationChainTest {
                 where a.nickname = 'aziza_m' and b.nickname = 'bekzod_99'
                 """);
 
-        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(15);
+        assertThat(migrate("upgrade", null).migrationsExecuted).isEqualTo(16);
 
         // The rows are the point: an upgrade that empties the users table would
         // have passed every assertion in the test above.
@@ -286,6 +291,11 @@ class MigrationChainTest {
         // anybody before it shipped, so an upgraded server starts with neither.
         assertThat(tables("upgrade")).contains("user_blocks", "user_reports");
         assertThat(query("upgrade", "select count(*) from user_reports")).containsExactly("0");
+
+        // V18 adds recovery addresses and no rows of its own.
+        assertThat(columnsOf("upgrade", "users")).contains("recovery_email", "recovery_email_verified_at", "pending_recovery_email");
+        assertThat(tables("upgrade")).contains("auth_recovery_codes");
+        assertThat(query("upgrade", "select count(*) from auth_recovery_codes")).containsExactly("0");
     }
 
     // --------------------------------------------------------------- helpers

@@ -56,7 +56,7 @@ bo'lsa Testcontainers, bo'lmasa ichki (embedded) server. Pastdagi
 | `CORS_ALLOWED_ORIGINS` | Brauzer origin'lari (vergul bilan). Bo'sh bo'lsa CORS umuman yo'q — telefon ilovasiga kerak emas | bo'sh |
 | `TIME_ZONE` | Streak va kunlik so'z qaysi kun bo'yicha almashadi | `Asia/Tashkent` |
 | `WS_FRAMES_PER_SECOND` / `WS_FRAME_BURST` | Soketdagi freym cheklovi (bitta o'yinchiga) | `20` / `40` |
-| `AUTH_ATTEMPTS_PER_MINUTE` / `AUTH_ATTEMPT_BURST` | `/api/auth/login` va `/api/auth/register` ga urinishlar cheklovi (bitta manzilga): daqiqasiga / birdaniga | `10` / `20` |
+| `AUTH_ATTEMPTS_PER_MINUTE` / `AUTH_ATTEMPT_BURST` | login, ro'yxatdan o'tish va parol tiklash endpointlariga urinishlar cheklovi (bitta manzilga): daqiqasiga / birdaniga | `10` / `20` |
 | `FORWARD_HEADERS_STRATEGY` | Mijoz manzili qayerdan olinadi — yuqoridagi cheklov shu manzil bo'yicha. `native` ni **faqat** server oldida reverse proxy turganda qiling — pastga qarang | `none` |
 | `JWT_TTL` | Token amal qilish muddati (ISO-8601) | `P30D` |
 | `GOOGLE_WEB_CLIENT_ID` | Google **Web** OAuth client ID — ilovadagi `ApiConfig.googleServerClientId` bilan bir xil bo'lishi shart. Ataylab bo'sh qiymat berilsa Google login o'chadi | loyihaning o'z Web client ID si (`application.yml` dagi `238943789457-…`) |
@@ -65,6 +65,8 @@ bo'lsa Testcontainers, bo'lmasa ichki (embedded) server. Pastdagi
 | `ASSETLINKS_SHA256` | Android release sertifikati(lari)ning SHA-256 barmoq izlari, vergul bilan (`AA:BB:…`, `keytool` chiqargan shaklda). `/.well-known/assetlinks.json` shulardan yig'iladi — pastdagi [Turnirlar](#turnirlar)ga qarang. Bo'sh bo'lsa fayl bo'sh ro'yxat `[]` | bo'sh |
 | `LEGAL_CONTACT_EMAIL` | `/privacy` va `/terms` sahifalaridagi aloqa manzili — o'yinchilar ma'lumotlari va akkaunt o'chirish haqida shu yerga yozadi | `support@example.uz` (o'rinbosar) |
 | `LEGAL_OPERATOR_NAME` | O'sha sahifalarda xizmatni boshqaruvchi sifatida ko'rsatiladigan nom (MChJ yoki YaTT) | `Word Battle` (o'rinbosar) |
+| `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | Ro'yxatdan o'tish emailini tasdiqlash va parolni tiklash kodlarini yuboradigan SMTP. Ishlab chiqarishda parolni repoga emas, deploy secret'iga kiriting | host/login/parol/from bo'sh; port `587` |
+| `MAIL_SMTP_AUTH`, `MAIL_STARTTLS` | SMTP autentifikatsiyasi va STARTTLS | `true` / `true` |
 | `API_BIND_ADDRESS` | Host'da HTTP port qaysi manzilga publish qilinadi. Reverse proxy bilan xavfsiz standart `127.0.0.1`; faqat LAN development'da `0.0.0.0` qiling | `127.0.0.1` |
 | `PORT` | HTTP porti | `8080` |
 
@@ -72,6 +74,11 @@ bo'lsa Testcontainers, bo'lmasa ichki (embedded) server. Pastdagi
 sanalgan o'zgaruvchilar konteynerga yetib boradi — `.env` ni compose o'qiydi,
 server emas. `API_BIND_ADDRESS` bundan mustasno: u faqat host port mapping'iga
 ta'sir qiladi va konteynerga uzatilmaydi.
+
+Emailni tasdiqlash va parolni tiklash ishlab chiqarishda ishlashi uchun SMTP
+sozlamalarini kiriting. Sozlamalar bo'lmasa o'yin va ro'yxatdan o'tish ishlay
+beradi, ammo kod yuborilmaydi; parol hisoblari emailni keyin Profil bo'limidan
+bog'lashi mumkin. Parolni tiklash so'rovi akkaunt bor-yo'qligini oshkor qilmaydi.
 
 **Reverse proxy ortida.** `FORWARD_HEADERS_STRATEGY=none` (standart) da mijoz
 manzili — TCP ulanishning o'zi, `X-Forwarded-For` o'qilmaydi: server oldida
@@ -100,7 +107,9 @@ O'yin qoidalari `application.yml` dagi `wordbattle.duel` va
 
 ## Autentifikatsiya
 
-1. Ro'yxatdan o'tish va kirish uchun ilova `/api/auth/register` yoki
+1. Ro'yxatdan o'tishda ilova `/api/auth/register` ga taxallus, email va parol
+   yuboradi; email kod orqali tasdiqlanmaguncha tiklash uchun ishlatilmaydi.
+   Keyin tasdiqlash yoki yangilash Profil bo'limidan qilinadi. Kirishda ilova
    `/api/auth/login` ga taxallus/parol yuboradi. Google yo'lida ilova Google
    Sign-In'dan `idToken` olib `/api/auth/google` ga yuboradi.
 2. Google tokenining imzosini server Google'ning ochiq kalitlari bilan tekshiradi (RS256, JWK set
@@ -148,8 +157,13 @@ Barchasi `/api` ostida. `*` — token talab qilinmaydi.
 | Method | Path | Izoh |
 |---|---|---|
 | POST\* | `/auth/google` | `{idToken}` → `{token, user, needsNickname}` |
-| POST\* | `/auth/register` | `{nickname, password}` — yangi akkaunt yaratib token beradi |
+| POST\* | `/auth/register` | `{nickname, email, password}` — akkaunt yaratadi, email kodi yuborilsa `recoveryEmailSent: true` qaytaradi |
 | POST\* | `/auth/login` | `{nickname, password}` — parol bilan token oladi |
+| POST | `/auth/recovery-email/request` | `{email}` — joriy foydalanuvchiga email tasdiqlash kodi; bearer token kerak |
+| POST | `/auth/recovery-email/verify` | `{code}` — pending emailni tasdiqlaydi; bearer token kerak |
+| GET | `/auth/recovery-email/status` | tasdiqlangan yoki kutilayotgan email holati; bearer token kerak |
+| POST\* | `/auth/password-reset/request` | `{email}` — har doim `204`, akkaunt borligini oshkor qilmaydi |
+| POST\* | `/auth/password-reset/complete` | `{email, code, newPassword}` — parolni almashtiradi va eski sessiyalarni tugatadi |
 | POST\* | `/auth/dev` | `{displayName}` — faqat `DEV_LOGIN_ENABLED=true` |
 | POST\* | `/auth/logout` | akkauntning barcha tokenlarini bekor qiladi — har doim `204`, tokensiz chaqirilsa hech nima qilmaydi |
 

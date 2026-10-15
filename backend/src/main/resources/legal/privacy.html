@@ -27,7 +27,7 @@
 <body>
 <main>
 <h1>Maxfiylik siyosati</h1>
-<p class="meta">Word Battle · oxirgi yangilanish: 2026-yil 24-sentabr</p>
+<p class="meta">Word Battle · oxirgi yangilanish: 2026-yil 13-oktabr</p>
 
 <p>Ushbu siyosat Word Battle mobil ilovasi va uning serveri (bundan keyin — «Xizmat») qanday
 ma'lumotlarni to'plashi, ulardan nima uchun foydalanishi va ularni qancha saqlashini
@@ -40,6 +40,10 @@ tushuntiradi. Xizmatni {{OPERATOR_NAME}} (bundan keyin — «biz») boshqaradi.<
   <li><b>Taxallus</b> — siz tanlaydigan ochiq nom.</li>
   <li><b>Parol</b> — faqat taxallus va parol bilan ro'yxatdan o'tsangiz. Parolning o'zi
     saqlanmaydi: undan bcrypt algoritmi bilan olingan, qayta tiklab bo'lmaydigan xesh saqlanadi.</li>
+  <li><b>Tiklash emaili</b> — parol bilan ro'yxatdan o'tganda kiritgan yoki keyin profilga
+    bog'lagan manzilingiz. Tasdiqlash tugaguncha u kutilayotgan manzil sifatida vaqtincha saqlanadi;
+    faqat kodni tasdiqlaganingizdan keyin parolni tiklash uchun ishlatiladi. Kodning o'zi emas,
+    undan maxfiy kalit bilan olingan xesh va amal qilish muddati saqlanadi.</li>
   <li><b>Google akkaunti</b> — Google orqali kirsangiz: akkauntingizning o'zgarmas identifikatori
     va profil ismingiz. Google ism bermasa, ism o'rniga elektron pochta manzilingizning «@»
     belgisigacha bo'lgan qismi olinadi; manzilning o'zi saqlanmaydi. Google parolingiz bizga
@@ -106,6 +110,8 @@ o'yinchilar ko'rmaydi; shikoyatlarni faqat administratorlar ko'radi.</p>
     kalitlari bilan tekshiramiz. Google ma'lumotlaringizni o'z maxfiylik siyosatiga muvofiq qayta
     ishlaydi.</li>
   <li><b>Xosting provayderi</b> — server va ma'lumotlar bazasi joylashgan infratuzilma.</li>
+  <li><b>Pochta xizmati</b> — tiklash emaili yoki bir martalik tasdiqlash kodini yuborish uchun.
+    Bu xabarlarni yuborishda email manzilingiz pochta provayderi orqali o'tadi.</li>
 </ul>
 <p>Qonun talab qilgan hollardan tashqari ma'lumotlaringizni boshqa hech kimga bermaymiz.</p>
 
@@ -114,7 +120,8 @@ o'yinchilar ko'rmaydi; shikoyatlarni faqat administratorlar ko'radi.</p>
 o'chirishingiz mumkin: <b>Profil → «Akkauntni o'chirish»</b>. O'chirish darhol amalga oshadi va
 uni qaytarib bo'lmaydi:</p>
 <ul>
-  <li>taxallus, profil ismi, shahar va Google identifikatori o'chiriladi;</li>
+  <li>taxallus, profil ismi, shahar, Google identifikatori, tiklash emaili va tasdiqlash kodlari
+    o'chiriladi;</li>
   <li>do'stlar, do'stlik so'rovlari, bloklashlar, reyting tarixi va ishlatilgan so'zlar ro'yxati
     o'chiriladi;</li>
   <li>barcha kirish tokenlari o'sha zahoti bekor bo'ladi va akkauntga qayta kirib bo'lmaydi.</li>
@@ -158,8 +165,8 @@ Xizmatdan foydalanish qoidalari: <a href="/terms">Foydalanish shartlari</a>.</p>
 {{OPERATOR_NAME}}.</p>
 <ul>
   <li><b>What we collect:</b> your nickname; a bcrypt hash of your password, if you register with
-    one; your Google account ID and profile name, if you sign in with Google (your email address
-    itself is not stored); your city, if you enter it; your rating, statistics and match history,
+    one; a recovery email you provide and verify; your Google account ID and profile name, if you
+    sign in with Google (your Google email is not stored); your city, if you enter it; your rating, statistics and match history,
     including the words played; friends and friend requests; tournament participation; the players
     you block and the reports you file; moderation records such as bans and admin actions; when
     your account was created and last active.</li>
@@ -173,10 +180,11 @@ Xizmatdan foydalanish qoidalari: <a href="/terms">Foydalanish shartlari</a>.</p>
   <li><b>Visible to other players:</b> nickname, profile name, city, rating and statistics; your
     friends also see whether you are online. Blocks and reports are not shown to other
     players.</li>
-  <li><b>Third parties:</b> Google, for Google sign-in, and our hosting provider.</li>
+  <li><b>Third parties:</b> Google, for Google sign-in; our hosting provider; and the mail provider
+    that delivers recovery and verification codes.</li>
   <li><b>Retention and deletion:</b> data is kept while your account exists. You can delete your
     account at any time in the app (Profile → "Akkauntni o'chirish"). Deletion is immediate and
-    irreversible: your nickname, name, city and Google ID, your friends, requests, blocks, rating
+    irreversible: your nickname, name, city, Google ID and recovery email, your friends, requests, blocks, rating
     history and word list are removed, and every session ends. A nameless record remains so that
     your opponents' match history stays intact; reports and moderation records are kept for
     safety.</li>

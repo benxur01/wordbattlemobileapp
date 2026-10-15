@@ -28,7 +28,8 @@ class PasswordRegistrationTest {
     private ResultActions register(String nickname, String password) throws Exception {
         return mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"nickname\":\"" + nickname + "\",\"password\":\"" + password + "\"}"));
+                .content("{\"nickname\":\"" + nickname + "\",\"email\":\"" + nickname
+                        + "@example.test\",\"password\":\"" + password + "\"}"));
     }
 
     /**
