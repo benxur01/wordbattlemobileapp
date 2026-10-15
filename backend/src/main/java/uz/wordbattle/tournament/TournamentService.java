@@ -859,7 +859,9 @@ public class TournamentService {
             }
 
             long acceptedCount = acceptedSeats(tournamentId).size();
-            return acceptedCount == tournament.getSize() ? startInternal(tournament) : tournament;
+            if (acceptedCount == tournament.getSize()) return startInternal(tournament);
+            notifyOrganizer(tournamentId);
+            return tournament;
         }
     }
 
@@ -919,6 +921,7 @@ public class TournamentService {
         TournamentParticipant participant = requireAnswerable(tournamentId, userId);
         participant.acceptAs(userId);
         participants.save(participant);
+        notifyOrganizer(tournamentId);
     }
 
     /**
@@ -935,6 +938,7 @@ public class TournamentService {
             participant.declineAs(userId);
             participants.save(participant);
             backfillGlobalSeat(require(tournamentId), participant, userId);
+            notifyOrganizer(tournamentId);
         }
     }
 
@@ -1168,21 +1172,34 @@ public class TournamentService {
     }
 
     /**
-     * Tells every accepted participant that the bracket moved, so a bracket
-     * screen already open updates itself instead of waiting for the player to
-     * leave and come back. The frame carries only the id — the client already
-     * knows how to fetch the detail behind it over REST, and a spectator who is
-     * not a participant simply never gets this push and is left to reopen the
-     * screen, which is the same "no push once the socket has closed" limit
-     * every other realtime frame in this server has.
+     * Tells every accepted participant and the human organizer that the
+     * bracket moved, so an open bracket or setup screen updates itself instead
+     * of waiting for the player to leave and come back. The frame carries only
+     * the id — the client already knows how to fetch the detail behind it over
+     * REST. Other spectators still reopen the screen to see changes, the same
+     * "no push once the socket has closed" limit every other realtime frame
+     * in this server has.
      */
     private void broadcastBracketUpdate(long tournamentId) {
         Map<String, Object> payload = Map.of("tournamentId", tournamentId);
+        Set<Long> recipients = new HashSet<>();
         for (TournamentParticipant participant : acceptedSeats(tournamentId)) {
-            for (long memberId : membersOf(participant)) {
-                sockets.send(memberId, "tournament.bracket_update", payload);
-            }
+            recipients.addAll(membersOf(participant));
         }
+        tournaments.findById(tournamentId)
+                .map(TournamentEntity::getCreatedByAdminId)
+                .ifPresent(recipients::add);
+        for (long recipientId : recipients) sockets.send(recipientId, "tournament.bracket_update", payload);
+    }
+
+    /** Keeps a human organizer's setup screen in sync with roster changes. */
+    private void notifyOrganizer(long tournamentId) {
+        tournaments.findById(tournamentId)
+                .map(TournamentEntity::getCreatedByAdminId)
+                .ifPresent(organizerId -> sockets.send(
+                        organizerId,
+                        "tournament.bracket_update",
+                        Map.of("tournamentId", tournamentId)));
     }
 
     /** The invite as {@code recipientId} — either half of a team's seat — sees it: their own answer, and whoever they would be playing alongside. */
@@ -1348,11 +1365,20 @@ public class TournamentService {
     }
 
     /**
-     * Every seat and how it was answered, for the organizer's own setup screen
-     * — open to any signed-in player, the same way {@link #detail} is.
+     * Every seat and how it was answered, for the organizer's own setup screen.
      */
-    public List<TournamentParticipantDto> participantViews(long tournamentId) {
+    public List<TournamentParticipantDto> participantViews(long tournamentId, long viewerId) {
+        requireOrganizer(require(tournamentId), viewerId);
+        return participantViewsInternal(tournamentId);
+    }
+
+    /** Package-private read helper for trusted callers and tournament service tests. */
+    List<TournamentParticipantDto> participantViews(long tournamentId) {
         require(tournamentId);
+        return participantViewsInternal(tournamentId);
+    }
+
+    private List<TournamentParticipantDto> participantViewsInternal(long tournamentId) {
         List<TournamentParticipant> rows = participantsOf(tournamentId);
         Map<Long, UserDto> byId = userService
                 .allByIds(rows.stream().flatMap(p -> membersOf(p).stream()).collect(Collectors.toSet()))

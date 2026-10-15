@@ -2,6 +2,9 @@ package uz.wordbattle.tournament;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -10,15 +13,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 import uz.wordbattle.admin.AdminAuditLogRepository;
 import uz.wordbattle.common.ApiException;
 import uz.wordbattle.friend.FriendService;
+import uz.wordbattle.ws.SocketRegistry;
 
 /**
  * The friends-screen "Turnir tashkil qilish": an ordinary player runs the
@@ -45,6 +52,9 @@ class TournamentSelfServiceTest {
 
     @Autowired
     private AdminAuditLogRepository auditLog;
+
+    @Autowired
+    private SocketRegistry sockets;
 
     @Test
     void aPlayerCanOrganizeATournamentAmongFriendsAndStartItOnceEveryoneAccepts() throws Exception {
@@ -121,6 +131,24 @@ class TournamentSelfServiceTest {
     }
 
     @Test
+    void onlyTheOrganizerCanReadTheirTournamentParticipantList() throws Exception {
+        String organizer = login("RosterOwner");
+        long organizerId = userId(organizer);
+        String outsider = login("RosterOutsider");
+        TournamentEntity tournament = tournaments.createByUser(
+                organizerId, "Yopiq ro'yxat", 4, TournamentEntity.Visibility.PRIVATE);
+
+        mvc.perform(get("/api/tournaments/" + tournament.getId() + "/participants")
+                        .header("Authorization", "Bearer " + outsider))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("not_organizer"));
+
+        JsonNode rows = json(get("/api/tournaments/" + tournament.getId() + "/participants")
+                .header("Authorization", "Bearer " + organizer));
+        assertThat(rows.size()).isZero();
+    }
+
+    @Test
     void selfServiceCreationRefusesAnythingOtherThanAPowerOfTwoUpTo32() throws Exception {
         String player = login("SelfSizePlayer");
         mvc.perform(post("/api/tournaments")
@@ -166,13 +194,26 @@ class TournamentSelfServiceTest {
      * tournament.
      */
     @Test
-    void aStrangerCanJoinAPublicSelfServiceTournamentWithNoInvite() {
+    void aStrangerCanJoinAPublicSelfServiceTournamentWithNoInviteAndOrganizerIsNotified() throws Exception {
         long organizerId = createPlayer("selfpub0");
         long strangerId = createPlayer("selfpub1");
         TournamentEntity tournament =
                 tournaments.createByUser(organizerId, "Ommaviy turnir", 4, TournamentEntity.Visibility.PUBLIC);
 
-        tournaments.join(strangerId, tournament.getId());
+        WebSocketSession socket = mock(WebSocketSession.class);
+        given(socket.isOpen()).willReturn(true);
+        sockets.register(organizerId, socket);
+        try {
+            tournaments.join(strangerId, tournament.getId());
+
+            ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+            verify(socket).sendMessage(captor.capture());
+            JsonNode frame = mapper.readTree(captor.getValue().getPayload());
+            assertThat(frame.get("type").asText()).isEqualTo("tournament.bracket_update");
+            assertThat(frame.get("payload").get("tournamentId").asLong()).isEqualTo(tournament.getId());
+        } finally {
+            sockets.unregister(organizerId, socket);
+        }
 
         assertThat(tournaments.participantViews(tournament.getId()))
                 .anySatisfy(p -> {

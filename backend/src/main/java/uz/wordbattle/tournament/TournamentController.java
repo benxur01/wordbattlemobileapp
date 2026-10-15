@@ -99,8 +99,9 @@ public class TournamentController {
 
     /** Every invited player and how they answered — the organizer's own setup screen. */
     @GetMapping("/{id}/participants")
-    public List<TournamentParticipantDto> participants(@PathVariable("id") long id) {
-        return tournaments.participantViews(id);
+    public List<TournamentParticipantDto> participants(
+            @CurrentUser AuthPrincipal principal, @PathVariable("id") long id) {
+        return tournaments.participantViews(id, principal.userId());
     }
 
     /** Restricted to the organizer's own friends — see {@code TournamentService#inviteByUser}. */
