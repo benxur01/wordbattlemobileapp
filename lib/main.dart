@@ -91,13 +91,6 @@ class _WordBattleAppState extends State<WordBattleApp> with WidgetsBindingObserv
         title: 'Word Battle',
         debugShowCheckedModeBanner: false,
         theme: _theme(),
-        builder: (context, child) {
-          // Every measurement in the design is a fixed pixel value, so an OS-level
-          // font-size setting above 100% overflows the layouts instead of scaling
-          // them. AppRoot already scales the whole canvas by device width, which
-          // is what keeps the UI legible on small phones.
-          return MediaQuery.withNoTextScaling(child: child!);
-        },
         // A second listener, because the first one cannot reach this: `home` is
         // handed to the navigator once and the route caches the page it built,
         // so rebuilding MaterialApp with a new `home` leaves the screens

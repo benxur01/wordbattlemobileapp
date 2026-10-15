@@ -179,6 +179,18 @@ class WBText {
   /// of drawing tofu.
   static const _fallback = ['Roboto', 'sans-serif'];
 
+  /// Low-alpha neutral text is used for secondary labels throughout the
+  /// design. Lift it to a readable floor in both palettes while leaving the
+  /// intentional hues (accent, success, warning) untouched.
+  static Color _readableColor(Color color) {
+    final foreground = WBColors.text;
+    final isNeutralForeground =
+        color.red == foreground.red && color.green == foreground.green && color.blue == foreground.blue;
+    if (!isNeutralForeground) return color;
+    final minimumOpacity = WBTheme.isLight ? .68 : .58;
+    return color.opacity < minimumOpacity ? color.withValues(alpha: minimumOpacity) : color;
+  }
+
   /// `letterSpacing` is given in **em**, exactly as the design's CSS writes it
   /// (`letter-spacing:.2em`), and is converted to logical pixels here. Passing
   /// the CSS number straight into [TextStyle.letterSpacing] — which is in
@@ -200,7 +212,7 @@ class WBText {
         fontVariations: [FontVariation('wght', weight.value.toDouble())],
         fontSize: size,
         fontWeight: weight,
-        color: color ?? WBColors.text,
+        color: _readableColor(color ?? WBColors.text),
         height: height,
         letterSpacing: letterSpacing == null ? null : letterSpacing * size,
       );
@@ -217,7 +229,7 @@ class WBText {
         fontFamilyFallback: _fallback,
         fontSize: size,
         fontWeight: weight,
-        color: color ?? WBColors.text,
+        color: _readableColor(color ?? WBColors.text),
         height: height,
         letterSpacing: letterSpacing == null ? null : letterSpacing * size,
         fontFeatures: const [FontFeature.tabularFigures()],

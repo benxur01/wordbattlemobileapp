@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../widgets/glow_orb.dart';
@@ -21,6 +23,8 @@ class Onboarding1Screen extends StatefulWidget {
     this.onDevLogin,
     required this.onRegister,
     required this.onLogin,
+    this.onRequestPasswordReset,
+    this.onCompletePasswordReset,
     this.showGoogle = true,
     this.googleButton,
     this.googleUnavailableMessage =
@@ -35,10 +39,13 @@ class Onboarding1Screen extends StatefulWidget {
   final VoidCallback? onDevLogin;
 
   /// The nickname+password form's submit while it is in "Ro'yxatdan o'tish" mode.
-  final void Function(String nickname, String password) onRegister;
+  final void Function(String nickname, String email, String password) onRegister;
 
   /// The nickname+password form's submit while it is in "Kirish" mode.
   final void Function(String nickname, String password) onLogin;
+
+  final Future<bool> Function(String email)? onRequestPasswordReset;
+  final Future<bool> Function(String email, String code, String newPassword)? onCompletePasswordReset;
 
   /// False when Google login is unavailable on this platform or unconfigured.
   final bool showGoogle;
@@ -58,23 +65,40 @@ class Onboarding1Screen extends StatefulWidget {
 
 class _Onboarding1ScreenState extends State<Onboarding1Screen> {
   bool _registering = false;
+  bool _resetting = false;
+  bool _resetCodeSent = false;
   String _nickname = '';
+  String _email = '';
   String _password = '';
+  String _resetEmail = '';
+  String _resetCode = '';
+  String _resetNewPassword = '';
+  Timer? _resetResendTimer;
+  DateTime? _resetResendAfter;
+  int _resetResendSeconds = 0;
+  final FocusNode _emailFocus = FocusNode();
   final FocusNode _passwordFocus = FocusNode();
 
   @override
   void dispose() {
+    _resetResendTimer?.cancel();
+    _emailFocus.dispose();
     _passwordFocus.dispose();
     super.dispose();
   }
 
-  bool get _canSubmit => !widget.busy && _nickname.trim().isNotEmpty && _password.isNotEmpty;
+  bool get _validEmail => RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(_email.trim());
+  bool get _validResetEmail => RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(_resetEmail.trim());
+  bool get _canSubmit => !widget.busy &&
+      _nickname.trim().isNotEmpty &&
+      _password.isNotEmpty &&
+      (!_registering || _validEmail);
 
   void _submit() {
     if (!_canSubmit) return;
     final nickname = _nickname.trim();
     if (_registering) {
-      widget.onRegister(nickname, _password);
+      widget.onRegister(nickname, _email.trim(), _password);
     } else {
       widget.onLogin(nickname, _password);
     }
@@ -255,6 +279,8 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
   }
 
   Widget _passwordForm() {
+    if (_resetting) return _passwordResetForm();
+
     final enabled = _canSubmit;
     return Column(
       children: [
@@ -264,8 +290,22 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
           value: _nickname,
           onChanged: (v) => setState(() => _nickname = v),
           textInputAction: TextInputAction.next,
-          onSubmitted: (_) => _passwordFocus.requestFocus(),
+          onSubmitted: (_) => (_registering ? _emailFocus : _passwordFocus).requestFocus(),
         ),
+        if (_registering) ...[
+          const SizedBox(height: 10),
+          _field(
+            label: 'EMAIL — TIKLASH UCHUN',
+            hint: 'siz@example.com',
+            value: _email,
+            onChanged: (v) => setState(() => _email = v),
+            keyboardType: TextInputType.emailAddress,
+            maxLength: 320,
+            focusNode: _emailFocus,
+            textInputAction: TextInputAction.next,
+            onSubmitted: (_) => _passwordFocus.requestFocus(),
+          ),
+        ],
         const SizedBox(height: 10),
         _field(
           label: 'PAROL',
@@ -303,7 +343,184 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
             style: WBText.grotesk(size: 12.5, weight: FontWeight.w500, color: WBColors.textA(.55)),
           ),
         ),
+        if (!_registering && widget.onRequestPasswordReset != null && widget.onCompletePasswordReset != null) ...[
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: widget.busy
+                ? null
+                : () => setState(() {
+                      _resetting = true;
+                      _resetCodeSent = false;
+                      _resetEmail = '';
+                      _resetCode = '';
+                      _resetNewPassword = '';
+                      _resetResendTimer?.cancel();
+                      _resetResendAfter = null;
+                      _resetResendSeconds = 0;
+                    }),
+            child: Text(
+              'Parolni unutdingizmi?',
+              style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.accent),
+            ),
+          ),
+        ],
       ],
+    );
+  }
+
+  Widget _passwordResetForm() {
+    return Column(
+      children: [
+        Text('Parolni tiklash', style: WBText.grotesk(size: 16, weight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Text(
+          'Tasdiqlangan emailingizga bir martalik kod yuboramiz.',
+          textAlign: TextAlign.center,
+          style: WBText.grotesk(size: 12.5, color: WBColors.textA(.62)),
+        ),
+        const SizedBox(height: 14),
+        _field(
+          label: 'EMAIL',
+          hint: 'siz@example.com',
+          value: _resetEmail,
+          onChanged: (v) => setState(() => _resetEmail = v),
+          enabled: !_resetCodeSent,
+          keyboardType: TextInputType.emailAddress,
+          maxLength: 320,
+          textInputAction: _resetCodeSent ? TextInputAction.next : TextInputAction.done,
+          onSubmitted: (_) => _resetCodeSent ? null : _requestResetCode(),
+        ),
+        if (_resetCodeSent) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Agar bu email akkauntga bog‘langan bo‘lsa, kod yuborildi.',
+            textAlign: TextAlign.center,
+            style: WBText.grotesk(size: 11.5, color: WBColors.textA(.6)),
+          ),
+          const SizedBox(height: 10),
+          _field(
+            label: 'EMAILDAGI 8 XONALI KOD',
+            hint: '00000000',
+            value: _resetCode,
+            onChanged: (v) => setState(() => _resetCode = v),
+            keyboardType: TextInputType.number,
+            maxLength: 8,
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 10),
+          _field(
+            label: 'YANGI PAROL',
+            hint: 'kamida 6 ta belgi, harf va raqam',
+            value: _resetNewPassword,
+            onChanged: (v) => setState(() => _resetNewPassword = v),
+            obscureText: true,
+            maxLength: 72,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _completePasswordReset(),
+          ),
+          const SizedBox(height: 9),
+          if (_resetResendSeconds > 0)
+            Text(
+              'Yangi kodni ${_resetResendSeconds}s dan keyin so‘rashingiz mumkin.',
+              textAlign: TextAlign.center,
+              style: WBText.grotesk(size: 11.5, color: WBColors.textA(.55)),
+            )
+          else
+            GestureDetector(
+              onTap: widget.busy ? null : _requestResetCode,
+              child: Text('Kodni qayta yuborish',
+                  style: WBText.grotesk(size: 12, weight: FontWeight.w600, color: WBColors.accent)),
+            ),
+        ],
+        const SizedBox(height: 12),
+        _formButton(
+          label: _resetCodeSent ? 'Parolni yangilash' : 'Tiklash kodini yuborish',
+          enabled: !widget.busy &&
+              _validResetEmail &&
+              (!_resetCodeSent || (_resetCode.trim().length == 8 && _resetNewPassword.isNotEmpty)),
+          onTap: _resetCodeSent ? _completePasswordReset : _requestResetCode,
+        ),
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: widget.busy
+              ? null
+              : () => setState(() {
+                    _resetting = false;
+                    _resetCodeSent = false;
+                    _resetResendTimer?.cancel();
+                    _resetResendAfter = null;
+                    _resetResendSeconds = 0;
+                  }),
+          child: Text('Kirishga qaytish',
+              style: WBText.grotesk(size: 12.5, weight: FontWeight.w500, color: WBColors.textA(.62))),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _requestResetCode() async {
+    final request = widget.onRequestPasswordReset;
+    if (request == null || widget.busy || !_validResetEmail) return;
+    final accepted = await request(_resetEmail.trim());
+    if (mounted && accepted) {
+      setState(() {
+        _resetCodeSent = true;
+        _resetCode = '';
+        _resetResendAfter = DateTime.now().add(const Duration(seconds: 60));
+        _resetResendSeconds = 60;
+      });
+      _resetResendTimer?.cancel();
+      _resetResendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        final remaining = _resetResendAfter!.difference(DateTime.now()).inSeconds;
+        setState(() {
+          _resetResendSeconds = remaining.clamp(0, 60).toInt();
+        });
+        if (_resetResendSeconds == 0) timer.cancel();
+      });
+    }
+  }
+
+  Future<void> _completePasswordReset() async {
+    final complete = widget.onCompletePasswordReset;
+    if (complete == null || widget.busy || !_validResetEmail || _resetCode.trim().length != 8) return;
+    final changed = await complete(_resetEmail.trim(), _resetCode.trim(), _resetNewPassword);
+    if (mounted && changed) {
+      setState(() {
+        _resetting = false;
+        _resetCodeSent = false;
+        _password = '';
+        _resetCode = '';
+        _resetNewPassword = '';
+        _resetResendTimer?.cancel();
+        _resetResendAfter = null;
+        _resetResendSeconds = 0;
+      });
+    }
+  }
+
+  Widget _formButton({required String label, required bool enabled, required VoidCallback onTap}) {
+    return Pressable(
+      onTap: enabled ? onTap : null,
+      pressScale: .98,
+      child: Container(
+        height: 54,
+        decoration: BoxDecoration(
+          color: WBColors.whiteA(.05),
+          border: Border.all(color: enabled ? WBColors.accentA(.35) : WBColors.whiteA(.09)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.center,
+        child: Text(label,
+            style: WBText.grotesk(
+              size: 15,
+              weight: FontWeight.w600,
+              color: enabled ? WBColors.accent : WBColors.textA(.3),
+            )),
+      ),
     );
   }
 
@@ -313,6 +530,9 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
     required String value,
     required ValueChanged<String> onChanged,
     bool obscureText = false,
+    bool enabled = true,
+    TextInputType? keyboardType,
+    int? maxLength,
     TextInputAction textInputAction = TextInputAction.next,
     ValueChanged<String>? onSubmitted,
     FocusNode? focusNode,
@@ -335,11 +555,13 @@ class _Onboarding1ScreenState extends State<Onboarding1Screen> {
             onSubmitted: onSubmitted,
             focusNode: focusNode,
             obscureText: obscureText,
+            enabled: enabled,
+            keyboardType: keyboardType,
             textCapitalization: TextCapitalization.none,
             autocorrect: false,
             enableSuggestions: false,
             textInputAction: textInputAction,
-            maxLength: obscureText ? 72 : 16,
+            maxLength: maxLength ?? (obscureText ? 72 : 16),
             style: WBText.grotesk(size: 16, weight: FontWeight.w600),
             decoration: InputDecoration(
               counterText: '',

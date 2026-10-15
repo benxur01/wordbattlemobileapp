@@ -20,9 +20,11 @@ class SyncedTextField extends StatefulWidget {
     this.autocorrect = true,
     this.enableSuggestions = true,
     this.textInputAction,
+    this.keyboardType,
     this.maxLength,
     this.focusNode,
     this.autofocus = false,
+    this.enabled = true,
     this.obscureText = false,
   });
 
@@ -36,9 +38,11 @@ class SyncedTextField extends StatefulWidget {
   final bool autocorrect;
   final bool enableSuggestions;
   final TextInputAction? textInputAction;
+  final TextInputType? keyboardType;
   final int? maxLength;
   final FocusNode? focusNode;
   final bool autofocus;
+  final bool enabled;
   final bool obscureText;
 
   @override
@@ -71,6 +75,7 @@ class _SyncedTextFieldState extends State<SyncedTextField> {
       controller: _controller,
       focusNode: widget.focusNode,
       autofocus: widget.autofocus,
+      enabled: widget.enabled,
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
       style: widget.style,
@@ -84,6 +89,7 @@ class _SyncedTextFieldState extends State<SyncedTextField> {
       autocorrect: widget.autocorrect,
       enableSuggestions: widget.enableSuggestions,
       textInputAction: widget.textInputAction,
+      keyboardType: widget.keyboardType,
       maxLength: widget.maxLength,
       obscureText: widget.obscureText,
     );

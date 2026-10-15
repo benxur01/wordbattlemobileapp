@@ -284,6 +284,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   // ---- account ----
   UserDto? me;
   bool busy = false;
+  bool passwordResetAvailable = false;
+  bool recoveryEmailVerified = false;
+  String? recoveryEmailMasked;
+  String? recoveryEmailPending;
 
   // ---- onboarding ----
   String nickname = '';
@@ -298,8 +302,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   List<FriendDto> friends = const [];
   List<FriendRequestDto> friendRequests = const [];
   List<UserDto> searchResults = const [];
+  bool searchLoading = false;
+  String? searchError;
   String search = '';
   Timer? _searchDebounce;
+  int _searchRequest = 0;
   final Set<int> _sentRequests = {};
 
   /// Re-reads the friend list and requests while [socialOnScreen] holds —
@@ -629,14 +636,23 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
 
   /// Instagram-style sign-up: the player picks the nickname and password
   /// themselves, straight on the first onboarding screen.
-  Future<void> registerWithPassword(String nickname, String password) async {
+  Future<void> registerWithPassword(String nickname, String email, String password) async {
     if (busy) return;
     setState(() {
       busy = true;
       banner = null;
     });
     try {
-      await _completeLogin(await _api.registerWithPassword(nickname, password));
+      final result = await _api.registerWithPassword(nickname, email, password);
+      await _completeLogin((
+        token: result.token,
+        user: result.user,
+        needsNickname: result.needsNickname,
+      ));
+      if (!mounted) return;
+      setState(() => banner = result.recoveryEmailSent
+          ? 'Emailni tasdiqlash kodi yuborildi — profilga kirib tasdiqlang.'
+          : 'Akkaunt yaratildi. Emailni Profil bo‘limidan tasdiqlashingiz mumkin.');
     } on ApiException catch (e) {
       _loginFailed(e);
     }
@@ -653,6 +669,144 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       await _completeLogin(await _api.loginWithPassword(nickname, password));
     } on ApiException catch (e) {
       _loginFailed(e);
+    }
+  }
+
+  Future<bool> requestPasswordReset(String email) async {
+    if (busy) return false;
+    setState(() {
+      busy = true;
+      banner = null;
+    });
+    try {
+      await _api.requestPasswordReset(email);
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        banner = 'Agar email tasdiqlangan bo‘lsa, tiklash kodi yuborildi.';
+      });
+      return true;
+    } on ApiException catch (e) {
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        banner = e.message;
+      });
+      return false;
+    } catch (_) {
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        banner = 'So‘rovni yuborib bo‘lmadi. Aloqani tekshirib qayta urinib ko‘ring.';
+      });
+      return false;
+    }
+  }
+
+  Future<bool> completePasswordReset(String email, String code, String newPassword) async {
+    if (busy) return false;
+    setState(() {
+      busy = true;
+      banner = null;
+    });
+    try {
+      await _api.completePasswordReset(email, code, newPassword);
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        banner = 'Parol yangilandi. Endi yangi parol bilan kiring.';
+      });
+      return true;
+    } on ApiException catch (e) {
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        banner = e.message;
+      });
+      return false;
+    } catch (_) {
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        banner = 'Parolni yangilab bo‘lmadi. Aloqani tekshirib qayta urinib ko‘ring.';
+      });
+      return false;
+    }
+  }
+
+  Future<bool> requestRecoveryEmail(String email) async {
+    if (busy) return false;
+    setState(() {
+      busy = true;
+      banner = null;
+    });
+    try {
+      final sent = await _api.requestRecoveryEmail(email);
+      final status = await _api.recoveryEmailStatus();
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        passwordResetAvailable = status.passwordResetAvailable;
+        recoveryEmailVerified = status.verified;
+        recoveryEmailMasked = status.maskedEmail;
+        recoveryEmailPending = status.pendingEmail;
+        banner = sent
+            ? (status.verified && status.pendingEmail == null
+                ? 'Tiklash emaili allaqachon tasdiqlangan.'
+                : 'Tasdiqlash kodi emailga yuborildi.')
+            : 'Pochta xizmati sozlanmagan — emailga kod yuborilmadi.';
+      });
+      return sent;
+    } on ApiException catch (e) {
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        banner = e.message;
+      });
+      return false;
+    } catch (_) {
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        banner = 'So‘rovni yuborib bo‘lmadi. Aloqani tekshirib qayta urinib ko‘ring.';
+      });
+      return false;
+    }
+  }
+
+  Future<bool> verifyRecoveryEmail(String code) async {
+    if (busy) return false;
+    setState(() {
+      busy = true;
+      banner = null;
+    });
+    try {
+      await _api.verifyRecoveryEmail(code);
+      final status = await _api.recoveryEmailStatus();
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        passwordResetAvailable = status.passwordResetAvailable;
+        recoveryEmailVerified = status.verified;
+        recoveryEmailMasked = status.maskedEmail;
+        recoveryEmailPending = status.pendingEmail;
+        banner = 'Tiklash emaili tasdiqlandi.';
+      });
+      return status.verified;
+    } on ApiException catch (e) {
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        banner = e.message;
+      });
+      return false;
+    } catch (_) {
+      if (!mounted) return false;
+      setState(() {
+        busy = false;
+        banner = 'Emailni tasdiqlab bo‘lmadi. Aloqani tekshirib qayta urinib ko‘ring.';
+      });
+      return false;
     }
   }
 
@@ -719,13 +873,20 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     setState(() {
       me = null;
       profile = null;
+      passwordResetAvailable = false;
+      recoveryEmailVerified = false;
+      recoveryEmailMasked = null;
+      recoveryEmailPending = null;
       board = null;
       history = null;
       blockedUsers = null;
       friends = const [];
       friendRequests = const [];
       searchResults = const [];
+      searchLoading = false;
+      searchError = null;
       search = '';
+      _searchRequest++;
       _sentRequests.clear();
       duel = null;
       finished = null;
@@ -939,10 +1100,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   Future<void> _loadProfile() async {
     try {
       final data = await _api.profile();
+      final recovery = await _api.recoveryEmailStatus();
       if (!mounted) return;
       setState(() {
         profile = data;
         me = data.user;
+        passwordResetAvailable = recovery.passwordResetAvailable;
+        recoveryEmailVerified = recovery.verified;
+        recoveryEmailMasked = recovery.maskedEmail;
+        recoveryEmailPending = recovery.pendingEmail;
       });
     } on ApiException catch (e) {
       _onApiError(e);
@@ -1397,20 +1563,41 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   // ----------------------------------------------------------------- social
 
   void setSearch(String value) {
-    setState(() => search = value);
+    final query = value.trim();
+    final request = ++_searchRequest;
     _searchDebounce?.cancel();
-    if (value.trim().isEmpty) {
-      setState(() => searchResults = const []);
+    setState(() {
+      search = value;
+      searchResults = const [];
+      searchLoading = query.isNotEmpty;
+      searchError = null;
+    });
+    if (query.isEmpty) {
       return;
     }
     _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
       try {
-        final results = await _api.searchUsers(value.trim());
-        if (mounted) setState(() => searchResults = results);
+        final results = await _api.searchUsers(query);
+        if (!mounted || request != _searchRequest) return;
+        setState(() {
+          searchResults = results;
+          searchLoading = false;
+        });
       } on ApiException catch (e) {
-        if (!mounted) return;
-        setState(() => searchResults = const []);
+        if (!mounted || request != _searchRequest) return;
+        setState(() {
+          searchResults = const [];
+          searchLoading = false;
+          searchError = e.message;
+        });
         if (_isSessionOver(e)) _onApiError(e);
+      } catch (_) {
+        if (!mounted || request != _searchRequest) return;
+        setState(() {
+          searchResults = const [];
+          searchLoading = false;
+          searchError = 'Qidiruv vaqtincha ishlamadi';
+        });
       }
     });
   }
@@ -2648,17 +2835,27 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
                 child: SizedBox(
                   width: _designWidth,
                   height: designHeight,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(child: _screen()),
-                      if (banner != null)
-                        Positioned(
-                          left: 16,
-                          right: 16,
-                          bottom: 16,
-                          child: _Banner(message: banner!, onDismiss: () => setState(() => banner = null)),
-                        ),
-                    ],
+                  child: MediaQuery(
+                    // The canvas is fitted to the phone width after layout.
+                    // Scale text in the opposite direction while laying it out
+                    // so the final rendered text still honors the OS setting.
+                    // This keeps small phones from silently shrinking every
+                    // label and lets larger accessibility text reflow first.
+                    data: media.copyWith(
+                      textScaler: TextScaler.linear(media.textScaler.scale(1) / scale),
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(child: _screen()),
+                        if (banner != null)
+                          Positioned(
+                            left: 16,
+                            right: 16,
+                            bottom: 16,
+                            child: _Banner(message: banner!, onDismiss: () => setState(() => banner = null)),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -2687,6 +2884,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onDevLogin: ApiConfig.googleConfigured ? null : loginDev,
           onRegister: registerWithPassword,
           onLogin: loginWithPassword,
+          onRequestPasswordReset: requestPasswordReset,
+          onCompletePasswordReset: completePasswordReset,
           showGoogle: ApiConfig.googleConfiguredForPlatform,
           googleButton: kIsWeb
               ? AdminGoogleButton(
@@ -2870,6 +3069,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           onBlockedUsers: () => go(WBScreen.blockedUsers),
           onPrivacyPolicy: () => unawaited(openLegalPage(ApiConfig.privacyPolicyUrl)),
           onTerms: () => unawaited(openLegalPage(ApiConfig.termsUrl)),
+          passwordResetAvailable: passwordResetAvailable,
+          recoveryEmailVerified: recoveryEmailVerified,
+          recoveryEmailMasked: recoveryEmailMasked,
+          recoveryEmailPending: recoveryEmailPending,
+          onRequestRecoveryEmail: requestRecoveryEmail,
+          onVerifyRecoveryEmail: verifyRecoveryEmail,
           onLogout: logout,
           onDeleteAccount: deleteAccount,
           busy: busy,
@@ -2893,6 +3098,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       WBScreen.friends => FriendsScreen(
           search: search,
           searchResults: searchResults,
+          searchLoading: searchLoading,
+          searchError: searchError,
           isRequestSent: requestSentTo,
           requests: friendRequests,
           friends: friends,

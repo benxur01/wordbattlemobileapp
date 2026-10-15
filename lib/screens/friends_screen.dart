@@ -15,6 +15,8 @@ class FriendsScreen extends StatelessWidget {
     super.key,
     required this.search,
     required this.searchResults,
+    this.searchLoading = false,
+    this.searchError,
     required this.isRequestSent,
     required this.requests,
     required this.friends,
@@ -35,6 +37,8 @@ class FriendsScreen extends StatelessWidget {
 
   final String search;
   final List<UserDto> searchResults;
+  final bool searchLoading;
+  final String? searchError;
 
   /// Whether a request to this user was already sent in this session.
   final bool Function(int userId) isRequestSent;
@@ -179,7 +183,27 @@ class FriendsScreen extends StatelessWidget {
               if (search.trim().isNotEmpty) ...[
                 _SectionLabel('QIDIRUV NATIJASI'),
                 const SizedBox(height: 9),
-                if (searchResults.isEmpty)
+                if (searchLoading)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: WBColors.accent),
+                        ),
+                        const SizedBox(width: 9),
+                        Text('Qidirilmoqda…', style: WBText.grotesk(size: 13.5, color: WBColors.textA(.6))),
+                      ],
+                    ),
+                  )
+                else if (searchError != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(searchError!, style: WBText.grotesk(size: 13.5, color: WBColors.redSoft)),
+                  )
+                else if (searchResults.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(

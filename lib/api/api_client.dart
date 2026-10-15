@@ -47,10 +47,19 @@ class ApiClient {
   /// Instagram-style sign-up: the player picks the nickname and password
   /// themselves. The nickname doubles as the login name, so a fresh account
   /// never needs the second onboarding screen a Google sign-in does.
-  Future<({String token, UserDto user, bool needsNickname})> registerWithPassword(
-      String nickname, String password) async {
-    final json = await _post('/auth/register', {'nickname': nickname, 'password': password}) as Map<String, dynamic>;
-    return _loginResult(json);
+  Future<({String token, UserDto user, bool needsNickname, bool recoveryEmailSent})> registerWithPassword(
+      String nickname, String email, String password) async {
+    final json = await _post('/auth/register', {
+      'nickname': nickname,
+      'email': email,
+      'password': password,
+    }) as Map<String, dynamic>;
+    return (
+      token: json['token'] as String,
+      user: UserDto.fromJson(json['user'] as Map<String, dynamic>),
+      needsNickname: json['needsNickname'] as bool? ?? false,
+      recoveryEmailSent: json['recoveryEmailSent'] as bool? ?? false,
+    );
   }
 
   /// Signs back in with the nickname and password chosen at registration.
@@ -62,6 +71,35 @@ class ApiClient {
 
   /// Signs out on the server, revoking the token across all devices.
   Future<void> logout() => _post('/auth/logout');
+
+  Future<void> requestPasswordReset(String email) =>
+      _post('/auth/password-reset/request', {'email': email});
+
+  Future<void> completePasswordReset(String email, String code, String newPassword) =>
+      _post('/auth/password-reset/complete', {
+        'email': email,
+        'code': code,
+        'newPassword': newPassword,
+      });
+
+  Future<({bool passwordResetAvailable, bool verified, String? maskedEmail, String? pendingEmail})>
+      recoveryEmailStatus() async {
+    final json = await _get('/auth/recovery-email/status') as Map<String, dynamic>;
+    return (
+      passwordResetAvailable: json['passwordResetAvailable'] as bool? ?? false,
+      verified: json['verified'] as bool? ?? false,
+      maskedEmail: json['maskedEmail'] as String?,
+      pendingEmail: json['pendingEmail'] as String?,
+    );
+  }
+
+  Future<bool> requestRecoveryEmail(String email) async {
+    final json = await _post('/auth/recovery-email/request', {'email': email}) as Map<String, dynamic>;
+    return json['sent'] as bool? ?? false;
+  }
+
+  Future<void> verifyRecoveryEmail(String code) =>
+      _post('/auth/recovery-email/verify', {'code': code});
 
   ({String token, UserDto user, bool needsNickname}) _loginResult(Map<String, dynamic> json) => (
         token: json['token'] as String,

@@ -25,6 +25,12 @@ class ProfileScreen extends StatefulWidget {
     required this.onBlockedUsers,
     required this.onPrivacyPolicy,
     required this.onTerms,
+    this.passwordResetAvailable = false,
+    this.recoveryEmailVerified = false,
+    this.recoveryEmailMasked,
+    this.recoveryEmailPending,
+    this.onRequestRecoveryEmail,
+    this.onVerifyRecoveryEmail,
     required this.onLogout,
     required this.onDeleteAccount,
     this.busy = false,
@@ -50,6 +56,13 @@ class ProfileScreen extends StatefulWidget {
   final VoidCallback onPrivacyPolicy;
   final VoidCallback onTerms;
 
+  final bool passwordResetAvailable;
+  final bool recoveryEmailVerified;
+  final String? recoveryEmailMasked;
+  final String? recoveryEmailPending;
+  final Future<bool> Function(String email)? onRequestRecoveryEmail;
+  final Future<bool> Function(String code)? onVerifyRecoveryEmail;
+
   /// Signs out on this device; the account itself stays.
   final VoidCallback onLogout;
 
@@ -72,6 +85,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// the whole UI is a scaled fixed-width canvas, and a system dialog would
   /// land outside it at a different size.
   bool _confirmingDelete = false;
+  bool _editingRecoveryEmail = false;
+  String _recoveryEmail = '';
+  String _recoveryCode = '';
+  late final TextEditingController _recoveryEmailController = TextEditingController(
+    text: widget.recoveryEmailPending ?? '',
+  );
+  late final TextEditingController _recoveryCodeController = TextEditingController();
+
+  @override
+  void dispose() {
+    _recoveryEmailController.dispose();
+    _recoveryCodeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.recoveryEmailPending != oldWidget.recoveryEmailPending && widget.recoveryEmailPending != null) {
+      _recoveryEmail = widget.recoveryEmailPending!;
+      _recoveryEmailController.value = TextEditingValue(
+        text: _recoveryEmail,
+        selection: TextSelection.collapsed(offset: _recoveryEmail.length),
+      );
+      _recoveryCode = '';
+      _recoveryCodeController.clear();
+      _editingRecoveryEmail = true;
+    }
+    if (widget.recoveryEmailVerified && widget.recoveryEmailPending == null) {
+      _editingRecoveryEmail = false;
+      _recoveryCode = '';
+      _recoveryCodeController.clear();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -310,6 +357,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 22),
               _privacySection(),
               const SizedBox(height: 22),
+              _recoveryEmailSection(),
+              const SizedBox(height: 22),
               _accountSection(),
             ],
           ),
@@ -425,6 +474,156 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ],
     );
+  }
+
+  Widget _recoveryEmailSection() {
+    if (!widget.passwordResetAvailable) return const SizedBox.shrink();
+    final pendingEmail = widget.recoveryEmailPending;
+    final hasPending = pendingEmail != null && pendingEmail.isNotEmpty;
+    final showForm = !widget.recoveryEmailVerified || hasPending || _editingRecoveryEmail;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Parolni tiklash', style: WBText.grotesk(size: 13.5, weight: FontWeight.w600)),
+        const SizedBox(height: 11),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: WBColors.whiteA(.045),
+            border: Border.all(color: WBColors.whiteA(.09)),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.recoveryEmailVerified)
+                Row(
+                  children: [
+                    Icon(Icons.verified_rounded, size: 17, color: WBColors.green),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        'Tasdiqlangan: ${widget.recoveryEmailMasked ?? 'email'}',
+                        style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.green),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Text(
+                  'Parolni tiklash uchun emailni tasdiqlang.',
+                  style: WBText.grotesk(size: 12.5, color: WBColors.textA(.65)),
+                ),
+              if (hasPending) ...[
+                const SizedBox(height: 8),
+                Text('Tasdiqlash kutilmoqda: $pendingEmail',
+                    style: WBText.grotesk(size: 12, color: WBColors.textA(.68))),
+              ],
+              if (showForm) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _recoveryEmailController,
+                  enabled: !widget.busy,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: hasPending ? TextInputAction.next : TextInputAction.done,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  maxLength: 320,
+                  onChanged: (value) => _recoveryEmail = value,
+                  decoration: const InputDecoration(
+                    labelText: 'Tiklash emaili',
+                    counterText: '',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  style: WBText.grotesk(size: 14),
+                ),
+                if (hasPending) ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _recoveryCodeController,
+                    enabled: !widget.busy,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.done,
+                    maxLength: 8,
+                    onChanged: (value) => _recoveryCode = value,
+                    decoration: const InputDecoration(
+                      labelText: 'Emaildagi 8 xonali kod',
+                      counterText: '',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    style: WBText.mono(size: 16, weight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  _AccountButton(
+                    label: widget.busy ? 'Yuborilmoqda…' : 'Kodni qayta yuborish',
+                    color: WBColors.textA(.78),
+                    border: WBColors.whiteA(.15),
+                    onTap: widget.busy || !_validRecoveryEmail ? null : _sendRecoveryEmail,
+                  ),
+                  const SizedBox(height: 8),
+                  _AccountButton(
+                    label: widget.busy ? 'Tekshirilmoqda…' : 'Emailni tasdiqlash',
+                    color: WBColors.accent,
+                    border: WBColors.accentA(.35),
+                    fill: WBColors.accentA(.08),
+                    onTap: widget.busy || _recoveryCode.trim().length != 8 ? null : _verifyRecoveryEmail,
+                  ),
+                ] else ...[
+                  const SizedBox(height: 8),
+                  _AccountButton(
+                    label: widget.busy ? 'Yuborilmoqda…' : 'Tasdiqlash kodini yuborish',
+                    color: WBColors.accent,
+                    border: WBColors.accentA(.35),
+                    fill: WBColors.accentA(.08),
+                    onTap: widget.busy || !_validRecoveryEmail ? null : _sendRecoveryEmail,
+                  ),
+                ],
+              ] else ...[
+                const SizedBox(height: 10),
+                _AccountButton(
+                  label: 'Emailni almashtirish',
+                  color: WBColors.textA(.78),
+                  border: WBColors.whiteA(.15),
+                  onTap: widget.busy ? null : () => setState(() => _editingRecoveryEmail = true),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  bool get _validRecoveryEmail =>
+      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(_recoveryEmailController.text.trim());
+
+  Future<void> _sendRecoveryEmail() async {
+    final request = widget.onRequestRecoveryEmail;
+    if (request == null || widget.busy || !_validRecoveryEmail) return;
+    final sent = await request(_recoveryEmailController.text.trim());
+    if (mounted && sent) {
+      setState(() {
+        _recoveryEmail = _recoveryEmailController.text.trim();
+        _recoveryCode = '';
+        _recoveryCodeController.clear();
+        _editingRecoveryEmail = true;
+      });
+    }
+  }
+
+  Future<void> _verifyRecoveryEmail() async {
+    final verify = widget.onVerifyRecoveryEmail;
+    if (verify == null || widget.busy || _recoveryCode.trim().length != 8) return;
+    final verified = await verify(_recoveryCode.trim());
+    if (mounted && verified) {
+      setState(() {
+        _recoveryCode = '';
+        _recoveryCodeController.clear();
+        _editingRecoveryEmail = false;
+      });
+    }
   }
 
   /// Signing out and deleting the account. The store this ships through
