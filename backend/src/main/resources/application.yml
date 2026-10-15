@@ -5,6 +5,20 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/wordbattle}
     username: ${DB_USER:wordbattle}
     password: ${DB_PASSWORD:wordbattle}
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+          starttls:
+            enable: ${MAIL_STARTTLS:true}
   jpa:
     open-in-view: false
     hibernate:
@@ -51,6 +65,8 @@ management:
         enabled: true
 
 wordbattle:
+  recovery:
+    from: ${MAIL_FROM:}
   jwt:
     # No default: the server refuses to start without one, because a default
     # secret is a secret everyone with the repository already knows.

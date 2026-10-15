@@ -20,34 +20,36 @@ import uz.wordbattle.common.ApiError;
 import uz.wordbattle.config.AppProperties;
 
 /**
- * A token bucket per client address in front of the two password routes, so a
- * caller can neither guess at an account nor invent them as fast as it can send
- * requests.
+ * A token bucket per client address in front of password and email-code routes,
+ * so a caller can neither guess at an account nor invent them as fast as it can
+ * send requests.
  *
  * <p>{@link uz.wordbattle.ws.FrameRateLimiter} does the same for the socket and
  * keys on the player, which is what every other ceiling in this game can do —
- * behind a socket there is a token and a user id. On {@code /api/auth/login}
- * and {@code /api/auth/register} there is neither, and that is the whole point
- * of the two: one answers a caller who is claiming to be somebody, the other a
- * caller who is about to become somebody. The address is the only handle they
- * leave, and without it a password is a few hours of scripted guessing and the
- * leaderboard is however many accounts somebody cared to make.
+ * behind a socket there is a token and a user id. Login, registration and
+ * password-reset routes have no signed-in identity to rate-limit by, so they
+ * use the caller's address instead. This prevents scripted password guessing,
+ * account creation and code guessing from turning into unlimited work.
  *
- * <p>Nothing else under {@code /api/auth/**} is throttled. {@code /google} is
- * settled by Google's signature over a token this server cannot be talked into
- * accepting, {@code /dev} does not exist in production, and {@code /logout}
- * costs one write and is the last call to make fail for somebody already on
- * their way out.
+ * <p>The signed-in recovery-email routes are separately limited per account by
+ * their resend cooldown. Nothing else under {@code /api/auth/**} is throttled:
+ * {@code /google} is settled by Google's signature over its token, {@code /dev}
+ * is disabled in production, and {@code /logout} should remain available to a
+ * player who is already leaving.
  */
 @Component
 public class AuthRateLimiter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(AuthRateLimiter.class);
 
-    /** The two routes guarded, spelled exactly as they are mapped. */
+    /** Anonymous credential and code routes guarded, spelled exactly as mapped. */
     private static final String LOGIN_PATH = "/api/auth/login";
 
     private static final String REGISTER_PATH = "/api/auth/register";
+
+    private static final String RESET_REQUEST_PATH = "/api/auth/password-reset/request";
+
+    private static final String RESET_COMPLETE_PATH = "/api/auth/password-reset/complete";
 
     private static final class Bucket {
         double tokens;
@@ -150,12 +152,15 @@ public class AuthRateLimiter extends OncePerRequestFilter {
     }
 
     /**
-     * Exactly the two mapped paths and nothing around them. Equality rather
+     * Exactly the mapped paths and nothing around them. Equality rather
      * than a prefix, because the prefix here is {@code /api/auth} and the rest
-     * of what lives under it is deliberately not throttled.
+     * of what lives under it is deliberately not throttled here.
      */
     private static boolean isGuarded(String uri) {
-        return LOGIN_PATH.equals(uri) || REGISTER_PATH.equals(uri);
+        return LOGIN_PATH.equals(uri)
+                || REGISTER_PATH.equals(uri)
+                || RESET_REQUEST_PATH.equals(uri)
+                || RESET_COMPLETE_PATH.equals(uri);
     }
 
     /**

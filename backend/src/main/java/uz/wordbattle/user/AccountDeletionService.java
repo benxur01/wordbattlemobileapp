@@ -7,6 +7,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import uz.wordbattle.auth.AuthRecoveryCodeRepository;
 import uz.wordbattle.common.ApiException;
 import uz.wordbattle.friend.FriendRequestRepository;
 import uz.wordbattle.friend.FriendshipRepository;
@@ -55,6 +56,7 @@ public class AccountDeletionService {
     private final UserBlockRepository userBlocks;
     private final UserWordRepository userWords;
     private final RatingHistoryRepository ratingHistory;
+    private final AuthRecoveryCodeRepository recoveryCodes;
     private final SessionEnder sessionEnder;
     private final TransactionTemplate transactions;
 
@@ -65,6 +67,7 @@ public class AccountDeletionService {
             UserBlockRepository userBlocks,
             UserWordRepository userWords,
             RatingHistoryRepository ratingHistory,
+            AuthRecoveryCodeRepository recoveryCodes,
             SessionEnder sessionEnder,
             PlatformTransactionManager transactionManager) {
         this.users = users;
@@ -73,6 +76,7 @@ public class AccountDeletionService {
         this.userBlocks = userBlocks;
         this.userWords = userWords;
         this.ratingHistory = ratingHistory;
+        this.recoveryCodes = recoveryCodes;
         this.sessionEnder = sessionEnder;
         this.transactions = new TransactionTemplate(transactionManager);
     }
@@ -126,6 +130,7 @@ public class AccountDeletionService {
         userBlocks.deleteByBlockerIdOrBlockedId(userId, userId);
         userWords.deleteByUserId(userId);
         ratingHistory.deleteByUserId(userId);
+        recoveryCodes.deleteByUserId(userId);
 
         user.anonymise(Instant.now());
         users.saveAndFlush(user);

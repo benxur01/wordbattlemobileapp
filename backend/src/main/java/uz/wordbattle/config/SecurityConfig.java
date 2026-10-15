@@ -63,6 +63,7 @@ public class SecurityConfig {
                 })
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/recovery-email/**").authenticated()
                         .requestMatchers("/api/auth/**", "/actuator/health/**", "/actuator/info").permitAll()
                         // The socket authenticates itself from the token in the
                         // query string during the handshake.

@@ -66,6 +66,12 @@ public interface UserRepository extends JpaRepository<User, Long>, TokenGenerati
     @Query("select u from User u where lower(u.nickname) = lower(:nickname)")
     Optional<User> findByNicknameIgnoreCase(@Param("nickname") String nickname);
 
+    Optional<User> findByRecoveryEmailIgnoreCaseAndRecoveryEmailVerifiedAtIsNotNull(String recoveryEmail);
+
+    @Query("select count(u) > 0 from User u where lower(u.recoveryEmail) = lower(:email) "
+            + "and u.recoveryEmailVerifiedAt is not null and u.deletedAt is null and u.id <> :userId")
+    boolean recoveryEmailUsedByAnother(@Param("email") String email, @Param("userId") Long userId);
+
     @Query("select count(u) > 0 from User u where lower(u.nickname) = lower(:nickname)")
     boolean nicknameTaken(@Param("nickname") String nickname);
 

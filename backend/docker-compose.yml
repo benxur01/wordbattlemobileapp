@@ -60,6 +60,13 @@ services:
       # Named on /privacy and /terms. The defaults are placeholders.
       LEGAL_CONTACT_EMAIL: ${LEGAL_CONTACT_EMAIL:-support@example.uz}
       LEGAL_OPERATOR_NAME: ${LEGAL_OPERATOR_NAME:-Word Battle}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-true}
       # Empty by default so the quickstart above works as written. Set it to
       # `prod` in .env for a real deployment — see DatabasePasswordGuard and
       # DevLoginGuard.

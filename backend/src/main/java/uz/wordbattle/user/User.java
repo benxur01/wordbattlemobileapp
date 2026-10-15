@@ -74,6 +74,16 @@ public class User {
     @Column(name = "password_hash", length = 72)
     private String passwordHash;
 
+    /** Recovery address is kept only after the player verifies ownership. */
+    @Column(name = "recovery_email", length = 320)
+    private String recoveryEmail;
+
+    @Column(name = "recovery_email_verified_at")
+    private Instant recoveryEmailVerifiedAt;
+
+    @Column(name = "pending_recovery_email", length = 320)
+    private String pendingRecoveryEmail;
+
     @Column(name = "display_name", length = 64)
     private String displayName;
 
@@ -210,6 +220,16 @@ public class User {
     public String getNickname() { return nickname; }
     public void setNickname(String nickname) { this.nickname = nickname; }
     public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public String getRecoveryEmail() { return recoveryEmail; }
+    public Instant getRecoveryEmailVerifiedAt() { return recoveryEmailVerifiedAt; }
+    public String getPendingRecoveryEmail() { return pendingRecoveryEmail; }
+    public boolean hasVerifiedRecoveryEmail() { return recoveryEmail != null && recoveryEmailVerifiedAt != null; }
+    public void setRecoveryEmail(String recoveryEmail, Instant verifiedAt) {
+        this.recoveryEmail = recoveryEmail;
+        this.recoveryEmailVerifiedAt = verifiedAt;
+    }
+    public void setPendingRecoveryEmail(String pendingRecoveryEmail) { this.pendingRecoveryEmail = pendingRecoveryEmail; }
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public String getCity() { return city; }
@@ -255,6 +275,9 @@ public class User {
         this.nickname = null;
         this.displayName = null;
         this.city = null;
+        this.recoveryEmail = null;
+        this.recoveryEmailVerifiedAt = null;
+        this.pendingRecoveryEmail = null;
         this.lastSeenAt = at;
     }
 }

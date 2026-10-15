@@ -123,6 +123,29 @@ public class UserService {
     @Transactional
     public User registerWithPassword(String rawNickname, String rawPassword) {
         String nickname = validatedNickname(rawNickname);
+        validatePassword(rawPassword);
+        if (users.nicknameTaken(nickname)) {
+            throw ApiException.conflict("nickname_taken", "Bu taxallus band");
+        }
+        String hash = passwordEncoder.encode(rawPassword);
+        try {
+            return users.saveAndFlush(User.withPassword(nickname, hash));
+        } catch (DataIntegrityViolationException e) {
+            throw ApiException.conflict("nickname_taken", "Bu taxallus band");
+        }
+    }
+
+    /** Replaces a forgotten password and ends every session issued before it. */
+    @Transactional
+    public void changePassword(Long userId, String rawPassword) {
+        validatePassword(rawPassword);
+        User user = require(userId);
+        user.setPasswordHash(passwordEncoder.encode(rawPassword));
+        users.saveAndFlush(user);
+        users.revokeTokensOf(userId);
+    }
+
+    private void validatePassword(String rawPassword) {
         if (rawPassword == null || rawPassword.trim().length() < MIN_PASSWORD_LENGTH) {
             throw ApiException.badRequest("password_too_short", "Parol kamida 6 ta belgidan iborat bo'lishi kerak");
         }
@@ -132,15 +155,6 @@ public class UserService {
         if (!hasLetterAndDigit(rawPassword)) {
             throw ApiException.badRequest(
                     "password_too_simple", "Parolda kamida bitta harf va bitta raqam bo'lishi kerak");
-        }
-        if (users.nicknameTaken(nickname)) {
-            throw ApiException.conflict("nickname_taken", "Bu taxallus band");
-        }
-        String hash = passwordEncoder.encode(rawPassword);
-        try {
-            return users.saveAndFlush(User.withPassword(nickname, hash));
-        } catch (DataIntegrityViolationException e) {
-            throw ApiException.conflict("nickname_taken", "Bu taxallus band");
         }
     }
 

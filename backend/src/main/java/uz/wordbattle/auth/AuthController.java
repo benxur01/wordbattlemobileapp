@@ -1,9 +1,11 @@
 package uz.wordbattle.auth;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import uz.wordbattle.common.ApiException;
 import uz.wordbattle.config.AppProperties;
@@ -18,12 +20,19 @@ public class AuthController {
     private final GoogleAuthService google;
     private final JwtService jwt;
     private final UserService users;
+    private final AuthRecoveryService recovery;
     private final AppProperties props;
 
-    public AuthController(GoogleAuthService google, JwtService jwt, UserService users, AppProperties props) {
+    public AuthController(
+            GoogleAuthService google,
+            JwtService jwt,
+            UserService users,
+            AuthRecoveryService recovery,
+            AppProperties props) {
         this.google = google;
         this.jwt = jwt;
         this.users = users;
+        this.recovery = recovery;
         this.props = props;
     }
 
@@ -33,13 +42,28 @@ public class AuthController {
 
     public record RegisterRequest(
             @NotBlank String nickname,
+            @NotBlank @Email @Size(max = 320) String email,
             @NotBlank @Size(max = 72, message = "Parol 72 belgidan oshmasin") String password) {}
+
+    public record RecoveryEmailRequest(@NotBlank @Email @Size(max = 320) String email) {}
+
+    public record RecoveryCodeRequest(@NotBlank @Size(max = 32) String code) {}
+
+    // Unknown addresses intentionally receive the same 204 response as known ones.
+    public record PasswordResetRequest(@Size(max = 320) String email) {}
+
+    public record PasswordResetCompleteRequest(
+            @NotBlank @Size(max = 320) String email,
+            @NotBlank @Size(max = 32) String code,
+            @NotBlank @Size(max = 72, message = "Parol 72 belgidan oshmasin") String newPassword) {}
 
     public record PasswordLoginRequest(
             @NotBlank String nickname,
             @NotBlank @Size(max = 72, message = "Parol 72 belgidan oshmasin") String password) {}
 
     public record LoginResponse(String token, UserDto user, boolean needsNickname) {}
+
+    public record RegisterResponse(String token, UserDto user, boolean needsNickname, boolean recoveryEmailSent) {}
 
     /**
      * Google login: the client forwards the idToken Google Sign-In gave it,
@@ -76,9 +100,12 @@ public class AuthController {
      * displayName first and asks for a nickname after.
      */
     @PostMapping("/register")
-    public LoginResponse register(@Valid @RequestBody RegisterRequest request) {
+    @Transactional
+    public RegisterResponse register(@Valid @RequestBody RegisterRequest request) {
         User user = users.registerWithPassword(request.nickname(), request.password());
-        return response(user);
+        LoginResponse login = response(user);
+        boolean sent = recovery.requestEmailVerification(user.getId(), request.email());
+        return new RegisterResponse(login.token(), login.user(), login.needsNickname(), sent);
     }
 
     /** Signs back in with the nickname and password chosen at {@code /register}. */
@@ -86,6 +113,42 @@ public class AuthController {
     public LoginResponse login(@Valid @RequestBody PasswordLoginRequest request) {
         User user = users.authenticateWithPassword(request.nickname(), request.password());
         return response(user);
+    }
+
+    /** Starts verification of an address a signed-in player wants to use for recovery. */
+    @PostMapping("/recovery-email/request")
+    public RecoveryEmailRequestResult requestRecoveryEmail(
+            @CurrentUser AuthPrincipal principal, @Valid @RequestBody RecoveryEmailRequest request) {
+        return new RecoveryEmailRequestResult(
+                recovery.requestEmailVerification(principal.userId(), request.email()));
+    }
+
+    public record RecoveryEmailRequestResult(boolean sent) {}
+
+    /** Confirms ownership of the pending recovery address. */
+    @PostMapping("/recovery-email/verify")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void verifyRecoveryEmail(
+            @CurrentUser AuthPrincipal principal, @Valid @RequestBody RecoveryCodeRequest request) {
+        recovery.verifyRecoveryEmail(principal.userId(), request.code());
+    }
+
+    @GetMapping("/recovery-email/status")
+    public AuthRecoveryService.RecoveryEmailStatus recoveryEmailStatus(@CurrentUser AuthPrincipal principal) {
+        return recovery.recoveryEmailStatus(principal.userId());
+    }
+
+    /** Always answers the same way so callers cannot test which email addresses have accounts. */
+    @PostMapping("/password-reset/request")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        recovery.requestPasswordReset(request.email());
+    }
+
+    @PostMapping("/password-reset/complete")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void completePasswordReset(@Valid @RequestBody PasswordResetCompleteRequest request) {
+        recovery.resetPassword(request.email(), request.code(), request.newPassword());
     }
 
     /**
