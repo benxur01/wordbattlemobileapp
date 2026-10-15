@@ -47,6 +47,7 @@ public record AppProperties(
         @DefaultValue Tournament tournament,
         @DefaultValue AppLinks appLinks,
         @DefaultValue Legal legal,
+        @DefaultValue Recovery recovery,
         /**
          * The zone every "which day is it" decision is made in — daily streaks
          * and the practice word of the day. UTC would roll those over at 05:00
@@ -113,6 +114,9 @@ public record AppProperties(
     public record Legal(
             @DefaultValue("support@example.uz") String contactEmail,
             @DefaultValue("Word Battle") String operatorName) {}
+
+    /** Sender address used for verified account-recovery email. */
+    public record Recovery(@DefaultValue("") String from) {}
 
     /** Per-connection ceilings, so one client cannot monopolise the server. */
     public record Limits(

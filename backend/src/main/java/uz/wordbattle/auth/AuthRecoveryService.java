@@ -99,10 +99,10 @@ public class AuthRecoveryService {
         codes.delete(challenge);
     }
 
-    /** Sends only for an existing, verified password account; the caller always receives the same answer. */
+    /** Sends only for an existing, verified password account; the result reports SMTP configuration only. */
     @Transactional
-    public void requestPasswordReset(String rawEmail) {
-        if (!mailConfigured()) return;
+    public boolean requestPasswordReset(String rawEmail) {
+        if (!mailConfigured()) return false;
         String email = normaliseEmail(rawEmail);
         users.findByRecoveryEmailIgnoreCaseAndRecoveryEmailVerifiedAtIsNotNull(email)
                 .filter(user -> user.getPasswordHash() != null && !user.isDeleted() && !user.isBanned())
@@ -115,6 +115,10 @@ public class AuthRecoveryService {
                         // address, a cooldown and a successful email delivery.
                     }
                 });
+        // This flag describes global SMTP configuration only, never whether the
+        // submitted address belongs to an account. The client can avoid showing
+        // a dead code-entry form in development without exposing account state.
+        return true;
     }
 
     @Transactional(noRollbackFor = ApiException.class)
@@ -133,12 +137,22 @@ public class AuthRecoveryService {
     @Transactional(readOnly = true)
     public RecoveryEmailStatus recoveryEmailStatus(Long userId) {
         User user = userService.require(userId);
+        Instant now = Instant.now();
+        int resendAfterSeconds = codes.findByUserIdAndPurpose(userId, VERIFY_EMAIL)
+                .map(challenge -> Math.max(0, (int) Math.ceil(
+                        Duration.between(now, challenge.getCreatedAt().plus(RESEND_DELAY)).toMillis() / 1000.0)))
+                .orElse(0);
         return new RecoveryEmailStatus(user.getPasswordHash() != null,
-                user.hasVerifiedRecoveryEmail(), mask(user.getRecoveryEmail()), user.getPendingRecoveryEmail());
+                user.hasVerifiedRecoveryEmail(), mask(user.getRecoveryEmail()), user.getPendingRecoveryEmail(),
+                resendAfterSeconds);
     }
 
     public record RecoveryEmailStatus(
-            boolean passwordResetAvailable, boolean verified, String maskedEmail, String pendingEmail) {}
+            boolean passwordResetAvailable,
+            boolean verified,
+            String maskedEmail,
+            String pendingEmail,
+            int verificationResendAfterSeconds) {}
 
     /** Removes expired challenge rows so their email addresses are not retained after they stop being useful. */
     @Scheduled(fixedDelay = 60 * 60 * 1000L)

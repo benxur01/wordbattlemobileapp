@@ -52,7 +52,7 @@ bo'lsa Testcontainers, bo'lmasa ichki (embedded) server. Pastdagi
 |---|---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | PostgreSQL ulanishi | `localhost:5432/wordbattle` |
 | `JWT_SECRET` | Tokenlarni imzolash. **Kamida 32 bayt. Standart qiymat yo'q** — berilmasa server ko'tarilmaydi | — |
-| `SPRING_PROFILES_ACTIVE` | Prodda `prod` qiling: shunda namunaviy yoki bo'sh `DB_PASSWORD` bilan (`DatabasePasswordGuard`) ham, `DEV_LOGIN_ENABLED=true` bilan (`DevLoginGuard`) ham server ko'tarilmaydi | bo'sh |
+| `SPRING_PROFILES_ACTIVE` | Prodda `prod` qiling: shunda namunaviy yoki bo'sh `DB_PASSWORD` (`DatabasePasswordGuard`), `DEV_LOGIN_ENABLED=true` (`DevLoginGuard`) yoki SMTP sozlamalari yo'q holatda (`RecoveryMailConfigurationGuard`) server ko'tarilmaydi | bo'sh |
 | `CORS_ALLOWED_ORIGINS` | Brauzer origin'lari (vergul bilan). Bo'sh bo'lsa CORS umuman yo'q — telefon ilovasiga kerak emas | bo'sh |
 | `TIME_ZONE` | Streak va kunlik so'z qaysi kun bo'yicha almashadi | `Asia/Tashkent` |
 | `WS_FRAMES_PER_SECOND` / `WS_FRAME_BURST` | Soketdagi freym cheklovi (bitta o'yinchiga) | `20` / `40` |
@@ -65,7 +65,7 @@ bo'lsa Testcontainers, bo'lmasa ichki (embedded) server. Pastdagi
 | `ASSETLINKS_SHA256` | Android release sertifikati(lari)ning SHA-256 barmoq izlari, vergul bilan (`AA:BB:…`, `keytool` chiqargan shaklda). `/.well-known/assetlinks.json` shulardan yig'iladi — pastdagi [Turnirlar](#turnirlar)ga qarang. Bo'sh bo'lsa fayl bo'sh ro'yxat `[]` | bo'sh |
 | `LEGAL_CONTACT_EMAIL` | `/privacy` va `/terms` sahifalaridagi aloqa manzili — o'yinchilar ma'lumotlari va akkaunt o'chirish haqida shu yerga yozadi | `support@example.uz` (o'rinbosar) |
 | `LEGAL_OPERATOR_NAME` | O'sha sahifalarda xizmatni boshqaruvchi sifatida ko'rsatiladigan nom (MChJ yoki YaTT) | `Word Battle` (o'rinbosar) |
-| `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | Ro'yxatdan o'tish emailini tasdiqlash va parolni tiklash kodlarini yuboradigan SMTP. Ishlab chiqarishda parolni repoga emas, deploy secret'iga kiriting | host/login/parol/from bo'sh; port `587` |
+| `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | Ro'yxatdan o'tish emailini tasdiqlash va parolni tiklash kodlarini yuboradigan SMTP. `prod` profilida host/from, port va yoqilgan auth uchun login/parol majburiy; yo'q bo'lsa server ishga tushmaydi. Qiymatlarni repoga emas, deploy secret'lariga kiriting | host/login/parol/from bo'sh; port `587` |
 | `MAIL_SMTP_AUTH`, `MAIL_STARTTLS` | SMTP autentifikatsiyasi va STARTTLS | `true` / `true` |
 | `API_BIND_ADDRESS` | Host'da HTTP port qaysi manzilga publish qilinadi. Reverse proxy bilan xavfsiz standart `127.0.0.1`; faqat LAN development'da `0.0.0.0` qiling | `127.0.0.1` |
 | `PORT` | HTTP porti | `8080` |
@@ -161,8 +161,8 @@ Barchasi `/api` ostida. `*` — token talab qilinmaydi.
 | POST\* | `/auth/login` | `{nickname, password}` — parol bilan token oladi |
 | POST | `/auth/recovery-email/request` | `{email}` — joriy foydalanuvchiga email tasdiqlash kodi; bearer token kerak |
 | POST | `/auth/recovery-email/verify` | `{code}` — pending emailni tasdiqlaydi; bearer token kerak |
-| GET | `/auth/recovery-email/status` | tasdiqlangan yoki kutilayotgan email holati; bearer token kerak |
-| POST\* | `/auth/password-reset/request` | `{email}` — har doim `204`, akkaunt borligini oshkor qilmaydi |
+| GET | `/auth/recovery-email/status` | tasdiqlangan/kutilayotgan email holati va kodni qayta yuborishgacha qolgan soniya; bearer token kerak |
+| POST\* | `/auth/password-reset/request` | `{email}` → `{deliveryAvailable}` — faqat SMTP xizmati umumiy sozlanganini bildiradi; email akkauntga bog'langanini oshkor qilmaydi |
 | POST\* | `/auth/password-reset/complete` | `{email, code, newPassword}` — parolni almashtiradi va eski sessiyalarni tugatadi |
 | POST\* | `/auth/dev` | `{displayName}` — faqat `DEV_LOGIN_ENABLED=true` |
 | POST\* | `/auth/logout` | akkauntning barcha tokenlarini bekor qiladi — har doim `204`, tokensiz chaqirilsa hech nima qilmaydi |
@@ -496,6 +496,9 @@ ustidagi unikal indeks. Ikki o'yinchi bir vaqtda bir nomni so'rasa, biri
    har kimga parolsiz akkaunt va token beradi.
    `LEGAL_CONTACT_EMAIL` va `LEGAL_OPERATOR_NAME` ni ham haqiqiy qiymatlarga
    almashtiring; production server namunaviy qiymatlar bilan ishga tushmaydi.
+   Email tasdiqlash va parol tiklash ishlashi uchun `MAIL_HOST`, `MAIL_FROM` ni,
+   autentifikatsiya yoqilgan bo'lsa `MAIL_USERNAME` va `MAIL_PASSWORD` ni deploy
+   secret'larida sozlang; aks holda `prod` server ishga tushmaydi.
 3. HTTPS/WSS terminatsiyasi (nginx yoki cloud LB) qo'ying — ilova release
    build'da cleartext HTTP'ni umuman rad etadi. Proxy ortida
    `FORWARD_HEADERS_STRATEGY=native` qiling va API portini faqat proxy'ga

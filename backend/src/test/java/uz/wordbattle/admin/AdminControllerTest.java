@@ -827,6 +827,7 @@ class AdminControllerTest {
                 props.tournament(),
                 props.appLinks(),
                 props.legal(),
+                props.recovery(),
                 props.timeZone(),
                 props.devLoginEnabled());
         return new AdminBootstrap(users, configured, transactionManager);

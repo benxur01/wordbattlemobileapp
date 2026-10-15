@@ -138,12 +138,13 @@ public class AuthController {
         return recovery.recoveryEmailStatus(principal.userId());
     }
 
-    /** Always answers the same way so callers cannot test which email addresses have accounts. */
+    /** Reports only global mail readiness; the result never depends on account existence. */
     @PostMapping("/password-reset/request")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
-        recovery.requestPasswordReset(request.email());
+    public PasswordResetRequestResult requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        return new PasswordResetRequestResult(recovery.requestPasswordReset(request.email()));
     }
+
+    public record PasswordResetRequestResult(boolean deliveryAvailable) {}
 
     @PostMapping("/password-reset/complete")
     @ResponseStatus(HttpStatus.NO_CONTENT)

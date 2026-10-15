@@ -69,6 +69,7 @@ class AuthRateLimiterTest {
                         new AppProperties.Tournament.GlobalTeam("0 0 9 * * MON", "0 30 19 * * SUN", 8)),
                 new AppProperties.AppLinks(List.of()),
                 new AppProperties.Legal("support@example.uz", "Word Battle"),
+                new AppProperties.Recovery(""),
                 ZoneId.of("Asia/Tashkent"),
                 false);
         return new AuthRateLimiter(props, JSON);
