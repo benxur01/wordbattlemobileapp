@@ -4,6 +4,14 @@ import 'models.dart';
 import 'rest_transport.dart';
 import 'tournament_models.dart';
 
+typedef RecoveryEmailStatus = ({
+  bool passwordResetAvailable,
+  bool verified,
+  String? maskedEmail,
+  String? pendingEmail,
+  int resendAfterSeconds,
+});
+
 /// Thin REST client. Every call carries the JWT and turns a non-2xx response
 /// into an [ApiException] with the server's own error code, so screens can
 /// react to `nickname_taken` or a 401 without parsing strings.
@@ -72,8 +80,10 @@ class ApiClient {
   /// Signs out on the server, revoking the token across all devices.
   Future<void> logout() => _post('/auth/logout');
 
-  Future<void> requestPasswordReset(String email) =>
-      _post('/auth/password-reset/request', {'email': email});
+  Future<bool> requestPasswordReset(String email) async {
+    final json = await _post('/auth/password-reset/request', {'email': email}) as Map<String, dynamic>;
+    return json['deliveryAvailable'] as bool? ?? false;
+  }
 
   Future<void> completePasswordReset(String email, String code, String newPassword) =>
       _post('/auth/password-reset/complete', {
@@ -82,14 +92,14 @@ class ApiClient {
         'newPassword': newPassword,
       });
 
-  Future<({bool passwordResetAvailable, bool verified, String? maskedEmail, String? pendingEmail})>
-      recoveryEmailStatus() async {
+  Future<RecoveryEmailStatus> recoveryEmailStatus() async {
     final json = await _get('/auth/recovery-email/status') as Map<String, dynamic>;
     return (
       passwordResetAvailable: json['passwordResetAvailable'] as bool? ?? false,
       verified: json['verified'] as bool? ?? false,
       maskedEmail: json['maskedEmail'] as String?,
       pendingEmail: json['pendingEmail'] as String?,
+      resendAfterSeconds: json['verificationResendAfterSeconds'] as int? ?? 0,
     );
   }
 

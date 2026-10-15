@@ -174,7 +174,7 @@ class TournamentsBrowseScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    _kindBadge(t.kind),
+                    _kindBadge(t),
                     if (t.isTeam) ...[const SizedBox(width: 6), _teamBadge()],
                     const SizedBox(width: 8),
                     Expanded(
@@ -202,12 +202,14 @@ class TournamentsBrowseScreen extends StatelessWidget {
     );
   }
 
-  Widget _kindBadge(String kind) {
-    final (label, color) = switch (kind) {
-      'global' => ('Global', WBColors.amber),
-      'admin' => ('Ommaviy', WBColors.blue),
-      _ => ("Do'stlar", WBColors.purple),
-    };
+  Widget _kindBadge(TournamentSummary tournament) {
+    final (label, color) = tournament.kind == 'global'
+        ? ('Global', WBColors.amber)
+        : tournament.isPublic
+            ? ('Ommaviy', WBColors.blue)
+            : tournament.kind == 'admin'
+                ? ('Admin', WBColors.blue)
+                : ("Do'stlar", WBColors.purple);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(

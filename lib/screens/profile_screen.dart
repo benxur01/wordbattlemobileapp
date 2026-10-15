@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -29,6 +30,7 @@ class ProfileScreen extends StatefulWidget {
     this.recoveryEmailVerified = false,
     this.recoveryEmailMasked,
     this.recoveryEmailPending,
+    this.recoveryEmailResendAfterSeconds = 0,
     this.onRequestRecoveryEmail,
     this.onVerifyRecoveryEmail,
     required this.onLogout,
@@ -60,6 +62,7 @@ class ProfileScreen extends StatefulWidget {
   final bool recoveryEmailVerified;
   final String? recoveryEmailMasked;
   final String? recoveryEmailPending;
+  final int recoveryEmailResendAfterSeconds;
   final Future<bool> Function(String email)? onRequestRecoveryEmail;
   final Future<bool> Function(String code)? onVerifyRecoveryEmail;
 
@@ -92,9 +95,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     text: widget.recoveryEmailPending ?? '',
   );
   late final TextEditingController _recoveryCodeController = TextEditingController();
+  Timer? _recoveryResendTimer;
+  DateTime? _recoveryResendDeadline;
+  int _recoveryResendSeconds = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startRecoveryResendCountdown(widget.recoveryEmailResendAfterSeconds);
+  }
 
   @override
   void dispose() {
+    _recoveryResendTimer?.cancel();
     _recoveryEmailController.dispose();
     _recoveryCodeController.dispose();
     super.dispose();
@@ -103,6 +116,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void didUpdateWidget(covariant ProfileScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.recoveryEmailResendAfterSeconds != oldWidget.recoveryEmailResendAfterSeconds) {
+      _startRecoveryResendCountdown(widget.recoveryEmailResendAfterSeconds);
+    }
     if (widget.recoveryEmailPending != oldWidget.recoveryEmailPending && widget.recoveryEmailPending != null) {
       _recoveryEmail = widget.recoveryEmailPending!;
       _recoveryEmailController.value = TextEditingValue(
@@ -114,6 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _editingRecoveryEmail = true;
     }
     if (widget.recoveryEmailVerified && widget.recoveryEmailPending == null) {
+      _startRecoveryResendCountdown(0);
       _editingRecoveryEmail = false;
       _recoveryCode = '';
       _recoveryCodeController.clear();
@@ -557,10 +574,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 8),
                   _AccountButton(
-                    label: widget.busy ? 'Yuborilmoqda…' : 'Kodni qayta yuborish',
+                    label: widget.busy
+                        ? 'Yuborilmoqda…'
+                        : _recoveryResendSeconds > 0
+                            ? 'Yangi kod ${_recoveryResendSeconds}s dan keyin'
+                            : 'Kodni qayta yuborish',
                     color: WBColors.textA(.78),
                     border: WBColors.whiteA(.15),
-                    onTap: widget.busy || !_validRecoveryEmail ? null : _sendRecoveryEmail,
+                    onTap: widget.busy || _recoveryResendSeconds > 0 || !_validRecoveryEmail
+                        ? null
+                        : _sendRecoveryEmail,
                   ),
                   const SizedBox(height: 8),
                   _AccountButton(
@@ -598,6 +621,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool get _validRecoveryEmail =>
       RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(_recoveryEmailController.text.trim());
+
+  void _startRecoveryResendCountdown(int seconds) {
+    _recoveryResendTimer?.cancel();
+    _recoveryResendSeconds = seconds.clamp(0, 60).toInt();
+    if (_recoveryResendSeconds == 0) {
+      _recoveryResendDeadline = null;
+      return;
+    }
+    _recoveryResendDeadline = DateTime.now().add(Duration(seconds: _recoveryResendSeconds));
+    _recoveryResendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final left = _recoveryResendDeadline!.difference(DateTime.now()).inSeconds;
+      setState(() => _recoveryResendSeconds = left.clamp(0, 60).toInt());
+      if (_recoveryResendSeconds == 0) timer.cancel();
+    });
+  }
 
   Future<void> _sendRecoveryEmail() async {
     final request = widget.onRequestRecoveryEmail;

@@ -134,7 +134,7 @@ void main() {
 
     test('a friend seen within the last minute or with clock drift says hozirgina', () {
       final justNow = FriendDto(
-        user: user(),
+        user: UserDto.fromJson(user()),
         online: false,
         inBattle: false,
         lastSeenAt: DateTime.now().subtract(const Duration(seconds: 15)),
@@ -142,7 +142,7 @@ void main() {
       expect(justNow.status, 'hozirgina');
 
       final driftFuture = FriendDto(
-        user: user(),
+        user: UserDto.fromJson(user()),
         online: false,
         inBattle: false,
         lastSeenAt: DateTime.now().add(const Duration(seconds: 30)),

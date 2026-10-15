@@ -288,6 +288,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   bool recoveryEmailVerified = false;
   String? recoveryEmailMasked;
   String? recoveryEmailPending;
+  int recoveryEmailResendAfterSeconds = 0;
 
   // ---- onboarding ----
   String nickname = '';
@@ -679,13 +680,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       banner = null;
     });
     try {
-      await _api.requestPasswordReset(email);
+      final deliveryAvailable = await _api.requestPasswordReset(email);
       if (!mounted) return false;
       setState(() {
         busy = false;
-        banner = 'Agar email tasdiqlangan bo‘lsa, tiklash kodi yuborildi.';
+        banner = deliveryAvailable
+            ? 'Agar email tasdiqlangan bo‘lsa, tiklash kodi yuborildi.'
+            : 'Pochta xizmati sozlanmagan — emailga kod yuborilmadi.';
       });
-      return true;
+      return deliveryAvailable;
     } on ApiException catch (e) {
       if (!mounted) return false;
       setState(() {
@@ -750,6 +753,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         recoveryEmailVerified = status.verified;
         recoveryEmailMasked = status.maskedEmail;
         recoveryEmailPending = status.pendingEmail;
+        recoveryEmailResendAfterSeconds = status.resendAfterSeconds;
         banner = sent
             ? (status.verified && status.pendingEmail == null
                 ? 'Tiklash emaili allaqachon tasdiqlangan.'
@@ -759,9 +763,18 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       return sent;
     } on ApiException catch (e) {
       if (!mounted) return false;
+      final latestStatus = e.code == 'recovery_code_wait' ? await _readRecoveryEmailStatus() : null;
+      if (!mounted) return false;
       setState(() {
         busy = false;
         banner = e.message;
+        if (latestStatus != null) {
+          passwordResetAvailable = latestStatus.passwordResetAvailable;
+          recoveryEmailVerified = latestStatus.verified;
+          recoveryEmailMasked = latestStatus.maskedEmail;
+          recoveryEmailPending = latestStatus.pendingEmail;
+          recoveryEmailResendAfterSeconds = latestStatus.resendAfterSeconds;
+        }
       });
       return false;
     } catch (_) {
@@ -790,6 +803,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         recoveryEmailVerified = status.verified;
         recoveryEmailMasked = status.maskedEmail;
         recoveryEmailPending = status.pendingEmail;
+        recoveryEmailResendAfterSeconds = status.resendAfterSeconds;
         banner = 'Tiklash emaili tasdiqlandi.';
       });
       return status.verified;
@@ -807,6 +821,14 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         banner = 'Emailni tasdiqlab bo‘lmadi. Aloqani tekshirib qayta urinib ko‘ring.';
       });
       return false;
+    }
+  }
+
+  Future<RecoveryEmailStatus?> _readRecoveryEmailStatus() async {
+    try {
+      return await _api.recoveryEmailStatus();
+    } catch (_) {
+      return null;
     }
   }
 
@@ -877,6 +899,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       recoveryEmailVerified = false;
       recoveryEmailMasked = null;
       recoveryEmailPending = null;
+      recoveryEmailResendAfterSeconds = 0;
       board = null;
       history = null;
       blockedUsers = null;
@@ -1109,6 +1132,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         recoveryEmailVerified = recovery.verified;
         recoveryEmailMasked = recovery.maskedEmail;
         recoveryEmailPending = recovery.pendingEmail;
+        recoveryEmailResendAfterSeconds = recovery.resendAfterSeconds;
       });
     } on ApiException catch (e) {
       _onApiError(e);
@@ -1409,9 +1433,31 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     final tournament = organizingTournament;
     if (tournament == null) return;
     try {
+      final detail = await _api.tournamentDetail(tournament.id);
       final rows = await _api.tournamentParticipants(tournament.id);
-      if (!mounted) return;
-      setState(() => organizingParticipants = rows);
+      if (!mounted || organizingTournament?.id != tournament.id) return;
+      if (detail.status == 'in_progress' || detail.status == 'completed') {
+        setState(() {
+          organizingTournament = null;
+          organizingParticipants = null;
+        });
+        if (screen == WBScreen.organizeTournamentManage) openTournamentBracket(tournament.id);
+        return;
+      }
+      setState(() {
+        organizingParticipants = rows;
+        organizingTournament = TournamentSummary(
+          id: tournament.id,
+          name: tournament.name,
+          size: detail.size,
+          status: detail.status,
+          visibility: detail.visibility,
+          kind: detail.kind,
+          acceptedCount: rows.where((row) => row.seatAccepted).length,
+          minRating: detail.minRating,
+          format: detail.format,
+        );
+      });
     } on ApiException catch (e) {
       _onApiError(e);
     } catch (_) {
@@ -2075,6 +2121,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       case 'tournament.bracket_update':
         final id = (event.payload['tournamentId'] as num?)?.toInt();
         if (id != null && id == _viewingTournamentId) unawaited(_loadTournamentDetail(id));
+        if (id != null && id == organizingTournament?.id) unawaited(_loadOrganizingParticipants());
       case 'tournament.cancelled':
         final id = (event.payload['tournamentId'] as num?)?.toInt();
         final name = event.payload['name'] as String? ?? 'Turnir';
@@ -3073,6 +3120,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           recoveryEmailVerified: recoveryEmailVerified,
           recoveryEmailMasked: recoveryEmailMasked,
           recoveryEmailPending: recoveryEmailPending,
+          recoveryEmailResendAfterSeconds: recoveryEmailResendAfterSeconds,
           onRequestRecoveryEmail: requestRecoveryEmail,
           onVerifyRecoveryEmail: verifyRecoveryEmail,
           onLogout: logout,

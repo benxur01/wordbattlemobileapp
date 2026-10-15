@@ -9,7 +9,7 @@ import 'package:flutter/foundation.dart';
 /// computer's localhost. A release build has to be given an `https://` one;
 /// `RestTransport` refuses to make any call on a cleartext address in release:
 ///
-///   flutter build appbundle --release --dart-define=WB_API=https://<domain>
+///   flutter build appbundle --release --dart-define=WB_API=https://&lt;domain&gt;
 class ApiConfig {
   const ApiConfig._();
 

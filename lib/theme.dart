@@ -184,11 +184,12 @@ class WBText {
   /// intentional hues (accent, success, warning) untouched.
   static Color _readableColor(Color color) {
     final foreground = WBColors.text;
-    final isNeutralForeground =
-        color.red == foreground.red && color.green == foreground.green && color.blue == foreground.blue;
+    final colorChannels = color.toARGB32() & 0x00FFFFFF;
+    final foregroundChannels = foreground.toARGB32() & 0x00FFFFFF;
+    final isNeutralForeground = colorChannels == foregroundChannels;
     if (!isNeutralForeground) return color;
     final minimumOpacity = WBTheme.isLight ? .68 : .58;
-    return color.opacity < minimumOpacity ? color.withValues(alpha: minimumOpacity) : color;
+    return color.a < minimumOpacity ? color.withValues(alpha: minimumOpacity) : color;
   }
 
   /// `letterSpacing` is given in **em**, exactly as the design's CSS writes it
