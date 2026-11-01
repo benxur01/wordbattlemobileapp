@@ -1,5 +1,5 @@
 # ---- build ----
-FROM maven:3.9-eclipse-temurin-25 AS build
+FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /build
 # Dependencies first: they only change when the pom does.
 COPY pom.xml .
@@ -9,9 +9,9 @@ RUN mvn -B -q clean package -DskipTests
 
 # ---- run ----
 # The same Java major as the build stage and pom.xml's <java.version>: classes
-# compiled for 25 do not load on an older runtime, and the image fails at
+# compiled for 21 do not load on an older runtime, and the image fails at
 # startup with UnsupportedClassVersionError rather than at build time.
-FROM eclipse-temurin:25-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=build /build/target/wordbattle-backend-*.jar app.jar
