@@ -46,9 +46,15 @@ app.*.map.json
 
 # Backend build output and local secrets
 backend/target/
-backend/.env
+.env
+**/.env
+**/.env.*
+!**/.env.example
 
 # Local keystores / signing
 *.jks
+**/*.jks
 *.keystore
+**/*.keystore
 key.properties
+**/key.properties
