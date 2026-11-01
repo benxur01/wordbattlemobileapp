@@ -14,11 +14,11 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: '21'
           cache: maven
       # The migration tests need a real PostgreSQL. The runner has a Docker
       # daemon, so MigrationDatabase starts the compose file's own image
@@ -28,14 +28,10 @@ jobs:
   flutter:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          # Pinned rather than "latest stable": it ships Dart 3.12.2, the floor
-          # pubspec.yaml's sdk constraint names, and is the toolchain
-          # docs/E2E.md was run on.
-          flutter-version: 3.44.8
           cache: true
       - run: flutter pub get
       - run: flutter analyze
