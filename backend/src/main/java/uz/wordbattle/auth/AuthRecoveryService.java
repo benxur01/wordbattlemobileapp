@@ -189,9 +189,9 @@ public class AuthRecoveryService {
             message.setText(intro + "\n\n" + value + "\n\nKod 10 daqiqada eskiradi. Agar bu so'rovni siz yubormagan bo'lsangiz, xatni e'tiborsiz qoldiring.");
             mailSenders.getObject().send(message);
             return true;
-        } catch (MailException | IllegalStateException | IllegalArgumentException e) {
+        } catch (Exception e) {
             codes.delete(challenge);
-            log.warn("Could not send a recovery email; check the SMTP configuration");
+            log.warn("Could not send a recovery email; check the SMTP configuration: {}", e.getMessage());
             return false;
         }
     }
@@ -240,7 +240,7 @@ public class AuthRecoveryService {
     }
 
     private boolean mailConfigured() {
-        return !mailHost.isBlank() && mailSenders.getIfAvailable() != null && !from.isBlank();
+        return mailHost != null && !mailHost.isBlank() && mailSenders.getIfAvailable() != null && from != null && !from.isBlank();
     }
 
     private ApiException invalidCode() {
