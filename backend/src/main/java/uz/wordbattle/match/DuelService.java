@@ -7,7 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -329,7 +329,7 @@ public class DuelService {
                         ? chosenBotRating
                         : userOne.getRating() + props.matchmaking().botRatingOffset();
 
-        String seed = SEED_WORDS.get(random.nextInt(SEED_WORDS.size()));
+        String seed = SEED_WORDS.get(ThreadLocalRandom.current().nextInt(SEED_WORDS.size()));
         DuelSession session = new DuelSession(
                 UUID.randomUUID().toString(),
                 playerOne,
@@ -992,8 +992,8 @@ public class DuelService {
 
     private void scheduleBotMove(DuelSession session) {
         long delay = session.takePressure()
-                ? PRESSED_BOT_DELAY_MIN_MS + random.nextInt(PRESSED_BOT_DELAY_SPREAD_MS)
-                : BOT_DELAY_MIN_MS + random.nextInt(BOT_DELAY_SPREAD_MS);
+                ? PRESSED_BOT_DELAY_MIN_MS + ThreadLocalRandom.current().nextInt(PRESSED_BOT_DELAY_SPREAD_MS)
+                : BOT_DELAY_MIN_MS + ThreadLocalRandom.current().nextInt(BOT_DELAY_SPREAD_MS);
         scheduler.schedule(() -> playBotMove(session), delay, TimeUnit.MILLISECONDS);
     }
 
@@ -1106,7 +1106,7 @@ public class DuelService {
      */
     private void pauseBeforeRetry(int attempt) {
         try {
-            Thread.sleep(attempt * (5L + random.nextInt(20)));
+            Thread.sleep(attempt * (5L + ThreadLocalRandom.current().nextInt(20)));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

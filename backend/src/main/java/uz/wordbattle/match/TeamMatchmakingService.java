@@ -104,6 +104,9 @@ public class TeamMatchmakingService {
 
     @Scheduled(fixedDelay = 1000)
     public void tick() {
+        if (queue.isEmpty()) {
+            return;
+        }
         pair();
     }
 

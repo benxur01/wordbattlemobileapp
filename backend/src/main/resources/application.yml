@@ -5,6 +5,12 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/wordbattle}
     username: ${DB_USER:wordbattle}
     password: ${DB_PASSWORD:wordbattle}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1800000
   mail:
     host: ${MAIL_HOST:}
     port: ${MAIL_PORT:587}
@@ -27,6 +33,9 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -36,6 +45,10 @@ spring:
 server:
   port: ${PORT:8080}
   shutdown: graceful
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/xml,text/plain
+    min-response-size: 1024
   # Where a request is taken to come from — the address AuthRateLimiter keeps
   # its buckets under. `none` is the TCP peer and nothing else: X-Forwarded-For
   # is never read, because with nothing in front of this server only the caller

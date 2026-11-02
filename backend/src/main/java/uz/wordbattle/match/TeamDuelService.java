@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -196,7 +196,7 @@ public class TeamDuelService {
      */
     public TeamDuelSession start(
             long teamAMemberOne, long teamAMemberTwo, long teamBMemberOne, long teamBMemberTwo) {
-        String seed = SEED_WORDS.get(random.nextInt(SEED_WORDS.size()));
+        String seed = SEED_WORDS.get(ThreadLocalRandom.current().nextInt(SEED_WORDS.size()));
         TeamDuelSession session = new TeamDuelSession(
                 UUID.randomUUID().toString(),
                 teamAMemberOne, teamAMemberTwo, teamBMemberOne, teamBMemberTwo,
@@ -753,7 +753,7 @@ public class TeamDuelService {
 
     private void pauseBeforeRetry(int attempt) {
         try {
-            Thread.sleep(attempt * (5L + random.nextInt(20)));
+            Thread.sleep(attempt * (5L + ThreadLocalRandom.current().nextInt(20)));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

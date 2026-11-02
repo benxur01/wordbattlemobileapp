@@ -12,7 +12,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import jakarta.annotation.PostConstruct;
@@ -67,7 +67,7 @@ public class DictionaryService {
      */
     private static final int SHORTEST_BOT_WORD = 4;
 
-    private final Set<String> valid = new HashSet<>(400_000);
+    private final Set<String> valid = new HashSet<>(550_000);
     private final Map<Character, List<String>> commonByFirstLetter = new ConcurrentHashMap<>();
 
     /**
@@ -124,6 +124,13 @@ public class DictionaryService {
             if (commonWords.contains(word) || offLimitsToBot.contains(word)) continue;
             rareByFirstLetter.computeIfAbsent(word.charAt(0), key -> new ArrayList<>()).add(word);
             rare++;
+        }
+
+        for (List<String> list : commonByFirstLetter.values()) {
+            if (list instanceof ArrayList<String> al) al.trimToSize();
+        }
+        for (List<String> list : rareByFirstLetter.values()) {
+            if (list instanceof ArrayList<String> al) al.trimToSize();
         }
 
         log.info(
@@ -336,7 +343,7 @@ public class DictionaryService {
         if (pool.isEmpty()) return null;
         String settleFor = null;
         for (int attempt = 0; attempt < 24; attempt++) {
-            String candidate = pool.get(random.nextInt(pool.size()));
+            String candidate = pool.get(ThreadLocalRandom.current().nextInt(pool.size()));
             if (candidate.length() < minLength || used.contains(candidate)) continue;
             if (band.prefers(candidate)) return candidate;
             if (settleFor == null) settleFor = candidate;
