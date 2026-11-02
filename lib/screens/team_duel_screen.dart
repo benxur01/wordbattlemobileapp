@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api/duel_models.dart';
 import '../api/models.dart';
@@ -88,6 +89,9 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
   void didUpdateWidget(TeamDuelScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    if (widget.error.isNotEmpty && widget.error != oldWidget.error) {
+      HapticFeedback.vibrate();
+    }
     final reaction = widget.reaction;
     if (reaction != null && reaction.id != oldWidget.reaction?.id) {
       _reactionFadeTimer?.cancel();
@@ -136,6 +140,7 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
     if (widget.duel?.yourTurn != true) return;
     final word = _controller.text.trim();
     if (word.isEmpty) return;
+    HapticFeedback.lightImpact();
     widget.onSubmit(word);
     _controller.clear();
     _focus.requestFocus();

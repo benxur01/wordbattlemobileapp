@@ -2872,13 +2872,15 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final scale = constraints.maxWidth / _designWidth;
+              final effectiveWidth = constraints.maxWidth > 500.0 ? 500.0 : constraints.maxWidth;
+              final scale = effectiveWidth / _designWidth;
               final available = constraints.maxHeight - media.viewInsets.bottom;
               final designHeight = (available < 0 ? 0.0 : available) / scale;
 
-              return FittedBox(
-                fit: BoxFit.fitWidth,
-                alignment: Alignment.topLeft,
+              return Center(
+                child: FittedBox(
+                  fit: BoxFit.fitWidth,
+                  alignment: Alignment.topCenter,
                 child: SizedBox(
                   width: _designWidth,
                   height: designHeight,
@@ -2904,6 +2906,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
                       ],
                     ),
                   ),
+                ),
                 ),
               );
             },

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api/duel_models.dart';
 import '../api/models.dart';
@@ -113,6 +114,9 @@ class _DuelScreenState extends State<DuelScreen> {
   void didUpdateWidget(DuelScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    if (widget.error.isNotEmpty && widget.error != oldWidget.error) {
+      HapticFeedback.vibrate();
+    }
     final reaction = widget.reaction;
     if (reaction != null && reaction.id != oldWidget.reaction?.id) {
       _reactionFadeTimer?.cancel();
@@ -203,6 +207,7 @@ class _DuelScreenState extends State<DuelScreen> {
     if (widget.duel?.yourTurn != true) return;
     final word = _controller.text.trim();
     if (word.isEmpty) return;
+    HapticFeedback.lightImpact();
     widget.onSubmit(word);
     _controller.clear();
     // Insurance for the one way focus can still be lost: the player dismissed
