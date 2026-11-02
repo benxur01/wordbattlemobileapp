@@ -109,7 +109,7 @@ public interface UserRepository extends JpaRepository<User, Long>, TokenGenerati
     List<User> topEligibleByRating(Pageable pageable);
 
     /** 1-based position in the global ladder. */
-    @Query("select count(u) + 1 from User u where u.nickname is not null and u.rating > :rating")
+    @Query("select count(u) + 1 from User u where u.nickname is not null and u.bannedAt is null and u.rating > :rating")
     long rankOf(@Param("rating") double rating);
 
     // ------------------------------------------------------------- admin panel
