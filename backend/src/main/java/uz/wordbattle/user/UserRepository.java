@@ -84,6 +84,8 @@ public interface UserRepository extends JpaRepository<User, Long>, TokenGenerati
     @Query("""
             select u from User u
             where u.nickname is not null
+              and u.bannedAt is null
+              and u.deletedAt is null
               and lower(u.nickname) like lower(concat(:q, '%')) escape '!'
               and not exists (
                   select b.blockerId from UserBlock b
@@ -93,7 +95,7 @@ public interface UserRepository extends JpaRepository<User, Long>, TokenGenerati
             """)
     List<User> searchByNicknamePrefix(@Param("q") String q, @Param("searcherId") Long searcherId, Pageable pageable);
 
-    @Query("select u from User u where u.nickname is not null order by u.rating desc, u.id asc")
+    @Query("select u from User u where u.nickname is not null and u.bannedAt is null and u.deletedAt is null order by u.rating desc, u.id asc")
     List<User> topByRating(Pageable pageable);
 
     /**

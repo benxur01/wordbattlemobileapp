@@ -205,7 +205,7 @@ class _DuelScreenState extends State<DuelScreen> {
     // the keyboard up (see the note on [_focus]). The server refuses
     // out-of-turn words too; this stops the app from asking in the first place.
     if (widget.duel?.yourTurn != true) return;
-    final word = _controller.text.trim();
+    final word = _controller.text.trim().toLowerCase();
     if (word.isEmpty) return;
     HapticFeedback.lightImpact();
     widget.onSubmit(word);

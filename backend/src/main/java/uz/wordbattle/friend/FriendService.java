@@ -109,7 +109,10 @@ public class FriendService {
         if (fromUserId.equals(toUserId)) {
             throw ApiException.badRequest("self_request", "O'zingizga do'stlik so'rovi yubora olmaysiz");
         }
-        users.require(toUserId);
+        User target = users.require(toUserId);
+        if (target.isBanned()) {
+            throw ApiException.badRequest("target_banned", "Bu foydalanuvchi bloklangan");
+        }
         // The same refusal whichever of the two placed the block, so it tells
         // neither of them which one did.
         if (blocks.blockedEitherWay(fromUserId, toUserId)) {

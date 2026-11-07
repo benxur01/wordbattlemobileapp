@@ -776,6 +776,7 @@ public class TeamDuelService {
         duels.remove(session.id(), session);
         duelPlayers.remove(session.id());
         for (long playerId : session.order()) {
+            lastSocialAt.remove(playerId);
             if (teamDuelByPlayer.remove(playerId, session.id())) {
                 presence.battleEnded(playerId);
             }

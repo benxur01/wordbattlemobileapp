@@ -240,7 +240,7 @@ public class TournamentService {
      * there is nobody it could ever let through.
      */
     private void requireOrganizer(TournamentEntity tournament, long userId) {
-        if (tournament.getCreatedByAdminId() == null || tournament.getCreatedByAdminId() != userId) {
+        if (!Objects.equals(tournament.getCreatedByAdminId(), userId)) {
             throw ApiException.forbidden("not_organizer", "Bu turnirni faqat tashkilotchisi boshqara oladi");
         }
     }
@@ -896,6 +896,7 @@ public class TournamentService {
         tournament.setStatus(TournamentEntity.Status.CANCELLED);
         tournament.setFinishedAt(Instant.now());
         TournamentEntity saved = tournaments.save(tournament);
+        tournamentLocks.remove(tournament.getId());
 
         Map<String, Object> payload = Map.of("tournamentId", tournament.getId(), "name", tournament.getName());
         for (TournamentParticipant participant : participantsOf(tournament.getId())) {
@@ -1078,6 +1079,7 @@ public class TournamentService {
             tournament.setStatus(TournamentEntity.Status.COMPLETED);
             tournament.setFinishedAt(Instant.now());
             tournaments.save(tournament);
+            tournamentLocks.remove(tournament.getId());
             return;
         }
 

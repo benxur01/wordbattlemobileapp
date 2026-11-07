@@ -138,7 +138,7 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
 
   void _submit() {
     if (widget.duel?.yourTurn != true) return;
-    final word = _controller.text.trim();
+    final word = _controller.text.trim().toLowerCase();
     if (word.isEmpty) return;
     HapticFeedback.lightImpact();
     widget.onSubmit(word);

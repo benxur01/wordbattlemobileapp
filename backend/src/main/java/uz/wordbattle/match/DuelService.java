@@ -1139,11 +1139,15 @@ public class DuelService {
     private void deregister(DuelSession session) {
         duels.remove(session.id(), session);
         duelPlayers.remove(session.id());
+        lastSocialAt.remove(session.playerOne());
         if (duelByPlayer.remove(session.playerOne(), session.id())) {
             presence.battleEnded(session.playerOne());
         }
-        if (!session.botOpponent() && duelByPlayer.remove(session.playerTwo(), session.id())) {
-            presence.battleEnded(session.playerTwo());
+        if (!session.botOpponent()) {
+            lastSocialAt.remove(session.playerTwo());
+            if (duelByPlayer.remove(session.playerTwo(), session.id())) {
+                presence.battleEnded(session.playerTwo());
+            }
         }
     }
 
