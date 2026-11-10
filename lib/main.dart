@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_root.dart';
+import 'audio/sound_effects.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -11,6 +12,7 @@ Future<void> main() async {
   // sees the dark palette flash past on launch.
   await WBTheme.restore();
   WBTheme.followPlatform(WidgetsBinding.instance.platformDispatcher.platformBrightness);
+  await SoundEffects.restore();
 
   // The mockup draws its own status bar over the artwork. Match it on a real
   // device: edge-to-edge, fully transparent system bars. Which way the icons
