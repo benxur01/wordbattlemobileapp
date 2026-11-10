@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme.dart';
 import 'nav_icons.dart';
 import 'primary_button.dart';
@@ -84,45 +85,71 @@ class _BottomNavState extends State<BottomNav> with SingleTickerProviderStateMix
       (WBTab.profile, WBNavIcon.profile, 'Profil', widget.onProfile, null),
     ];
 
+    final isLight = WBTheme.isLight;
+    final glassColor = isLight
+        ? const Color.fromRGBO(255, 255, 255, 0.72)
+        : const Color.fromRGBO(26, 25, 38, 0.58);
+    final borderColor = isLight
+        ? const Color.fromRGBO(255, 255, 255, 0.85)
+        : const Color.fromRGBO(255, 255, 255, 0.16);
+    final specularTop = isLight ? 0.35 : 0.22;
+
     return Padding(
       padding: EdgeInsets.fromLTRB(widget.horizontalMargin, 0, widget.horizontalMargin, 12),
-      // The blur has to be clipped to the pill's rounded rect, but clipping also
-      // crops the outer drop shadow — so the shadow lives on this unclipped box
-      // and the glass lives on the clipped one nested inside it.
+      // iOS-style liquid frosted glass: layered ambient shadows, deep blur,
+      // refined specular reflection on the top bevel, and translucent inner tint.
       child: DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [BoxShadow(color: WBColors.shadow, blurRadius: 28, offset: const Offset(0, 10))],
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: [
+            BoxShadow(
+              color: isLight
+                  ? const Color.fromRGBO(0, 0, 0, 0.08)
+                  : const Color.fromRGBO(0, 0, 0, 0.45),
+              blurRadius: 32,
+              spreadRadius: -2,
+              offset: const Offset(0, 12),
+            ),
+            BoxShadow(
+              color: isLight
+                  ? const Color.fromRGBO(0, 0, 0, 0.04)
+                  : const Color.fromRGBO(0, 0, 0, 0.22),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+            if (!isLight)
+              BoxShadow(
+                color: WBColors.accent.withValues(alpha: 0.06),
+                blurRadius: 20,
+                offset: const Offset(0, 2),
+              ),
+          ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(26),
           child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            filter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28),
             child: Container(
               decoration: BoxDecoration(
-                color: WBColors.glass,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: WBColors.whiteA(.18)),
+                color: glassColor,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(color: borderColor, width: 1.0),
               ),
               child: Stack(
                 children: [
-                  // Thin top-to-bottom sheen so the glass reads as lit from
-                  // above, on top of the shared blur/tint but under the tabs.
-                  // This has to sit at the container's own bounds rather than
-                  // inside the padded tab row below — nested in that instead,
-                  // it only fills the area 6px in from the pill's real edge,
-                  // which reads as a hard-edged darker box under the icons. It
-                  // stays white in both palettes — a highlight taken through
-                  // `whiteA` would be drawn as a shadow over the light one.
+                  // iOS frosted specular sheen (lit from top)
                   Positioned.fill(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(26),
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [Colors.white.withValues(alpha: .14), Colors.white.withValues(alpha: 0)],
-                          stops: const [0, .5],
+                          colors: [
+                            Colors.white.withValues(alpha: specularTop),
+                            Colors.white.withValues(alpha: 0.0),
+                          ],
+                          stops: const [0, 0.45],
                         ),
                       ),
                     ),
@@ -150,9 +177,27 @@ class _BottomNavState extends State<BottomNav> with SingleTickerProviderStateMix
                                   height: _itemHeight,
                                   child: DecoratedBox(
                                     decoration: BoxDecoration(
-                                      color: WBColors.accentA(.13),
-                                      border: Border.all(color: WBColors.accentA(.28)),
-                                      borderRadius: BorderRadius.circular(18),
+                                      borderRadius: BorderRadius.circular(20),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          WBColors.accent.withValues(alpha: isLight ? 0.22 : 0.24),
+                                          WBColors.accent.withValues(alpha: isLight ? 0.08 : 0.09),
+                                        ],
+                                      ),
+                                      border: Border.all(
+                                        color: WBColors.accent.withValues(alpha: isLight ? 0.45 : 0.36),
+                                        width: 1.1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: WBColors.accent.withValues(alpha: isLight ? 0.16 : 0.24),
+                                          blurRadius: 14,
+                                          spreadRadius: -2,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -169,7 +214,10 @@ class _BottomNavState extends State<BottomNav> with SingleTickerProviderStateMix
                                         selection: (1 - (position - i).abs()).clamp(0.0, 1.0),
                                         width: itemWidth,
                                         height: _itemHeight,
-                                        onTap: tabs[i].$4,
+                                        onTap: () {
+                                          HapticFeedback.lightImpact();
+                                          tabs[i].$4();
+                                        },
                                         badge: tabs[i].$5,
                                       ),
                                     ],
@@ -216,7 +264,7 @@ class _NavItem extends StatelessWidget {
     final color = Color.lerp(WBColors.textA(.5), WBColors.accent, selection)!;
     return Pressable(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       child: SizedBox(
         width: width,
         height: height,
@@ -245,10 +293,21 @@ class _NavItem extends StatelessWidget {
                 top: 7,
                 right: 20,
                 child: Container(
-                  constraints: const BoxConstraints(minWidth: 15),
-                  height: 15,
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(color: WBColors.red, borderRadius: BorderRadius.circular(99)),
+                  constraints: const BoxConstraints(minWidth: 16),
+                  height: 16,
+                  padding: const EdgeInsets.symmetric(horizontal: 4.5),
+                  decoration: BoxDecoration(
+                    color: WBColors.red,
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(color: Colors.white.withValues(alpha: .9), width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: WBColors.red.withValues(alpha: .45),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
                   alignment: Alignment.center,
                   child: Text('$badge', style: WBText.mono(size: 9, weight: FontWeight.w700, color: Colors.white)),
                 ),
