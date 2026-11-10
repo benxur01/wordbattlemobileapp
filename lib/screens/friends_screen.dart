@@ -96,10 +96,12 @@ class FriendsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
+        Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -178,7 +180,7 @@ class FriendsScreen extends StatelessWidget {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(22, 2, 22, 12),
+            padding: const EdgeInsets.fromLTRB(22, 2, 22, 85),
             children: [
               if (search.trim().isNotEmpty) ...[
                 _SectionLabel('QIDIRUV NATIJASI'),
@@ -250,14 +252,21 @@ class FriendsScreen extends StatelessWidget {
             ],
           ),
         ),
-        BottomNav(
-          active: WBTab.friends,
-          previous: previousTab,
-          friendRequestCount: requests.length,
-          onHome: onHome,
-          onFriends: () {},
-          onBoard: onBoard,
-          onProfile: onProfile,
+          ],
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: BottomNav(
+            active: WBTab.friends,
+            previous: previousTab,
+            friendRequestCount: requests.length,
+            onHome: onHome,
+            onFriends: () {},
+            onBoard: onBoard,
+            onProfile: onProfile,
+          ),
         ),
       ],
     );

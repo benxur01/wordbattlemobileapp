@@ -1,0 +1,31 @@
+# Local development profile using embedded persistent H2 database.
+# Run with: .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=dev"
+spring:
+  datasource:
+    url: jdbc:h2:file:./target/wordbattle-dev;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.H2Dialect
+    open-in-view: false
+  flyway:
+    enabled: false
+
+management:
+  health:
+    mail:
+      enabled: false
+
+wordbattle:
+  jwt:
+    secret: local-dev-secret-that-is-at-least-32-bytes-long-for-hs256!
+    ttl: P30D
+    issuer: wordbattle-dev
+  cors:
+    allowed-origins:
+      - "*"
+  dev-login-enabled: true
+  time-zone: Asia/Tashkent

@@ -86,13 +86,15 @@ class _BottomNavState extends State<BottomNav> with SingleTickerProviderStateMix
     ];
 
     final isLight = WBTheme.isLight;
+    // Translucent liquid glass so background elements (cards, text, avatars)
+    // are distinctly visible through the gaussian blur as frosted shapes.
     final glassColor = isLight
-        ? const Color.fromRGBO(255, 255, 255, 0.72)
-        : const Color.fromRGBO(26, 25, 38, 0.58);
+        ? const Color.fromRGBO(255, 255, 255, 0.65)
+        : const Color.fromRGBO(22, 20, 34, 0.42);
     final borderColor = isLight
-        ? const Color.fromRGBO(255, 255, 255, 0.85)
-        : const Color.fromRGBO(255, 255, 255, 0.16);
-    final specularTop = isLight ? 0.35 : 0.22;
+        ? const Color.fromRGBO(255, 255, 255, 0.90)
+        : const Color.fromRGBO(255, 255, 255, 0.25);
+    final specularTop = isLight ? 0.40 : 0.28;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(widget.horizontalMargin, 0, widget.horizontalMargin, 12),
@@ -104,23 +106,23 @@ class _BottomNavState extends State<BottomNav> with SingleTickerProviderStateMix
           boxShadow: [
             BoxShadow(
               color: isLight
-                  ? const Color.fromRGBO(0, 0, 0, 0.08)
-                  : const Color.fromRGBO(0, 0, 0, 0.45),
-              blurRadius: 32,
+                  ? const Color.fromRGBO(0, 0, 0, 0.12)
+                  : const Color.fromRGBO(0, 0, 0, 0.55),
+              blurRadius: 36,
               spreadRadius: -2,
-              offset: const Offset(0, 12),
+              offset: const Offset(0, 14),
             ),
             BoxShadow(
               color: isLight
-                  ? const Color.fromRGBO(0, 0, 0, 0.04)
-                  : const Color.fromRGBO(0, 0, 0, 0.22),
-              blurRadius: 10,
+                  ? const Color.fromRGBO(0, 0, 0, 0.05)
+                  : const Color.fromRGBO(0, 0, 0, 0.28),
+              blurRadius: 12,
               offset: const Offset(0, 4),
             ),
             if (!isLight)
               BoxShadow(
-                color: WBColors.accent.withValues(alpha: 0.06),
-                blurRadius: 20,
+                color: WBColors.accent.withValues(alpha: 0.10),
+                blurRadius: 24,
                 offset: const Offset(0, 2),
               ),
           ],
@@ -128,12 +130,12 @@ class _BottomNavState extends State<BottomNav> with SingleTickerProviderStateMix
         child: ClipRRect(
           borderRadius: BorderRadius.circular(26),
           child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+            filter: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30),
             child: Container(
               decoration: BoxDecoration(
                 color: glassColor,
                 borderRadius: BorderRadius.circular(26),
-                border: Border.all(color: borderColor, width: 1.0),
+                border: Border.all(color: borderColor, width: 1.2),
               ),
               child: Stack(
                 children: [

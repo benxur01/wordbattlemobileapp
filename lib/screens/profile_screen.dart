@@ -174,12 +174,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final user = data.user;
 
-    return Column(
+    return Stack(
       children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(22, 14, 22, 16),
-            children: [
+        ListView(
+          padding: const EdgeInsets.fromLTRB(22, 14, 22, 90),
+          children: [
               Row(
                 children: [
                   Container(
@@ -379,15 +378,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _accountSection(),
             ],
           ),
-        ),
-        BottomNav(
-          active: WBTab.profile,
-          previous: previousTab,
-          friendRequestCount: friendRequestCount,
-          onHome: onHome,
-          onFriends: onFriends,
-          onBoard: onBoard,
-          onProfile: () {},
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: BottomNav(
+            active: WBTab.profile,
+            previous: previousTab,
+            friendRequestCount: friendRequestCount,
+            onHome: onHome,
+            onFriends: onFriends,
+            onBoard: onBoard,
+            onProfile: () {},
+          ),
         ),
       ],
     );

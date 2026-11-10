@@ -63,80 +63,94 @@ class BoardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = board;
 
-    return Column(
+    return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Liderlar taxtasi',
-                style: WBText.grotesk(size: 26, weight: FontWeight.w700, letterSpacing: -.01),
+        Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Liderlar taxtasi',
+                    style: WBText.grotesk(size: 26, weight: FontWeight.w700, letterSpacing: -.01),
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: WBColors.whiteA(.05),
+                      border: Border.all(color: WBColors.whiteA(.08)),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Row(
+                      children: [
+                        _Tab(label: 'Global', active: tabGlobal, onTap: onGlobalTab),
+                        _Tab(label: "Do'stlar", active: !tabGlobal, onTap: onClassTab),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: WBColors.whiteA(.05),
-                  border: Border.all(color: WBColors.whiteA(.08)),
-                  borderRadius: BorderRadius.circular(15),
+            ),
+            Expanded(
+              child: data == null
+                  ? Center(
+                      child: SpinnerRing(
+                        size: 26,
+                        trackColor: WBColors.textA(.15),
+                        activeColor: WBColors.accent,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : data.rows.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40),
+                        child: Text(
+                          tabGlobal ? "Hali hech kim jang qilmagan" : "Do'stlaringiz yo'q — avval do'st qo'shing",
+                          textAlign: TextAlign.center,
+                          style: WBText.grotesk(size: 14, height: 1.5, color: WBColors.textA(.45)),
+                        ),
+                      ),
+                    )
+                  : ListView(
+                      padding: EdgeInsets.fromLTRB(22, 14, 22, data.me != null ? 150 : 85),
+                      children: [
+                        for (final row in data.rows) ...[_row(row), const SizedBox(height: 8)],
+                      ],
+                    ),
+            ),
+          ],
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (data?.me != null)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(22, 12, 22, 8),
+                  decoration: BoxDecoration(
+                    color: WBColors.bg.withValues(alpha: .92),
+                    border: Border(top: BorderSide(color: WBColors.whiteA(.08))),
+                  ),
+                  child: _row(data!.me!, pinned: true),
                 ),
-                child: Row(
-                  children: [
-                    _Tab(label: 'Global', active: tabGlobal, onTap: onGlobalTab),
-                    _Tab(label: "Do'stlar", active: !tabGlobal, onTap: onClassTab),
-                  ],
-                ),
+              BottomNav(
+                active: WBTab.board,
+                previous: previousTab,
+                friendRequestCount: friendRequestCount,
+                onHome: onHome,
+                onFriends: onFriends,
+                onBoard: () {},
+                onProfile: onProfile,
               ),
             ],
           ),
-        ),
-        Expanded(
-          child: data == null
-              ? Center(
-                  child: SpinnerRing(
-                    size: 26,
-                    trackColor: WBColors.textA(.15),
-                    activeColor: WBColors.accent,
-                    strokeWidth: 2.5,
-                  ),
-                )
-              : data.rows.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: Text(
-                      tabGlobal ? "Hali hech kim jang qilmagan" : "Do'stlaringiz yo'q — avval do'st qo'shing",
-                      textAlign: TextAlign.center,
-                      style: WBText.grotesk(size: 14, height: 1.5, color: WBColors.textA(.45)),
-                    ),
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(22, 14, 22, 10),
-                  children: [
-                    for (final row in data.rows) ...[_row(row), const SizedBox(height: 8)],
-                  ],
-                ),
-        ),
-        if (data?.me != null)
-          Container(
-            padding: const EdgeInsets.fromLTRB(22, 12, 22, 8),
-            decoration: BoxDecoration(
-              color: WBColors.bg.withValues(alpha: .92),
-              border: Border(top: BorderSide(color: WBColors.whiteA(.08))),
-            ),
-            child: _row(data!.me!, pinned: true),
-          ),
-        BottomNav(
-          active: WBTab.board,
-          previous: previousTab,
-          friendRequestCount: friendRequestCount,
-          onHome: onHome,
-          onFriends: onFriends,
-          onBoard: () {},
-          onProfile: onProfile,
         ),
       ],
     );

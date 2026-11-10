@@ -104,9 +104,11 @@ class LobbyScreen extends StatelessWidget {
     final initial = user?.initial ?? '?';
     final rating = user?.rating ?? 0;
     final streak = user?.streakDays ?? 0;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
-      child: Column(
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
+          child: Column(
         children: [
           Row(
             children: [
@@ -507,22 +509,27 @@ class LobbyScreen extends StatelessWidget {
           else if (activeTournament != null)
             _TournamentDiscoveryBanner(tournament: activeTournament!, onTap: onOpenTournamentBracket),
           _TournamentsBrowseLink(onTap: onOpenTournamentsBrowse),
-          BottomNav(
-            active: WBTab.home,
-            previous: previousTab,
-            // The lobby column is already padded 22px, and the design only
-            // adds 14px more here so the bar lines up with the other screens'
-            // 36px edge margin.
-            horizontalMargin: 14,
-            friendRequestCount: friendRequestCount,
-            onHome: () {},
-            onFriends: onFriends,
-            onBoard: onBoard,
-            onProfile: onProfile,
-          ),
+          const SizedBox(height: 75),
         ],
       ),
-    );
+    ),
+    Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: BottomNav(
+        active: WBTab.home,
+        previous: previousTab,
+        horizontalMargin: 36,
+        friendRequestCount: friendRequestCount,
+        onHome: () {},
+        onFriends: onFriends,
+        onBoard: onBoard,
+        onProfile: onProfile,
+      ),
+    ),
+  ],
+);
   }
 }
 
