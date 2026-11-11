@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../api/duel_models.dart';
 import '../api/models.dart';
+import '../audio/sound_effects.dart';
 import '../theme.dart';
 import '../widgets/chain_bubble.dart';
 import '../widgets/flame_badge.dart';
@@ -195,6 +196,7 @@ class _DuelScreenState extends State<DuelScreen> {
     // A blank message never leaves the phone — the server would refuse it
     // too, but there is no reason to make a round trip for that.
     if (text.trim().isEmpty) return;
+    SoundEffects.instance.playTap();
     widget.onSendChat(text);
     _chatController.clear();
     _chatFocus.requestFocus();
@@ -208,6 +210,7 @@ class _DuelScreenState extends State<DuelScreen> {
     final word = _controller.text.trim().toLowerCase();
     if (word.isEmpty) return;
     HapticFeedback.lightImpact();
+    SoundEffects.instance.playTap();
     widget.onSubmit(word);
     _controller.clear();
     // Insurance for the one way focus can still be lost: the player dismissed
@@ -396,8 +399,14 @@ class _DuelScreenState extends State<DuelScreen> {
         ),
         _SocialBar(
           chatOpen: _chatOpen,
-          onToggleChat: () => setState(() => _chatOpen = !_chatOpen),
-          onReact: widget.onSendReaction,
+          onToggleChat: () {
+            SoundEffects.instance.playTap();
+            setState(() => _chatOpen = !_chatOpen);
+          },
+          onReact: (emoji) {
+            SoundEffects.instance.playTap();
+            widget.onSendReaction(emoji);
+          },
           onLeave: widget.onLeave,
           // `rated` is the server's own `!botOpponent`.
           onReport: duel.rated ? () => widget.onOpponentActions(null) : null,
@@ -522,7 +531,10 @@ class _DuelScreenState extends State<DuelScreen> {
                 _PowerUpBar(
                   powerUps: widget.powerUps,
                   yourTurn: duel.yourTurn,
-                  onUse: widget.onPowerUp,
+                  onUse: (pu) {
+                    SoundEffects.instance.playTap();
+                    widget.onPowerUp(pu);
+                  },
                 ),
               ],
               if (widget.error.isNotEmpty) ...[

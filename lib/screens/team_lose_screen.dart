@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/duel_models.dart';
 import '../api/models.dart';
+import '../audio/sound_effects.dart';
 import '../theme.dart';
 import '../widgets/flame_badge.dart';
 import '../widgets/primary_button.dart';
@@ -184,7 +185,10 @@ class TeamLoseScreen extends StatelessWidget {
             Column(
               children: [
                 Pressable(
-                  onTap: onRematch,
+                  onTap: () {
+                    SoundEffects.instance.playTap();
+                    onRematch();
+                  },
                   pressScale: .98,
                   child: Container(
                     height: 62,
@@ -209,7 +213,10 @@ class TeamLoseScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Pressable(
-                        onTap: onHome,
+                        onTap: () {
+                          SoundEffects.instance.playTap();
+                          onHome();
+                        },
                         hoverColor: WBColors.whiteA(.05),
                         borderRadius: BorderRadius.circular(18),
                         child: Container(
@@ -229,7 +236,10 @@ class TeamLoseScreen extends StatelessWidget {
                     const SizedBox(width: 11),
                     Expanded(
                       child: Pressable(
-                        onTap: onPractice,
+                        onTap: () {
+                          SoundEffects.instance.playTap();
+                          onPractice();
+                        },
                         hoverColor: WBColors.whiteA(.05),
                         borderRadius: BorderRadius.circular(18),
                         child: Container(

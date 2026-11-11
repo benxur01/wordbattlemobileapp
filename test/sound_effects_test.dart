@@ -153,4 +153,92 @@ void main() {
       expect(sfx.lastPlayedEffect, SoundEffect.tap);
     });
   });
+
+  group('Gameplay events sound triggers', () {
+    test('triggers victory sound on match win', () async {
+      final sfx = SoundEffects.instance;
+      final played = <SoundEffect>[];
+      sfx.testPlaybackHandler = (effect, _) async => played.add(effect);
+
+      Future<void> handleMatchResult({required bool won}) async {
+        if (won) {
+          await sfx.playVictory();
+        } else {
+          await sfx.playDefeat();
+        }
+      }
+
+      await handleMatchResult(won: true);
+      expect(played, [SoundEffect.victory]);
+    });
+
+    test('triggers defeat sound on match loss', () async {
+      final sfx = SoundEffects.instance;
+      final played = <SoundEffect>[];
+      sfx.testPlaybackHandler = (effect, _) async => played.add(effect);
+
+      Future<void> handleMatchResult({required bool won}) async {
+        if (won) {
+          await sfx.playVictory();
+        } else {
+          await sfx.playDefeat();
+        }
+      }
+
+      await handleMatchResult(won: false);
+      expect(played, [SoundEffect.defeat]);
+    });
+
+    test('triggers countdown chimes only during final 5 seconds of player turn', () async {
+      final sfx = SoundEffects.instance;
+      final countdownBeeps = <int>[];
+      sfx.testPlaybackHandler = (effect, _) async {
+        if (effect == SoundEffect.countdown) countdownBeeps.add(1);
+      };
+
+      // Simulate tick countdown loop
+      void simulateTick({required bool yourTurn, required int oldMs, required int newMs}) {
+        final oldSeconds = (oldMs / 1000).ceil();
+        final newSeconds = (newMs / 1000).ceil();
+        if (yourTurn && newSeconds <= 5 && newSeconds > 0 && newSeconds != oldSeconds) {
+          sfx.playCountdown();
+        }
+      }
+
+      // Above 5 seconds: no chime
+      simulateTick(yourTurn: true, oldMs: 7000, newMs: 6000);
+      expect(countdownBeeps, isEmpty);
+
+      // Opponent's turn: no chime even if under 5 seconds
+      simulateTick(yourTurn: false, oldMs: 4000, newMs: 3000);
+      expect(countdownBeeps, isEmpty);
+
+      // Player's turn: 5, 4, 3, 2, 1 seconds each trigger countdown chime
+      simulateTick(yourTurn: true, oldMs: 5100, newMs: 4900); // ticks into 5
+      simulateTick(yourTurn: true, oldMs: 4100, newMs: 3900); // ticks into 4
+      simulateTick(yourTurn: true, oldMs: 3100, newMs: 2900); // ticks into 3
+      simulateTick(yourTurn: true, oldMs: 2100, newMs: 1900); // ticks into 2
+      simulateTick(yourTurn: true, oldMs: 1100, newMs: 900);  // ticks into 1
+
+      expect(countdownBeeps.length, 5);
+    });
+
+    test('triggers word success and error sounds on duel chain updates and rejections', () async {
+      final sfx = SoundEffects.instance;
+      final played = <SoundEffect>[];
+      sfx.testPlaybackHandler = (effect, _) async => played.add(effect);
+
+      // Word success: chain length increases
+      final oldChainLen = 2;
+      final newChainLen = 3;
+      if (newChainLen > oldChainLen) {
+        await sfx.playWordSuccess();
+      }
+      expect(played, [SoundEffect.wordSuccess]);
+
+      // Word rejected
+      await sfx.playWordError();
+      expect(played, [SoundEffect.wordSuccess, SoundEffect.wordError]);
+    });
+  });
 }

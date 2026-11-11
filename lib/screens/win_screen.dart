@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/duel_models.dart';
+import '../audio/sound_effects.dart';
 import '../theme.dart';
 import '../widgets/confetti_rain.dart';
 import '../widgets/flame_badge.dart';
@@ -154,7 +155,10 @@ class WinScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Pressable(
-                      onTap: onRematch,
+                      onTap: () {
+                        SoundEffects.instance.playTap();
+                        onRematch();
+                      },
                       pressScale: .98,
                       child: Container(
                         height: 62,
@@ -179,7 +183,10 @@ class WinScreen extends StatelessWidget {
                   ),
                   const SizedBox(width: 11),
                   Pressable(
-                    onTap: onHome,
+                    onTap: () {
+                      SoundEffects.instance.playTap();
+                      onHome();
+                    },
                     hoverColor: WBColors.whiteA(.1),
                     borderRadius: BorderRadius.circular(20),
                     semanticLabel: 'Bosh sahifa',

@@ -15,6 +15,7 @@ import 'api/google_auth.dart';
 import 'api/models.dart';
 import 'api/session.dart';
 import 'api/tournament_models.dart';
+import 'audio/sound_effects.dart';
 import 'models.dart';
 import 'theme.dart';
 import 'screens/onboarding1_screen.dart';
@@ -1888,8 +1889,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           return;
         }
         if (!duelFrameApplies(current.duelId, event.payload['duelId'] as String?)) return;
+        final updated = current.applyUpdate(event.payload);
+        if (updated.chain.length > current.chain.length) {
+          SoundEffects.instance.playWordSuccess();
+        }
         setState(() {
-          duel = current.applyUpdate(event.payload);
+          duel = updated;
           duelError = '';
           // The suggested words were for the board as it stood when they were
           // asked for. It has moved, so they go — even when the letter has not,
@@ -1907,6 +1912,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
               ((event.payload['words'] as List?) ?? const []).map((word) => word as String).toList(),
             ));
       case 'duel.rejected':
+        SoundEffects.instance.playWordError();
         setState(() => duelError = event.payload['message'] as String? ?? "So'z qabul qilinmadi");
       case 'duel.chat':
         final text = event.payload['text'] as String?;
@@ -1927,6 +1933,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           duelPowerUps = const DuelPowerUps();
           screen = result.won ? WBScreen.win : WBScreen.lose;
         });
+        if (result.won) {
+          SoundEffects.instance.playVictory();
+        } else {
+          SoundEffects.instance.playDefeat();
+        }
         unawaited(_refreshSocial());
       case 'invite.sent':
         final sentId = event.payload['inviteId'] as String;
@@ -2066,12 +2077,17 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           return;
         }
         if (!duelFrameApplies(current.duelId, event.payload['duelId'] as String?)) return;
+        final updated = current.applyUpdate(event.payload);
+        if (updated.chain.length > current.chain.length) {
+          SoundEffects.instance.playWordSuccess();
+        }
         setState(() {
-          teamDuel = current.applyUpdate(event.payload);
+          teamDuel = updated;
           teamDuelError = '';
         });
         _scrollTeamChainToBottom();
       case 'team_duel.rejected':
+        SoundEffects.instance.playWordError();
         setState(() => teamDuelError = event.payload['message'] as String? ?? "So'z qabul qilinmadi");
       case 'team_duel.chat':
         final board = teamDuel;
@@ -2104,6 +2120,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           teamReaction = null;
           screen = result.won ? WBScreen.teamWin : WBScreen.teamLose;
         });
+        if (result.won) {
+          SoundEffects.instance.playVictory();
+        } else {
+          SoundEffects.instance.playDefeat();
+        }
         unawaited(_refreshSocial());
       case 'team_duel.aborted':
         setState(() {
@@ -2320,9 +2341,21 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     final watched = spectating;
     final watchedTeam = teamSpectating;
     if (screen == WBScreen.duel && current != null && current.timeLeftMs > 0) {
-      setState(() => duel = current.tick(elapsed));
+      final oldSeconds = (current.timeLeftMs / 1000).ceil();
+      final updated = current.tick(elapsed);
+      final newSeconds = (updated.timeLeftMs / 1000).ceil();
+      if (current.yourTurn && newSeconds <= 5 && newSeconds > 0 && newSeconds != oldSeconds) {
+        SoundEffects.instance.playCountdown();
+      }
+      setState(() => duel = updated);
     } else if (screen == WBScreen.teamDuel && currentTeam != null && currentTeam.timeLeftMs > 0) {
-      setState(() => teamDuel = currentTeam.tick(elapsed));
+      final oldSeconds = (currentTeam.timeLeftMs / 1000).ceil();
+      final updated = currentTeam.tick(elapsed);
+      final newSeconds = (updated.timeLeftMs / 1000).ceil();
+      if (currentTeam.yourTurn && newSeconds <= 5 && newSeconds > 0 && newSeconds != oldSeconds) {
+        SoundEffects.instance.playCountdown();
+      }
+      setState(() => teamDuel = updated);
     } else if (screen == WBScreen.spectateDuel && watched != null && watched.timeLeftMs > 0) {
       setState(() => spectating = watched.tick(elapsed));
     } else if (screen == WBScreen.teamSpectateDuel && watchedTeam != null && watchedTeam.timeLeftMs > 0) {

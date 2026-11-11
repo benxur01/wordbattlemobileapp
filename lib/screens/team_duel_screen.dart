@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../api/duel_models.dart';
 import '../api/models.dart';
+import '../audio/sound_effects.dart';
 import '../theme.dart';
 import '../widgets/chain_bubble.dart';
 import '../widgets/player_actions.dart';
@@ -131,6 +132,7 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
   void _sendChat() {
     final text = _chatController.text;
     if (text.trim().isEmpty) return;
+    SoundEffects.instance.playTap();
     widget.onSendChat(text);
     _chatController.clear();
     _chatFocus.requestFocus();
@@ -141,6 +143,7 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
     final word = _controller.text.trim().toLowerCase();
     if (word.isEmpty) return;
     HapticFeedback.lightImpact();
+    SoundEffects.instance.playTap();
     widget.onSubmit(word);
     _controller.clear();
     _focus.requestFocus();
