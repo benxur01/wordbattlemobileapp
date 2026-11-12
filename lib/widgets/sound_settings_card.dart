@@ -81,18 +81,22 @@ class SoundSettingsCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  CupertinoSwitch(
-                    key: const Key('sound_fx_switch'),
-                    value: !isMuted,
-                    activeTrackColor: WBColors.green,
-                    inactiveTrackColor: WBColors.whiteA(.12),
-                    onChanged: (enabled) async {
-                      await HapticFeedback.selectionClick();
-                      await sfx.setMuted(!enabled);
-                      if (enabled) {
-                        await sfx.playPreview();
-                      }
-                    },
+                  Semantics(
+                    label: 'Ovoz effektlari kaliti',
+                    toggled: !isMuted,
+                    child: CupertinoSwitch(
+                      key: const Key('sound_fx_switch'),
+                      value: !isMuted,
+                      activeTrackColor: WBColors.green,
+                      inactiveTrackColor: WBColors.whiteA(.12),
+                      onChanged: (enabled) async {
+                        await HapticFeedback.selectionClick();
+                        await sfx.setMuted(!enabled);
+                        if (enabled) {
+                          await sfx.playPreview();
+                        }
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -153,6 +157,7 @@ class SoundSettingsCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     Pressable(
                       key: const Key('sound_fx_preview_btn'),
+                      semanticLabel: 'Ovozni sinab ko‘rish',
                       onTap: isMuted
                           ? null
                           : () {
