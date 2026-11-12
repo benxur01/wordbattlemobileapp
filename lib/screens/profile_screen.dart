@@ -4,11 +4,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../api/models.dart';
+import '../audio/sound_effects.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/dashed_border.dart';
 import '../widgets/flame_badge.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/provisional_badge.dart';
+import '../widgets/sound_settings_card.dart';
 import '../widgets/spinner_ring.dart';
 import '../widgets/stroke_glyph.dart';
 
@@ -442,7 +444,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Ko'rinish", style: WBText.grotesk(size: 13.5, weight: FontWeight.w600)),
+        Text("Ko'rinish va Ovoz", style: WBText.grotesk(size: 13.5, weight: FontWeight.w600)),
         const SizedBox(height: 11),
         Container(
           padding: const EdgeInsets.all(4),
@@ -462,6 +464,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        // ignore: prefer_const_constructors
+        SoundSettingsCard(),
       ],
     );
   }
@@ -827,7 +832,12 @@ class _ThemeOption extends StatelessWidget {
     final active = WBTheme.mode == mode;
     return Expanded(
       child: Pressable(
-        onTap: active ? null : () => WBTheme.select(mode),
+        onTap: active
+            ? null
+            : () {
+                SoundEffects.instance.playTap();
+                WBTheme.select(mode);
+              },
         pressScale: .96,
         borderRadius: BorderRadius.circular(12),
         child: Container(
