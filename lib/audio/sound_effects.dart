@@ -177,6 +177,9 @@ class SoundEffects extends ChangeNotifier {
   /// Plays defeat sound upon match loss.
   Future<void> playDefeat() => play(SoundEffect.defeat);
 
+  /// Plays a preview chime so players can test their current volume level.
+  Future<void> playPreview() => play(SoundEffect.wordSuccess);
+
   /// Releases audio player resources.
   @override
   void dispose() {

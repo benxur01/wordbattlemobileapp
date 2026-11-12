@@ -90,7 +90,7 @@ class SoundSettingsCard extends StatelessWidget {
                       await HapticFeedback.selectionClick();
                       await sfx.setMuted(!enabled);
                       if (enabled) {
-                        await sfx.playWordSuccess();
+                        await sfx.playPreview();
                       }
                     },
                   ),
@@ -157,7 +157,7 @@ class SoundSettingsCard extends StatelessWidget {
                           ? null
                           : () {
                               HapticFeedback.lightImpact();
-                              sfx.playWordSuccess();
+                              sfx.playPreview();
                             },
                       pressScale: .95,
                       borderRadius: BorderRadius.circular(10),
