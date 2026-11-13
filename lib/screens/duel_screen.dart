@@ -111,6 +111,19 @@ class _DuelScreenState extends State<DuelScreen> {
   bool _reactionVisible = false;
   Timer? _reactionFadeTimer;
   Timer? _reactionGoneTimer;
+  Timer? _translitHintTimer;
+  bool _showTransliterationHint = false;
+
+  void _onCyrillicInputDetected(String _) {
+    HapticFeedback.selectionClick();
+    _translitHintTimer?.cancel();
+    if (!_showTransliterationHint) {
+      setState(() => _showTransliterationHint = true);
+    }
+    _translitHintTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _showTransliterationHint = false);
+    });
+  }
 
   @override
   void didUpdateWidget(DuelScreen oldWidget) {
@@ -189,6 +202,7 @@ class _DuelScreenState extends State<DuelScreen> {
     _chatScroll.dispose();
     _reactionFadeTimer?.cancel();
     _reactionGoneTimer?.cancel();
+    _translitHintTimer?.cancel();
     super.dispose();
   }
 
@@ -572,7 +586,9 @@ class _DuelScreenState extends State<DuelScreen> {
                         autocorrect: false,
                         enableSuggestions: false,
                         autofillHints: const [],
-                        inputFormatters: const [CyrillicToLatinFormatter()],
+                        inputFormatters: [
+                          CyrillicToLatinFormatter(onCyrillicDetected: _onCyrillicInputDetected),
+                        ],
                         textInputAction: TextInputAction.send,
                         style: WBText.grotesk(size: 19, weight: FontWeight.w600),
                         decoration: InputDecoration(
@@ -641,6 +657,33 @@ class _DuelScreenState extends State<DuelScreen> {
                   ),
                 ],
               ),
+              if (_showTransliterationHint) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: WBColors.accentA(.12),
+                        border: Border.all(color: WBColors.accentA(.3)),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.translate_rounded, size: 13, color: WBColors.accent),
+                          const SizedBox(width: 5),
+                          Text(
+                            "Kirill harflari avtomat lotinchaga o'tkazildi",
+                            style: WBText.grotesk(size: 11.5, weight: FontWeight.w500, color: WBColors.accent),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
