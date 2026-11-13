@@ -7,6 +7,7 @@ import '../api/duel_models.dart';
 import '../api/models.dart';
 import '../audio/sound_effects.dart';
 import '../theme.dart';
+import '../utils/transliteration.dart';
 import '../widgets/chain_bubble.dart';
 import '../widgets/player_actions.dart';
 import '../widgets/primary_button.dart';
@@ -140,7 +141,8 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
 
   void _submit() {
     if (widget.duel?.yourTurn != true) return;
-    final word = _controller.text.trim().toLowerCase();
+    final raw = _controller.text.trim();
+    final word = transliterateCyrillicToLatin(raw).toLowerCase();
     if (word.isEmpty) return;
     HapticFeedback.lightImpact();
     SoundEffects.instance.playTap();
@@ -424,6 +426,7 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
                         autocorrect: false,
                         enableSuggestions: false,
                         autofillHints: const [],
+                        inputFormatters: const [CyrillicToLatinFormatter()],
                         textInputAction: TextInputAction.send,
                         style: WBText.grotesk(size: 19, weight: FontWeight.w600),
                         decoration: InputDecoration(

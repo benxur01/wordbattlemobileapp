@@ -8,6 +8,7 @@ import '../api/duel_models.dart';
 import '../api/models.dart';
 import '../audio/sound_effects.dart';
 import '../theme.dart';
+import '../utils/transliteration.dart';
 import '../widgets/chain_bubble.dart';
 import '../widgets/flame_badge.dart';
 import '../widgets/player_actions.dart';
@@ -207,7 +208,8 @@ class _DuelScreenState extends State<DuelScreen> {
     // the keyboard up (see the note on [_focus]). The server refuses
     // out-of-turn words too; this stops the app from asking in the first place.
     if (widget.duel?.yourTurn != true) return;
-    final word = _controller.text.trim().toLowerCase();
+    final raw = _controller.text.trim();
+    final word = transliterateCyrillicToLatin(raw).toLowerCase();
     if (word.isEmpty) return;
     HapticFeedback.lightImpact();
     SoundEffects.instance.playTap();
@@ -570,6 +572,7 @@ class _DuelScreenState extends State<DuelScreen> {
                         autocorrect: false,
                         enableSuggestions: false,
                         autofillHints: const [],
+                        inputFormatters: const [CyrillicToLatinFormatter()],
                         textInputAction: TextInputAction.send,
                         style: WBText.grotesk(size: 19, weight: FontWeight.w600),
                         decoration: InputDecoration(
