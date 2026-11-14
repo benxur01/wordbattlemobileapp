@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../api/models.dart';
+import '../audio/sound_effects.dart';
 import '../theme.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/leaderboard_skeleton.dart';
 import '../widgets/provisional_badge.dart';
-import '../widgets/spinner_ring.dart';
 
 class BoardScreen extends StatelessWidget {
   const BoardScreen({
@@ -96,14 +97,7 @@ class BoardScreen extends StatelessWidget {
             ),
             Expanded(
               child: data == null
-                  ? Center(
-                      child: SpinnerRing(
-                        size: 26,
-                        trackColor: WBColors.textA(.15),
-                        activeColor: WBColors.accent,
-                        strokeWidth: 2.5,
-                      ),
-                    )
+                  ? const LeaderboardSkeletonLoader()
                   : data.rows.isEmpty
                   ? Center(
                       child: Padding(
@@ -267,7 +261,12 @@ class _Tab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: GestureDetector(
-        onTap: active ? null : onTap,
+        onTap: active
+            ? null
+            : () {
+                SoundEffects.instance.playTap();
+                onTap();
+              },
         child: Container(
           height: 40,
           decoration: BoxDecoration(
