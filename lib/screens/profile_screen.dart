@@ -9,9 +9,9 @@ import '../widgets/bottom_nav.dart';
 import '../widgets/dashed_border.dart';
 import '../widgets/flame_badge.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/profile_skeleton.dart';
 import '../widgets/provisional_badge.dart';
 import '../widgets/sound_settings_card.dart';
-import '../widgets/spinner_ring.dart';
 import '../widgets/stroke_glyph.dart';
 
 /// The player's own profile, entirely server-driven: stats, the 30-day rating
@@ -151,15 +151,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (data == null) {
       return Column(
         children: [
-          Expanded(
-            child: Center(
-              child: SpinnerRing(
-                size: 26,
-                trackColor: WBColors.textA(.15),
-                activeColor: WBColors.accent,
-                strokeWidth: 2.5,
-              ),
-            ),
+          const Expanded(
+            child: ProfileSkeletonLoader(),
           ),
           BottomNav(
             active: WBTab.profile,

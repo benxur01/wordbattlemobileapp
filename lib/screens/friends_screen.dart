@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/models.dart';
 import '../theme.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/friends_skeleton.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/provisional_badge.dart';
 import '../widgets/stroke_glyph.dart';
@@ -17,6 +18,7 @@ class FriendsScreen extends StatelessWidget {
     required this.searchResults,
     this.searchLoading = false,
     this.searchError,
+    this.friendsLoading = false,
     required this.isRequestSent,
     required this.requests,
     required this.friends,
@@ -39,6 +41,7 @@ class FriendsScreen extends StatelessWidget {
   final List<UserDto> searchResults;
   final bool searchLoading;
   final String? searchError;
+  final bool friendsLoading;
 
   /// Whether a request to this user was already sent in this session.
   final bool Function(int userId) isRequestSent;
@@ -186,19 +189,9 @@ class FriendsScreen extends StatelessWidget {
                 _SectionLabel('QIDIRUV NATIJASI'),
                 const SizedBox(height: 9),
                 if (searchLoading)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: WBColors.accent),
-                        ),
-                        const SizedBox(width: 9),
-                        Text('Qidirilmoqda…', style: WBText.grotesk(size: 13.5, color: WBColors.textA(.6))),
-                      ],
-                    ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: FriendsSkeletonLoader.search(),
                   )
                 else if (searchError != null)
                   Padding(
@@ -225,7 +218,9 @@ class FriendsScreen extends StatelessWidget {
               ],
               _SectionLabel('ONLAYN · ${friends.where((f) => f.online).length}'),
               const SizedBox(height: 9),
-              if (friends.where((f) => f.online).isEmpty)
+              if (friendsLoading)
+                const FriendsSkeletonLoader(itemCount: 4, shrinkWrap: true)
+              else if (friends.where((f) => f.online).isEmpty)
                 friends.isEmpty
                     ? _NoFriendsYet()
                     : Padding(
