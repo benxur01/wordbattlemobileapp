@@ -15,6 +15,7 @@ import '../widgets/player_actions.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/progress_ring.dart';
 import '../widgets/provisional_badge.dart';
+import '../widgets/reaction_picker_dock.dart';
 import '../widgets/stroke_glyph.dart';
 
 /// The emoji a player can react with — fixed, same set the server accepts.
@@ -724,32 +725,15 @@ class _SocialBar extends StatelessWidget {
           _LeaveButton(onTap: onLeave),
           const SizedBox(width: 10),
           Expanded(
-            child: Row(
-              children: [
-                for (final emoji in kDuelReactions) ...[
-                  Pressable(
-                    // Sends immediately — a reaction is not worth a confirmation.
-                    onTap: () => onReact(emoji),
-                    pressScale: .95,
-                    borderRadius: BorderRadius.circular(10),
-                    semanticLabel: 'Reaksiya: $emoji',
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: WBColors.whiteA(.05),
-                        border: Border.all(color: WBColors.whiteA(.1)),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(emoji, style: const TextStyle(fontSize: 16)),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              child: ReactionPickerDock(
+                onReact: onReact,
+              ),
             ),
           ),
+          const SizedBox(width: 8),
           if (onReport != null) ...[
             PlayerReportButton(onTap: onReport!),
             const SizedBox(width: 6),
