@@ -162,6 +162,9 @@ class SoundEffects extends ChangeNotifier {
   /// Plays standard UI tap click sound.
   Future<void> playTap() => play(SoundEffect.tap);
 
+  /// Plays a lively tap chime with volume accent when sending an in-game emoji reaction.
+  Future<void> playReaction() => play(SoundEffect.tap, volumeFactor: 0.75);
+
   /// Plays positive chime when a valid word is accepted.
   Future<void> playWordSuccess() => play(SoundEffect.wordSuccess);
 

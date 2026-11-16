@@ -18,6 +18,8 @@ class ReactionPickerDock extends StatelessWidget {
     this.spacing = 5.0,
     this.enableHaptics = true,
     this.enableAudio = true,
+    this.onHapticFeedback,
+    this.onAudioFeedback,
   });
 
   /// Invoked with the selected emoji string when tapped.
@@ -37,6 +39,12 @@ class ReactionPickerDock extends StatelessWidget {
 
   /// Whether to trigger the crisp UI tap chime on selection.
   final bool enableAudio;
+
+  /// Optional custom callback when haptic feedback triggers (useful for tests).
+  final VoidCallback? onHapticFeedback;
+
+  /// Optional custom callback when audio triggers (useful for tests).
+  final VoidCallback? onAudioFeedback;
 
   @override
   Widget build(BuildContext context) {
@@ -68,10 +76,18 @@ class ReactionPickerDock extends StatelessWidget {
                   size: itemSize,
                   onSelect: (emoji) {
                     if (enableHaptics) {
-                      HapticFeedback.lightImpact();
+                      if (onHapticFeedback != null) {
+                        onHapticFeedback!();
+                      } else {
+                        HapticFeedback.lightImpact();
+                      }
                     }
                     if (enableAudio) {
-                      SoundEffects.instance.playTap();
+                      if (onAudioFeedback != null) {
+                        onAudioFeedback!();
+                      } else {
+                        SoundEffects.instance.playReaction();
+                      }
                     }
                     onReact(emoji);
                   },
