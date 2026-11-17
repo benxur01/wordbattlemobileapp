@@ -9,6 +9,7 @@ import '../audio/sound_effects.dart';
 import '../theme.dart';
 import '../utils/transliteration.dart';
 import '../widgets/chain_bubble.dart';
+import '../widgets/floating_reaction_bubble.dart';
 import '../widgets/player_actions.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/progress_ring.dart';
@@ -81,11 +82,8 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
   final _chatController = TextEditingController();
   final _chatScroll = ScrollController();
 
-  /// The reaction on screen and how far its fade has got — mirrors
-  /// `DuelScreen`'s pair of the same name.
+  /// The reaction currently on screen. It is cleared once its animation completes.
   TeamReaction? _shownReaction;
-  bool _reactionVisible = false;
-  Timer? _reactionFadeTimer;
   Timer? _reactionGoneTimer;
   Timer? _translitHintTimer;
   bool _showTransliterationHint = false;
@@ -110,15 +108,8 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
     }
     final reaction = widget.reaction;
     if (reaction != null && reaction.id != oldWidget.reaction?.id) {
-      _reactionFadeTimer?.cancel();
       _reactionGoneTimer?.cancel();
-      setState(() {
-        _shownReaction = reaction;
-        _reactionVisible = true;
-      });
-      _reactionFadeTimer = Timer(const Duration(milliseconds: 1600), () {
-        if (mounted) setState(() => _reactionVisible = false);
-      });
+      setState(() => _shownReaction = reaction);
       _reactionGoneTimer = Timer(const Duration(milliseconds: 2000), () {
         if (mounted) setState(() => _shownReaction = null);
       });
@@ -139,7 +130,6 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
     _chatFocus.dispose();
     _chatController.dispose();
     _chatScroll.dispose();
-    _reactionFadeTimer?.cancel();
     _reactionGoneTimer?.cancel();
     _translitHintTimer?.cancel();
     super.dispose();
@@ -359,16 +349,14 @@ class _TeamDuelScreenState extends State<TeamDuelScreen> {
               ),
               if (_shownReaction != null)
                 Positioned(
-                  top: 8,
-                  left: 12,
+                  top: 10,
+                  left: 14,
                   child: IgnorePointer(
-                    child: AnimatedOpacity(
-                      opacity: _reactionVisible ? 1 : 0,
-                      duration: const Duration(milliseconds: 300),
-                      child: _ReactionBubble(
-                        emoji: _shownReaction!.emoji,
-                        sender: _shownReaction!.sender,
-                      ),
+                    child: FloatingReactionBubble(
+                      key: ValueKey(_shownReaction!.id),
+                      emoji: _shownReaction!.emoji,
+                      sender: _shownReaction!.sender,
+                      enableSound: true,
                     ),
                   ),
                 ),
@@ -803,46 +791,6 @@ class _ChatPanel extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// A reaction floating briefly over the board, under the name of whoever sent
-/// it — `DuelScreen._ReactionBubble` cannot say who, and here it has to.
-class _ReactionBubble extends StatelessWidget {
-  const _ReactionBubble({required this.emoji, required this.sender});
-
-  final String emoji;
-  final String sender;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 52,
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: WBColors.whiteA(.06),
-            border: Border.all(color: WBColors.whiteA(.12)),
-            shape: BoxShape.circle,
-          ),
-          child: Text(emoji, style: const TextStyle(fontSize: 26)),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          constraints: const BoxConstraints(maxWidth: 96),
-          child: Text(
-            sender,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: WBText.mono(size: 9.5, weight: FontWeight.w600, color: WBColors.textA(.5)),
-          ),
-        ),
-      ],
     );
   }
 }
