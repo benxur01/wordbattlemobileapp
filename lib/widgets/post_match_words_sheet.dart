@@ -119,30 +119,36 @@ class _PostMatchWordsSheetState extends State<PostMatchWordsSheet> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "JANG SO'ZLARI TAHLILI",
-                          style: WBText.mono(
-                            size: 11,
-                            weight: FontWeight.w600,
-                            color: WBColors.textA(.45),
-                            letterSpacing: .15,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "JANG SO'ZLARI TAHLILI",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: WBText.mono(
+                              size: 11,
+                              weight: FontWeight.w600,
+                              color: WBColors.textA(.45),
+                              letterSpacing: .15,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          "${widget.words.length} ta aytilgan so'z",
-                          style: WBText.grotesk(
-                            size: 20,
-                            weight: FontWeight.w700,
+                          const SizedBox(height: 3),
+                          Text(
+                            "${widget.words.length} ta aytilgan so'z",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: WBText.grotesk(
+                              size: 20,
+                              weight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 10),
                     Pressable(
                       onTap: () => Navigator.of(context).pop(),
                       pressScale: .92,

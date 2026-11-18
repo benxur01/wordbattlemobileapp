@@ -52,9 +52,12 @@ class LoseScreen extends StatelessWidget {
         child: Column(
           children: [
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+              child: Center(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                     decoration: BoxDecoration(
@@ -131,11 +134,14 @@ class LoseScreen extends StatelessWidget {
                           children: [
                             FlameIcon(width: 15, height: 20, animate: false),
                             const SizedBox(width: 11),
-                            Text(
-                              'Streak saqlandi · ${result.streakDays} kun',
-                              style: WBText.grotesk(size: 15, weight: FontWeight.w600),
+                            Expanded(
+                              child: Text(
+                                'Streak saqlandi · ${result.streakDays} kun',
+                                style: WBText.grotesk(size: 15, weight: FontWeight.w600),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            const Spacer(),
+                            const SizedBox(width: 8),
                             Text(
                               'OK',
                               style: WBText.mono(size: 12, weight: FontWeight.w600, color: WBColors.green),
@@ -236,6 +242,8 @@ class LoseScreen extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ),
             Column(
               children: [
                 Pressable(

@@ -60,9 +60,12 @@ class WinScreen extends StatelessWidget {
           child: Column(
             children: [
               Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
+                child: Center(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                       decoration: BoxDecoration(
@@ -212,6 +215,8 @@ class WinScreen extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
+          ),
               Row(
                 children: [
                   Expanded(
