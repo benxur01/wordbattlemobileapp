@@ -271,9 +271,14 @@ class FinishedDuel {
     required this.hints,
     required this.opponentId,
     required this.opponentIsBot,
+    this.words = const [],
   });
 
-  factory FinishedDuel.fromJson(Map<String, dynamic> json) => FinishedDuel(
+  factory FinishedDuel.fromJson(
+    Map<String, dynamic> json, {
+    List<ChainWord> fallbackWords = const [],
+  }) =>
+      FinishedDuel(
         duelId: json['duelId'] as String?,
         won: (json['result'] as String? ?? 'lose') == 'win',
         reason: json['reason'] as String? ?? '',
@@ -290,6 +295,11 @@ class FinishedDuel {
         hints: ((json['hints'] as List?) ?? const []).map((e) => e as String).toList(),
         opponentId: (json['opponentId'] as num?)?.toInt(),
         opponentIsBot: json['opponentIsBot'] as bool? ?? false,
+        words: json['chain'] is List
+            ? (json['chain'] as List)
+                .map((e) => ChainWord.fromJson(e as Map<String, dynamic>))
+                .toList()
+            : fallbackWords,
       );
 
   /// Which duel this is the result of — the one thing that tells a result
@@ -321,6 +331,9 @@ class FinishedDuel {
   /// a real, fixed id ([opponentId] is never null for it), so this is the
   /// only way to tell the two apart.
   final bool opponentIsBot;
+
+  /// The list of words played during the match chain.
+  final List<ChainWord> words;
 
   String get averageLabel => '${(averageMs / 1000).toStringAsFixed(1)}s';
 }

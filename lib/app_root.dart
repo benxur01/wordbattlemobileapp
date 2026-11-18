@@ -1923,7 +1923,10 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         if (duel == null || emoji == null || emoji.isEmpty) return;
         setState(() => duelReaction = DuelReaction(emoji: emoji, id: _reactionSeq++));
       case 'duel.finished':
-        final result = FinishedDuel.fromJson(event.payload);
+        final result = FinishedDuel.fromJson(
+          event.payload,
+          fallbackWords: duel?.chain ?? const [],
+        );
         if (!duelFrameApplies(duel?.duelId, result.duelId)) return;
         setState(() {
           finished = result;
@@ -3057,6 +3060,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         ),
       WBScreen.win => WinScreen(
           result: finished,
+          words: finished?.words ?? const [],
           onRematch: () {
             final result = finished;
             result == null ? startMatchmaking() : rematch(result);
@@ -3065,6 +3069,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         ),
       WBScreen.lose => LoseScreen(
           result: finished,
+          words: finished?.words ?? const [],
           onRematch: () {
             final result = finished;
             result == null ? startMatchmaking() : rematch(result);

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../api/duel_models.dart';
 import '../audio/sound_effects.dart';
 import '../theme.dart';
+import '../widgets/animated_counter.dart';
 import '../widgets/flame_badge.dart';
+import '../widgets/post_match_words_sheet.dart';
 import '../widgets/primary_button.dart';
 
 /// The defeat screen. Unlike the design — where every number was static — the
@@ -13,12 +15,16 @@ class LoseScreen extends StatelessWidget {
   const LoseScreen({
     super.key,
     required this.result,
+    this.words = const [],
     required this.onRematch,
     required this.onHome,
     required this.onPractice,
   });
 
   final FinishedDuel? result;
+
+  /// Words played in the duel. Falls back to `result.words` if omitted.
+  final List<ChainWord> words;
   final VoidCallback onRematch;
 
   /// Not in the design, which left Android's back gesture as the only way to
@@ -30,6 +36,7 @@ class LoseScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final result = this.result;
     if (result == null) return const SizedBox.shrink();
+    final effectiveWords = words.isNotEmpty ? words : result.words;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -79,15 +86,27 @@ class LoseScreen extends StatelessWidget {
                   const SizedBox(height: 22),
                   Column(
                     children: [
-                      Text(
-                        result.rated ? '${result.delta}' : '—',
-                        style: WBText.mono(
-                          size: 56,
-                          weight: FontWeight.w700,
-                          color: WBColors.textA(.75),
-                          height: 1,
-                        ),
-                      ),
+                      result.rated
+                          ? AnimatedCounter(
+                              value: result.delta,
+                              prefix: result.delta > 0 ? '+' : '',
+                              style: WBText.mono(
+                                size: 56,
+                                weight: FontWeight.w700,
+                                color: WBColors.textA(.75),
+                                height: 1,
+                              ),
+                              duration: const Duration(milliseconds: 900),
+                            )
+                          : Text(
+                              '—',
+                              style: WBText.mono(
+                                size: 56,
+                                weight: FontWeight.w700,
+                                color: WBColors.textA(.75),
+                                height: 1,
+                              ),
+                            ),
                       const SizedBox(height: 3),
                       Text(
                         result.rated
@@ -176,6 +195,42 @@ class LoseScreen extends StatelessWidget {
                           ],
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Pressable(
+                    key: const ValueKey('post_match_words_button'),
+                    onTap: () {
+                      SoundEffects.instance.playTap();
+                      PostMatchWordsSheet.show(
+                        context,
+                        words: effectiveWords,
+                      );
+                    },
+                    hoverColor: WBColors.whiteA(.05),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: WBColors.whiteA(.05),
+                        border: Border.all(color: WBColors.whiteA(.12)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.format_list_bulleted_rounded, size: 16, color: WBColors.accent),
+                          const SizedBox(width: 8),
+                          Text(
+                            effectiveWords.isNotEmpty
+                                ? "So'zlar tahlili (${effectiveWords.length})"
+                                : "So'zlar tahlili",
+                            style: WBText.grotesk(size: 13, weight: FontWeight.w600, color: WBColors.text),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(Icons.arrow_forward_ios_rounded, size: 11, color: WBColors.textA(.4)),
+                        ],
+                      ),
                     ),
                   ),
                 ],
