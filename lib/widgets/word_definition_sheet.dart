@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -64,6 +65,13 @@ class WordDefinitionSheet extends StatefulWidget {
 
 class _WordDefinitionSheetState extends State<WordDefinitionSheet> {
   bool _copied = false;
+  Timer? _copyTimer;
+
+  @override
+  void dispose() {
+    _copyTimer?.cancel();
+    super.dispose();
+  }
 
   String get _normalizedWord => widget.word.trim().toUpperCase();
 
@@ -103,7 +111,8 @@ class _WordDefinitionSheetState extends State<WordDefinitionSheet> {
     SoundEffects.instance.playTap();
     if (mounted) {
       setState(() => _copied = true);
-      Future.delayed(const Duration(milliseconds: 1600), () {
+      _copyTimer?.cancel();
+      _copyTimer = Timer(const Duration(milliseconds: 1600), () {
         if (mounted) setState(() => _copied = false);
       });
     }
