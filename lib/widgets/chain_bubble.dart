@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import 'primary_button.dart';
+import 'word_definition_sheet.dart';
 
 /// One word in the duel chain, rendered as a chat bubble. Ports the two
 /// `sc-if` branches (`w.me` / `w.bot`) from the duel screen template,
 /// including the `wbRise` fade+slide-in entrance animation.
 class ChainBubble extends StatefulWidget {
-  const ChainBubble({super.key, required this.word, required this.isMe, required this.ms});
+  const ChainBubble({
+    super.key,
+    required this.word,
+    required this.isMe,
+    required this.ms,
+    this.onTap,
+  });
 
   final String word;
   final bool isMe;
@@ -13,6 +21,9 @@ class ChainBubble extends StatefulWidget {
   /// The time the word took, or null when nobody spent any on it — the
   /// chain's seed — in which case the bubble carries no time label at all.
   final String? ms;
+
+  /// Optional tap handler; defaults to opening [WordDefinitionSheet].
+  final VoidCallback? onTap;
 
   @override
   State<ChainBubble> createState() => _ChainBubbleState();
@@ -92,7 +103,17 @@ class _ChainBubbleState extends State<ChainBubble> with SingleTickerProviderStat
       },
       child: Align(
         alignment: widget.isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: bubble,
+        child: Pressable(
+          onTap: widget.onTap ?? () => WordDefinitionSheet.show(context, word: widget.word),
+          pressScale: .97,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(widget.isMe ? 18 : 6),
+            bottomRight: Radius.circular(widget.isMe ? 6 : 18),
+          ),
+          child: bubble,
+        ),
       ),
     );
   }
@@ -115,6 +136,7 @@ class TeamChainBubble extends StatefulWidget {
     required this.side,
     required this.ms,
     this.speakerLabel,
+    this.onTap,
   });
 
   final String word;
@@ -127,6 +149,9 @@ class TeamChainBubble extends StatefulWidget {
   /// — null for [TeamBubbleSide.mine], which needs no caption for the same
   /// reason [ChainBubble]'s own words never get one.
   final String? speakerLabel;
+
+  /// Optional tap handler; defaults to opening [WordDefinitionSheet].
+  final VoidCallback? onTap;
 
   @override
   State<TeamChainBubble> createState() => _TeamChainBubbleState();
@@ -225,7 +250,17 @@ class _TeamChainBubbleState extends State<TeamChainBubble> with SingleTickerProv
             ),
           ),
         ],
-        bubble,
+        Pressable(
+          onTap: widget.onTap ?? () => WordDefinitionSheet.show(context, word: widget.word),
+          pressScale: .97,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(onRight ? 18 : 6),
+            bottomRight: Radius.circular(onRight ? 6 : 18),
+          ),
+          child: bubble,
+        ),
       ],
     );
 

@@ -6,6 +6,7 @@ import '../api/duel_models.dart';
 import '../audio/sound_effects.dart';
 import '../theme.dart';
 import 'primary_button.dart';
+import 'word_definition_sheet.dart';
 
 enum WordsFilter { all, mine, opponent }
 
@@ -47,7 +48,10 @@ class PostMatchWordsSheet extends StatefulWidget {
       builder: (context) => PostMatchWordsSheet(
         words: words,
         opponentName: opponentName,
-        onWordTap: onWordTap,
+        onWordTap: onWordTap ??
+            (word) {
+              WordDefinitionSheet.show(context, word: word);
+            },
       ),
     );
   }
@@ -322,7 +326,11 @@ class _PostMatchWordsSheetState extends State<PostMatchWordsSheet> {
       onTap: () {
         HapticFeedback.lightImpact();
         SoundEffects.instance.playTap();
-        widget.onWordTap?.call(item.word);
+        if (widget.onWordTap != null) {
+          widget.onWordTap!(item.word);
+        } else {
+          WordDefinitionSheet.show(context, word: item.word);
+        }
       },
       pressScale: .98,
       borderRadius: BorderRadius.circular(15),
@@ -405,6 +413,8 @@ class _PostMatchWordsSheetState extends State<PostMatchWordsSheet> {
                 ),
               ),
             ],
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right_rounded, size: 16, color: WBColors.textA(.35)),
           ],
         ),
       ),
