@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../audio/sound_effects.dart';
 import '../theme.dart';
+import '../utils/word_definition_service.dart';
 import 'primary_button.dart';
 
 /// Modal bottom sheet displaying dictionary definition, word class, syllables,
@@ -39,6 +40,8 @@ class WordDefinitionSheet extends StatefulWidget {
     HapticFeedback.lightImpact();
     SoundEffects.instance.playTap();
 
+    final def = WordDefinitionService.getDefinition(word);
+
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -46,11 +49,11 @@ class WordDefinitionSheet extends StatefulWidget {
       barrierColor: Colors.black.withValues(alpha: 0.55),
       builder: (context) => WordDefinitionSheet(
         word: word,
-        meaning: meaning,
-        partOfSpeech: partOfSpeech,
-        example: example,
-        syllables: syllables,
-        ipa: ipa,
+        meaning: meaning ?? def.meaning,
+        partOfSpeech: partOfSpeech ?? def.partOfSpeech,
+        example: example ?? def.example,
+        syllables: syllables ?? def.syllables,
+        ipa: ipa ?? def.ipa,
       ),
     );
   }
@@ -112,12 +115,12 @@ class _WordDefinitionSheetState extends State<WordDefinitionSheet> {
     final maxH = media.size.height * 0.85;
 
     final wordUpper = _normalizedWord;
-    final effectiveMeaning = widget.meaning ??
-        "O'zbek adabiy tilining izohli lug'atiga ko'ra ushbu so'z ma'nosi va qo'llanishi.";
-    final effectivePartOfSpeech = widget.partOfSpeech ?? 'Ot';
-    final effectiveExample = widget.example ??
-        "«${wordUpper[0]}${wordUpper.substring(1).toLowerCase()}» so'zi o'yin zanjirida to'g'ri qo'llandi.";
-    final effectiveSyllables = widget.syllables ?? _computeSyllables(wordUpper);
+    final def = WordDefinitionService.getDefinition(wordUpper);
+    final effectiveMeaning = widget.meaning ?? def.meaning;
+    final effectivePartOfSpeech = widget.partOfSpeech ?? def.partOfSpeech;
+    final effectiveExample = widget.example ?? def.example;
+    final effectiveSyllables = widget.syllables ?? def.syllables;
+    final effectiveIpa = widget.ipa ?? def.ipa;
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -321,9 +324,9 @@ class _WordDefinitionSheetState extends State<WordDefinitionSheet> {
                                   bgColor: WBColors.greenA(.14),
                                   borderColor: WBColors.greenA(.3),
                                 ),
-                                if (widget.ipa != null && widget.ipa!.isNotEmpty)
+                                if (effectiveIpa != null && effectiveIpa.isNotEmpty)
                                   _buildBadge(
-                                    label: widget.ipa!,
+                                    label: effectiveIpa,
                                     color: WBColors.textA(.65),
                                     bgColor: WBColors.whiteA(.05),
                                     borderColor: WBColors.whiteA(.1),
@@ -541,27 +544,5 @@ class _WordDefinitionSheetState extends State<WordDefinitionSheet> {
         ),
       ],
     );
-  }
-
-  /// Estimates syllable boundaries for Uzbek words
-  static String _computeSyllables(String word) {
-    if (word.length <= 3) return word.toLowerCase();
-    const vowels = 'aeiou\u0430\u0435\u0438\u043e\u0443\u045e\u044d\u044e\u044f';
-    final lower = word.toLowerCase();
-    final buffer = StringBuffer();
-    
-    for (int i = 0; i < lower.length; i++) {
-      buffer.write(lower[i]);
-      if (i < lower.length - 1) {
-        final currentIsVowel = vowels.contains(lower[i]);
-        final nextIsVowel = vowels.contains(lower[i + 1]);
-        if (currentIsVowel && !nextIsVowel && i + 2 < lower.length && vowels.contains(lower[i + 2])) {
-          buffer.write(' · ');
-        } else if (!currentIsVowel && !nextIsVowel && i + 2 < lower.length && vowels.contains(lower[i + 2])) {
-          buffer.write(' · ');
-        }
-      }
-    }
-    return buffer.toString();
   }
 }
