@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../utils/word_combo_evaluator.dart';
 import 'primary_button.dart';
 import 'word_definition_sheet.dart';
 
@@ -44,6 +45,8 @@ class _ChainBubbleState extends State<ChainBubble> with SingleTickerProviderStat
     final head = widget.word.substring(0, widget.word.length - 1);
     final last = widget.word.substring(widget.word.length - 1);
     final ms = widget.ms;
+    final hasRare = WordComboEvaluator.findRareLetters(widget.word.toUpperCase()).isNotEmpty;
+    final isLong = widget.word.length >= 7;
 
     final bubble = Container(
       // design: max-width:74% of the chain column (412 − 2×20 padding)
@@ -88,6 +91,14 @@ class _ChainBubbleState extends State<ChainBubble> with SingleTickerProviderStat
           if (ms != null) ...[
             const SizedBox(width: 10),
             Text(ms, style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(widget.isMe ? .4 : .35))),
+          ],
+          if (hasRare || isLong) ...[
+            const SizedBox(width: 6),
+            Icon(
+              hasRare ? Icons.stars_rounded : Icons.auto_awesome_rounded,
+              size: 13,
+              color: hasRare ? const Color(0xFFFFB300) : const Color(0xFF00E5FF),
+            ),
           ],
         ],
       ),
@@ -174,6 +185,8 @@ class _TeamChainBubbleState extends State<TeamChainBubble> with SingleTickerProv
     final last = word.substring(word.length - 1);
     final ms = widget.ms;
     final onRight = widget.side != TeamBubbleSide.foe;
+    final hasRare = WordComboEvaluator.findRareLetters(word.toUpperCase()).isNotEmpty;
+    final isLong = word.length >= 7;
 
     final Color washTop;
     final Color washBottom;
@@ -231,6 +244,14 @@ class _TeamChainBubbleState extends State<TeamChainBubble> with SingleTickerProv
           if (ms != null) ...[
             const SizedBox(width: 10),
             Text(ms, style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(onRight ? .4 : .35))),
+          ],
+          if (hasRare || isLong) ...[
+            const SizedBox(width: 6),
+            Icon(
+              hasRare ? Icons.stars_rounded : Icons.auto_awesome_rounded,
+              size: 13,
+              color: hasRare ? const Color(0xFFFFB300) : const Color(0xFF00E5FF),
+            ),
           ],
         ],
       ),

@@ -9,6 +9,7 @@ import '../api/models.dart';
 import '../audio/sound_effects.dart';
 import '../theme.dart';
 import '../utils/transliteration.dart';
+import '../utils/word_combo_evaluator.dart';
 import '../widgets/chain_bubble.dart';
 import '../widgets/flame_badge.dart';
 import '../widgets/floating_reaction_bubble.dart';
@@ -18,6 +19,7 @@ import '../widgets/progress_ring.dart';
 import '../widgets/provisional_badge.dart';
 import '../widgets/reaction_picker_dock.dart';
 import '../widgets/stroke_glyph.dart';
+import '../widgets/word_combo_badge.dart';
 
 /// The emoji a player can react with — fixed, same set the server accepts.
 const List<String> kDuelReactions = ['🔥', '😂', '👏', '😮', '🤝', '😢'];
@@ -112,6 +114,10 @@ class _DuelScreenState extends State<DuelScreen> {
   Timer? _translitHintTimer;
   bool _showTransliterationHint = false;
 
+  /// The active combo achievement badge on screen.
+  WordComboResult? _activeCombo;
+  Timer? _comboGoneTimer;
+
   void _onCyrillicInputDetected(String _) {
     HapticFeedback.selectionClick();
     _translitHintTimer?.cancel();
@@ -137,6 +143,25 @@ class _DuelScreenState extends State<DuelScreen> {
       _reactionGoneTimer = Timer(const Duration(milliseconds: 2000), () {
         if (mounted) setState(() => _shownReaction = null);
       });
+    }
+
+    final oldChainLen = oldWidget.duel?.chain.length ?? 0;
+    final newChainLen = widget.duel?.chain.length ?? 0;
+    if (newChainLen > oldChainLen && widget.duel != null) {
+      final latest = widget.duel!.chain.last;
+      if (latest.mine) {
+        final combo = WordComboEvaluator.evaluateWord(
+          latest.word,
+          spentMs: latest.spentMs,
+        );
+        if (combo != null) {
+          _comboGoneTimer?.cancel();
+          setState(() => _activeCombo = combo);
+          _comboGoneTimer = Timer(const Duration(milliseconds: 2300), () {
+            if (mounted) setState(() => _activeCombo = null);
+          });
+        }
+      }
     }
 
     if (_chatOpen && widget.chatLog.length != oldWidget.chatLog.length) {
@@ -193,6 +218,7 @@ class _DuelScreenState extends State<DuelScreen> {
     _chatScroll.dispose();
     _reactionGoneTimer?.cancel();
     _translitHintTimer?.cancel();
+    _comboGoneTimer?.cancel();
     super.dispose();
   }
 
@@ -468,6 +494,28 @@ class _DuelScreenState extends State<DuelScreen> {
                       key: ValueKey(_shownReaction!.id),
                       emoji: _shownReaction!.emoji,
                       enableSound: true,
+                    ),
+                  ),
+                ),
+              if (_activeCombo != null)
+                Positioned(
+                  bottom: 14,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: IgnorePointer(
+                      child: WordComboBadge(
+                        key: ValueKey(
+                          'combo_${_activeCombo!.type}_${_activeCombo!.wordLength}_${_activeCombo!.bonusPoints}',
+                        ),
+                        type: _activeCombo!.type,
+                        title: _activeCombo!.title,
+                        subtitle: _activeCombo!.subtitle,
+                        bonusPoints: _activeCombo!.bonusPoints,
+                        onComplete: () {
+                          if (mounted) setState(() => _activeCombo = null);
+                        },
+                      ),
                     ),
                   ),
                 ),
