@@ -50,7 +50,7 @@ class _ChainBubbleState extends State<ChainBubble> with SingleTickerProviderStat
 
     final bubble = Container(
       // design: max-width:74% of the chain column (412 − 2×20 padding)
-      constraints: const BoxConstraints(maxWidth: 275),
+      constraints: const BoxConstraints(maxWidth: 295),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         gradient: widget.isMe
@@ -211,7 +211,7 @@ class _TeamChainBubbleState extends State<TeamChainBubble> with SingleTickerProv
     }
 
     final bubble = Container(
-      constraints: const BoxConstraints(maxWidth: 275),
+      constraints: const BoxConstraints(maxWidth: 295),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
