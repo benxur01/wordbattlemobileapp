@@ -12,6 +12,7 @@ import '../widgets/primary_button.dart';
 import '../widgets/profile_skeleton.dart';
 import '../widgets/provisional_badge.dart';
 import '../widgets/sound_settings_card.dart';
+import '../widgets/streak_milestone_tracker.dart';
 import '../widgets/stroke_glyph.dart';
 
 /// The player's own profile, entirely server-driven: stats, the 30-day rating
@@ -334,6 +335,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       label: 'kunlik streak',
                       color: WBColors.flameText,
                       tint: true,
+                      onTap: () => StreakMilestoneTracker.show(
+                        context,
+                        streakDays: data.streakDays,
+                      ),
                     ),
                   ),
                 ],
@@ -782,7 +787,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: WBColors.flameText,
         bg: WBColors.flameTop.withValues(alpha: .11),
         border: WBColors.flameTop.withValues(alpha: .3),
-        mark: FlameIcon(width: 14, height: 19, animate: false),
+        mark: FlameIcon(
+          width: 14,
+          height: 19,
+          animate: false,
+          tier: badge.code == 'streak_30'
+              ? StreakFlameTier.blazing
+              : StreakFlameTier.vibrant,
+        ),
       ),
       'wins_50' || 'friend_top' => _Badge(
         label: badge.label,
@@ -926,15 +938,22 @@ class _AccountButton extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.value, required this.label, this.color, this.tint = false});
+  const _StatCard({
+    required this.value,
+    required this.label,
+    this.color,
+    this.tint = false,
+    this.onTap,
+  });
   final String value;
   final String label;
   final Color? color;
   final bool tint;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final card = Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: tint ? (color ?? WBColors.text).withValues(alpha: .08) : WBColors.whiteA(.045),
@@ -955,6 +974,14 @@ class _StatCard extends StatelessWidget {
           Text(label, style: WBText.grotesk(size: 12, color: WBColors.textA(.5))),
         ],
       ),
+    );
+
+    if (onTap == null) return card;
+    return Pressable(
+      onTap: onTap,
+      pressScale: 0.96,
+      borderRadius: BorderRadius.circular(18),
+      child: card,
     );
   }
 }

@@ -10,6 +10,7 @@ import '../widgets/bottom_nav.dart';
 import '../widgets/flame_badge.dart';
 import '../widgets/glow_orb.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/streak_milestone_tracker.dart';
 import '../widgets/provisional_badge.dart';
 
 class LobbyScreen extends StatelessWidget {
@@ -190,8 +191,16 @@ class LobbyScreen extends StatelessWidget {
                     color: WBColors.flameText,
                     bg: WBColors.flameTop.withValues(alpha: .09),
                     border: WBColors.flameTop.withValues(alpha: .26),
-                    icon: FlameIcon(),
+                    icon: FlameIcon(
+                      width: 13,
+                      height: 15,
+                      tier: StreakFlameTier.fromDays(streak),
+                    ),
                     value: '$streak',
+                    onTap: () => StreakMilestoneTracker.show(
+                      context,
+                      streakDays: streak,
+                    ),
                   ),
                 ],
               ),
@@ -540,16 +549,18 @@ class _StatChip extends StatelessWidget {
     required this.border,
     required this.icon,
     required this.value,
+    this.onTap,
   });
   final Color color;
   final Color bg;
   final Color border;
   final Widget icon;
   final String value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
       decoration: BoxDecoration(
         color: bg,
@@ -566,6 +577,14 @@ class _StatChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+
+    if (onTap == null) return chip;
+    return Pressable(
+      onTap: onTap,
+      pressScale: 0.95,
+      borderRadius: BorderRadius.circular(13),
+      child: chip,
     );
   }
 }
