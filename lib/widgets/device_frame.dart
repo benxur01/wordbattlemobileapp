@@ -29,49 +29,15 @@ class DeviceFrameWrapper extends StatelessWidget {
     return Container(
       width: double.infinity,
       height: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment(0.0, -0.2),
-          radius: 1.25,
-          colors: [
-            Color(0xFF1A1D27),
-            Color(0xFF0E1017),
-            Color(0xFF060709),
-          ],
+      color: const Color(0xFF1B1C20),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: _buildPhoneShell(context),
+          ),
         ),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Ambient Studio Background Glows
-          Positioned(
-            top: 60,
-            child: Container(
-              width: 500,
-              height: 500,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    WBColors.accent.withValues(alpha: 0.12),
-                    WBColors.amber.withValues(alpha: 0.06),
-                    Colors.transparent,
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          // Scaled Device Shell
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: _buildPhoneShell(context),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -88,31 +54,30 @@ class DeviceFrameWrapper extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF4C5162), // Top specular reflection
-            Color(0xFF262832), // Titanium midtone
-            Color(0xFF1E2027),
-            Color(0xFF383C49), // Bottom metallic edge
+            Color(0xFF484A52), // Top specular reflection
+            Color(0xFF28292E), // Titanium midtone
+            Color(0xFF1F2024),
+            Color(0xFF383A42), // Bottom metallic edge
           ],
           stops: [0.0, 0.35, 0.7, 1.0],
         ),
         borderRadius: BorderRadius.circular(54),
         border: Border.all(
-          color: const Color(0xFF5E657A).withValues(alpha: 0.8),
+          color: const Color(0xFF555861).withValues(alpha: 0.7),
           width: 1.8,
         ),
         boxShadow: [
           // Heavy ambient studio drop shadow
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.85),
-            blurRadius: 55,
-            spreadRadius: 6,
-            offset: const Offset(0, 24),
+            color: Colors.black.withValues(alpha: 0.55),
+            blurRadius: 45,
+            spreadRadius: 4,
+            offset: const Offset(0, 20),
           ),
-          // Subtle colored rim bounce light
           BoxShadow(
-            color: WBColors.accent.withValues(alpha: 0.22),
+            color: Colors.black.withValues(alpha: 0.28),
             blurRadius: 75,
-            spreadRadius: -4,
+            spreadRadius: 0,
             offset: const Offset(0, 10),
           ),
         ],

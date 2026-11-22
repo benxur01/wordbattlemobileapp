@@ -8,7 +8,6 @@ import '../api/tournament_models.dart';
 import '../theme.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/flame_badge.dart';
-import '../widgets/glow_orb.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/provisional_badge.dart';
 import '../widgets/streak_milestone_tracker.dart';
@@ -99,52 +98,12 @@ class LobbyScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // 1. Cosmic Ambient Studio Lighting Backdrop
+        // 1. Clean Neutral Dark Background (no colored glows)
         Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: WBColors.bg,
-              gradient: RadialGradient(
-                center: const Alignment(0.0, -0.42),
-                radius: 1.15,
-                colors: [
-                  WBColors.accent.withValues(alpha: 0.16),
-                  WBColors.indigo.withValues(alpha: 0.07),
-                  WBColors.bg,
-                ],
-                stops: const [0.0, 0.48, 1.0],
-              ),
-            ),
-          ),
+          child: ColoredBox(color: WBColors.bg),
         ),
 
-        // 2. Subtle radial energy glow behind the CTA portal
-        Positioned(
-          top: 130,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: IgnorePointer(
-              child: Container(
-                width: 320,
-                height: 320,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      WBColors.accent.withValues(alpha: 0.18),
-                      WBColors.accent.withValues(alpha: 0.04),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.55, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // 3. Main Foreground Content (Scrollable for zero overflow on any phone)
+        // 2. Main Foreground Content (Scrollable for zero overflow on any phone)
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
           child: Column(
@@ -488,52 +447,44 @@ class LobbyScreen extends StatelessWidget {
 
   /// 3D Energy Battle Portal CTA Button ("JANG BOSHLASH").
   Widget _buildBattlePortal() {
-    return GlowOrb(
-      glowColor: WBColors.accent,
-      child: Pressable(
-        onTap: onStartMatch,
-        pressScale: 0.96,
-        child: Container(
-          width: 224,
-          height: 224,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const RadialGradient(
-              center: Alignment(-0.25, -0.3),
-              radius: 0.95,
-              colors: [
-                Color(0xFF00F5D4), // Vibrant electric cyan
-                Color(0xFF00B4D8), // Electric teal
-                Color(0xFF0077B6), // Deep oceanic sapphire
-                Color(0xFF03045E), // Cosmic dark base
-              ],
-              stops: [0.0, 0.4, 0.78, 1.0],
-            ),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.48),
-              width: 3.5,
-            ),
-            boxShadow: [
-              // Deep ambient drop shadow
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.65),
-                blurRadius: 26,
-                offset: const Offset(0, 10),
-              ),
-              // Outer radiant cyan aura
-              BoxShadow(
-                color: const Color(0xFF00F5D4).withValues(alpha: 0.48),
-                blurRadius: 38,
-                spreadRadius: 2,
-              ),
-              // Inner rim lighting
-              BoxShadow(
-                color: const Color(0xFF00B4D8).withValues(alpha: 0.35),
-                blurRadius: 50,
-                spreadRadius: -4,
-              ),
+    return Pressable(
+      onTap: onStartMatch,
+      pressScale: 0.96,
+      child: Container(
+        width: 224,
+        height: 224,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const RadialGradient(
+            center: Alignment(-0.25, -0.3),
+            radius: 0.95,
+            colors: [
+              Color(0xFF00F5D4), // Vibrant electric cyan
+              Color(0xFF00B4D8), // Electric teal
+              Color(0xFF0077B6), // Deep oceanic sapphire
+              Color(0xFF03045E), // Cosmic dark base
             ],
+            stops: [0.0, 0.4, 0.78, 1.0],
           ),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.48),
+            width: 3.5,
+          ),
+          boxShadow: [
+            // Deep ambient drop shadow
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 22,
+              offset: const Offset(0, 10),
+            ),
+            // Soft localized rim glow (does not bleed into background)
+            BoxShadow(
+              color: const Color(0xFF00F5D4).withValues(alpha: 0.28),
+              blurRadius: 18,
+              spreadRadius: 0,
+            ),
+          ],
+        ),
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -638,9 +589,8 @@ class LobbyScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
   /// Gamified 7-Day Streak & Milestone Quest Teaser Card.
   Widget _buildStreakQuestCard(BuildContext context) {
