@@ -189,8 +189,12 @@ class LobbyScreen extends StatelessWidget {
                   const SizedBox(width: 7),
                   _StatChip(
                     color: WBColors.flameText,
-                    bg: WBColors.flameTop.withValues(alpha: .09),
-                    border: WBColors.flameTop.withValues(alpha: .26),
+                    bg: (streak > 0 && streak % 7 == 0)
+                        ? WBColors.amber.withValues(alpha: .14)
+                        : WBColors.flameTop.withValues(alpha: .09),
+                    border: (streak > 0 && streak % 7 == 0)
+                        ? WBColors.amber
+                        : WBColors.flameTop.withValues(alpha: .26),
                     icon: FlameIcon(
                       width: 13,
                       height: 15,

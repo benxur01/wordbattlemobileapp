@@ -5,7 +5,10 @@ import 'package:flutter/services.dart';
 import '../audio/sound_effects.dart';
 import '../theme.dart';
 import 'animated_flame.dart';
+import 'milestone_reward_dialog.dart';
 import 'primary_button.dart';
+
+export 'milestone_reward_dialog.dart';
 
 /// Interactive modal sheet and gamification view displaying the player's
 /// daily streak fire, 7-day milestone progression nodes, reward chest,
@@ -130,6 +133,12 @@ class _StreakMilestoneTrackerState extends State<StreakMilestoneTracker>
       _claimed = true;
     });
     widget.onClaim?.call();
+
+    // Trigger celebration dialog with sunburst glow, fanfare, and confetti
+    MilestoneRewardDialog.show(
+      context,
+      milestoneDays: widget.streakDays == 0 ? 7 : widget.streakDays,
+    );
   }
 
   @override
