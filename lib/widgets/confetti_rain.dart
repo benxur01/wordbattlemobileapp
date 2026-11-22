@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
+export 'confetti_cannon.dart';
+
 /// Ports the `wbFall` keyframe animation: a handful of falling/rotating
 /// confetti pieces used on the win screen. Each piece has its own left
 /// position, size, color, duration and delay — matching the five

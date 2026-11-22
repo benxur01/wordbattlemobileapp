@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../audio/sound_effects.dart';
 import '../theme.dart';
 import 'animated_flame.dart';
+import 'confetti_cannon.dart';
 import 'primary_button.dart';
 
 /// Rotating volumetric sunburst light rays painted behind the milestone reward chest.
@@ -219,6 +220,7 @@ class _MilestoneRewardDialogState extends State<MilestoneRewardDialog>
     with SingleTickerProviderStateMixin {
   late final AnimationController _bounceController;
   late final Animation<double> _bounceAnimation;
+  final GlobalKey<ConfettiCannonState> _confettiKey = GlobalKey<ConfettiCannonState>();
   bool _claimed = false;
 
   @override
@@ -251,11 +253,12 @@ class _MilestoneRewardDialogState extends State<MilestoneRewardDialog>
     if (_claimed) return;
     HapticFeedback.heavyImpact();
     SoundEffects.instance.playWordSuccess();
+    _confettiKey.currentState?.blast();
     setState(() => _claimed = true);
     widget.onClaim?.call();
 
     // Auto close after brief acknowledgment delay
-    Future.delayed(const Duration(milliseconds: 400), () {
+    Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         widget.onClose != null ? widget.onClose!() : Navigator.of(context).pop();
       }
@@ -268,46 +271,59 @@ class _MilestoneRewardDialogState extends State<MilestoneRewardDialog>
     final subtitleText = widget.subtitle ??
         'Ajoyib mahorat! ${widget.milestoneDays} kun ketma-ket g‘alaba qozonib, haftalik marrani zabt etdingiz!';
 
-    return Center(
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          width: 340,
-          margin: const EdgeInsets.symmetric(horizontal: 24),
-          decoration: BoxDecoration(
-            color: WBColors.bgPanel.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: WBColors.amber.withValues(alpha: 0.45),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: WBColors.amber.withValues(alpha: 0.25),
-                blurRadius: 36,
-                spreadRadius: 2,
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.6),
-                blurRadius: 28,
-                offset: const Offset(0, 10),
-              ),
-            ],
+    return Stack(
+      children: [
+        // Full screen 60 FPS Confetti Cannon Particle Emitter
+        Positioned.fill(
+          child: ConfettiCannon(
+            key: _confettiKey,
+            blastOnStart: true,
+            animate: widget.animate,
+            particleCount: 60,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // 1. Rotating Sunburst Rays
-                Positioned(
-                  top: -40,
-                  child: SunburstGlow(
-                    size: 280,
-                    animate: widget.animate,
-                    color: WBColors.amber,
-                  ),
+        ),
+
+        // Centered Celebration Card
+        Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: 340,
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              decoration: BoxDecoration(
+                color: WBColors.bgPanel.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: WBColors.amber.withValues(alpha: 0.45),
+                  width: 1.5,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: WBColors.amber.withValues(alpha: 0.25),
+                    blurRadius: 36,
+                    spreadRadius: 2,
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // 1. Rotating Sunburst Rays
+                    Positioned(
+                      top: -40,
+                      child: SunburstGlow(
+                        size: 280,
+                        animate: widget.animate,
+                        color: WBColors.amber,
+                      ),
+                    ),
 
                 // 2. Foreground Card Content
                 Padding(
@@ -372,7 +388,9 @@ class _MilestoneRewardDialogState extends State<MilestoneRewardDialog>
           ),
         ),
       ),
-    );
+    ),
+  ],
+);
   }
 
   Widget _buildTrophyBadge() {
