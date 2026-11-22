@@ -10,9 +10,14 @@ import '../widgets/bottom_nav.dart';
 import '../widgets/flame_badge.dart';
 import '../widgets/glow_orb.dart';
 import '../widgets/primary_button.dart';
-import '../widgets/streak_milestone_tracker.dart';
 import '../widgets/provisional_badge.dart';
+import '../widgets/streak_milestone_tracker.dart';
 
+/// Top-tier AAA Mobile Game Lobby Screen for Word Battle.
+///
+/// Features rich layered cosmic ambient lighting, modern player profile header,
+/// 3D battle energy portal CTA, gamified 7-day streak quest teaser, and action
+/// tiles for Bot Battle, Friends Duel, and Solo Practice.
 class LobbyScreen extends StatelessWidget {
   const LobbyScreen({
     super.key,
@@ -66,9 +71,7 @@ class LobbyScreen extends StatelessWidget {
   final WBTab? previousTab;
   final VoidCallback onStartMatch;
 
-  /// The other way into a duel: a bot, at a strength the player picks. Sits
-  /// under the search button rather than beside the two pills below it — a
-  /// third one there does not fit the phone this design is drawn for.
+  /// The other way into a duel: a bot, at a strength the player picks.
   final VoidCallback onBotBattle;
 
   final VoidCallback onFriends;
@@ -80,469 +83,1103 @@ class LobbyScreen extends StatelessWidget {
   final VoidCallback? onStartTournamentMatch;
   final VoidCallback? onOpenTournamentBracket;
 
-  /// The lobby's own entry point into the full paginated tournament list —
-  /// always reachable, whether or not any of the three banners above is
-  /// showing.
+  /// The lobby's own entry point into the full paginated tournament list.
   final VoidCallback? onOpenTournamentsBrowse;
 
-  /// The friend this player has formed a 2v2 team with — null whenever no
-  /// team is currently formed. Shown as its own banner, independent of the
-  /// tournament ones above: a team can be ready at the same time a tournament
-  /// invite is waiting.
+  /// The friend this player has formed a 2v2 team with.
   final UserDto? teamPartner;
   final VoidCallback? onStartTeamQueue;
   final VoidCallback? onCancelTeam;
 
-  /// A team-duel invite that could not open its own screen the moment it
-  /// arrived — the player was mid-duel, the one case `team_invite.incoming`
-  /// does not force the screen over, same as [incoming] above.
+  /// A team-duel invite waiting for action.
   final PendingTeamInvite? incomingTeam;
   final VoidCallback? onIncomingTeam;
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // 1. Cosmic Ambient Studio Lighting Backdrop
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: WBColors.bg,
+              gradient: RadialGradient(
+                center: const Alignment(0.0, -0.42),
+                radius: 1.15,
+                colors: [
+                  WBColors.accent.withValues(alpha: 0.16),
+                  WBColors.indigo.withValues(alpha: 0.07),
+                  WBColors.bg,
+                ],
+                stops: const [0.0, 0.48, 1.0],
+              ),
+            ),
+          ),
+        ),
+
+        // 2. Subtle radial energy glow behind the CTA portal
+        Positioned(
+          top: 130,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: IgnorePointer(
+              child: Container(
+                width: 320,
+                height: 320,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      WBColors.accent.withValues(alpha: 0.18),
+                      WBColors.accent.withValues(alpha: 0.04),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // 3. Main Foreground Content (Scrollable for zero overflow on any phone)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+          child: Column(
+            children: [
+              _buildHeader(context),
+              const SizedBox(height: 10),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 4),
+                      _buildOnlineCapsule(),
+                      const SizedBox(height: 16),
+                      _buildBattlePortal(),
+                      const SizedBox(height: 20),
+                      _buildStreakQuestCard(context),
+                      const SizedBox(height: 14),
+                      _buildModeCards(),
+                      if (incoming != null) ...[
+                        const SizedBox(height: 12),
+                        _buildIncomingInvite(),
+                      ],
+                      if (incomingTeam != null) ...[
+                        const SizedBox(height: 12),
+                        _buildIncomingTeamInvite(),
+                      ],
+                      if (teamPartner != null) ...[
+                        const SizedBox(height: 12),
+                        _TeamReadyBanner(
+                          partner: teamPartner!,
+                          onQueue: onStartTeamQueue,
+                          onCancel: onCancelTeam,
+                        ),
+                      ],
+                      if (tournamentInvite != null) ...[
+                        const SizedBox(height: 12),
+                        _TournamentInviteBanner(
+                          invite: tournamentInvite!,
+                          onTap: onOpenTournamentInvite,
+                        ),
+                      ] else if (tournamentMatchReady != null) ...[
+                        const SizedBox(height: 12),
+                        _TournamentReadyBanner(
+                          prompt: tournamentMatchReady!,
+                          onTap: onStartTournamentMatch,
+                        ),
+                      ] else if (activeTournament != null) ...[
+                        const SizedBox(height: 12),
+                        _TournamentDiscoveryBanner(
+                          tournament: activeTournament!,
+                          onTap: onOpenTournamentBracket,
+                        ),
+                      ],
+                      _TournamentsBrowseLink(onTap: onOpenTournamentsBrowse),
+                      const SizedBox(height: 85), // Padding for floating bottom nav
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // 4. Floating Bottom Navigation Bar
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: BottomNav(
+            active: WBTab.home,
+            previous: previousTab,
+            horizontalMargin: 36,
+            friendRequestCount: friendRequestCount,
+            onHome: () {},
+            onFriends: onFriends,
+            onBoard: onBoard,
+            onProfile: onProfile,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Upgraded Player Profile Header with glowing avatar frame, rank title, and stats pills.
+  Widget _buildHeader(BuildContext context) {
     final label = user?.label ?? '…';
     final initial = user?.initial ?? '?';
     final rating = user?.rating ?? 0;
     final streak = user?.streakDays ?? 0;
-    return Stack(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 14, 22, 0),
-          child: Column(
+    final city = user?.city;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: WBColors.whiteA(0.04),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: WBColors.whiteA(0.09),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        gradient: wbPurpleGradient,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        initial,
-                        style: WBText.grotesk(size: 17, weight: FontWeight.w700, color: WBColors.purpleText),
-                      ),
+          // Avatar with neon rim and online beacon
+          Pressable(
+            onTap: onProfile,
+            pressScale: 0.94,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: wbPurpleGradient,
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: WBColors.purpleText.withValues(alpha: 0.45),
+                      width: 1.5,
                     ),
-                    const SizedBox(width: 11),
-                    Flexible(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: WBText.grotesk(size: 15, weight: FontWeight.w600),
-                          ),
-                          if (user?.city != null)
-                            Text(
-                              user!.city!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: WBText.mono(
-                                size: 11.5,
-                                weight: FontWeight.w500,
-                                color: WBColors.textA(.45),
-                              ),
-                            ),
-                        ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: WBColors.purple.withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
                       ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    initial,
+                    style: WBText.grotesk(
+                      size: 18,
+                      weight: FontWeight.w700,
+                      color: WBColors.purpleText,
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Row(
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: WBColors.green,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: WBColors.bgDeep,
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: WBColors.green.withValues(alpha: 0.8),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          // User Name & Location / Rank
+          Expanded(
+            child: GestureDetector(
+              onTap: onProfile,
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _StatChip(
-                    color: WBColors.blue,
-                    bg: WBColors.blueA(.1),
-                    border: WBColors.blueA(.28),
-                    icon: Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: WBColors.blue,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                      transform: Matrix4.rotationZ(math.pi / 4),
-                      // Without an explicit alignment the box turns around its
-                      // top-left corner and the diamond drifts off-centre.
-                      transformAlignment: Alignment.center,
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: WBText.grotesk(
+                      size: 15.5,
+                      weight: FontWeight.w700,
+                      letterSpacing: -0.01,
                     ),
-                    value: '$rating',
                   ),
-                  // Outside the chip rather than in it: the chip is already a
-                  // bordered pill, and a second one nested inside reads as a
-                  // control.
-                  if (user?.provisional ?? false) ...[
-                    const SizedBox(width: 5),
-                    ProvisionalBadge(size: 9),
-                  ],
-                  const SizedBox(width: 7),
-                  _StatChip(
-                    color: WBColors.flameText,
-                    bg: (streak > 0 && streak % 7 == 0)
-                        ? WBColors.amber.withValues(alpha: .14)
-                        : WBColors.flameTop.withValues(alpha: .09),
-                    border: (streak > 0 && streak % 7 == 0)
-                        ? WBColors.amber
-                        : WBColors.flameTop.withValues(alpha: .26),
-                    icon: FlameIcon(
-                      width: 13,
-                      height: 15,
-                      tier: StreakFlameTier.fromDays(streak),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (city != null) ...[
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 11.5,
+                          color: WBColors.textA(0.45),
+                        ),
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            city,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: WBText.mono(
+                              size: 11,
+                              weight: FontWeight.w500,
+                              color: WBColors.textA(0.55),
+                            ),
+                          ),
+                        ),
+                      ] else
+                        Text(
+                          'Jangchi',
+                          style: WBText.mono(
+                            size: 11,
+                            weight: FontWeight.w500,
+                            color: WBColors.accent.withValues(alpha: 0.85),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Stat Badges
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Rating Badge
+              _StatChip(
+                color: WBColors.blueText,
+                bg: WBColors.blueDark.withValues(alpha: 0.45),
+                border: WBColors.blue.withValues(alpha: 0.5),
+                icon: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: WBColors.accent,
+                    borderRadius: BorderRadius.circular(2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: WBColors.accent.withValues(alpha: 0.75),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                  transform: Matrix4.rotationZ(math.pi / 4),
+                  transformAlignment: Alignment.center,
+                ),
+                value: '$rating',
+                onTap: onProfile,
+              ),
+              if (user?.provisional ?? false) ...[
+                const SizedBox(width: 5),
+                ProvisionalBadge(size: 9),
+              ],
+              const SizedBox(width: 7),
+              // Streak Flame Badge
+              _StatChip(
+                color: WBColors.flameText,
+                bg: (streak > 0 && streak % 7 == 0)
+                    ? WBColors.amber.withValues(alpha: 0.2)
+                    : WBColors.flameTop.withValues(alpha: 0.12),
+                border: (streak > 0 && streak % 7 == 0)
+                    ? WBColors.amber
+                    : WBColors.flameTop.withValues(alpha: 0.38),
+                icon: FlameIcon(
+                  width: 13,
+                  height: 15,
+                  tier: StreakFlameTier.fromDays(streak),
+                ),
+                value: '$streak',
+                onTap: () => StreakMilestoneTracker.show(
+                  context,
+                  streakDays: streak,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Live Online Players Capsule Pill.
+  Widget _buildOnlineCapsule() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+      decoration: BoxDecoration(
+        color: WBColors.whiteA(0.04),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: WBColors.whiteA(0.09),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: WBColors.green,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: WBColors.green.withValues(alpha: 0.8),
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'ONLAYN · $onlineCount O\'YINCHI',
+            style: WBText.mono(
+              size: 10.5,
+              weight: FontWeight.w600,
+              color: WBColors.textA(0.58),
+              letterSpacing: 0.05,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 3D Energy Battle Portal CTA Button ("JANG BOSHLASH").
+  Widget _buildBattlePortal() {
+    return GlowOrb(
+      glowColor: WBColors.accent,
+      child: Pressable(
+        onTap: onStartMatch,
+        pressScale: 0.96,
+        child: Container(
+          width: 224,
+          height: 224,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const RadialGradient(
+              center: Alignment(-0.25, -0.3),
+              radius: 0.95,
+              colors: [
+                Color(0xFF00F5D4), // Vibrant electric cyan
+                Color(0xFF00B4D8), // Electric teal
+                Color(0xFF0077B6), // Deep oceanic sapphire
+                Color(0xFF03045E), // Cosmic dark base
+              ],
+              stops: [0.0, 0.4, 0.78, 1.0],
+            ),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.48),
+              width: 3.5,
+            ),
+            boxShadow: [
+              // Deep ambient drop shadow
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.65),
+                blurRadius: 26,
+                offset: const Offset(0, 10),
+              ),
+              // Outer radiant cyan aura
+              BoxShadow(
+                color: const Color(0xFF00F5D4).withValues(alpha: 0.48),
+                blurRadius: 38,
+                spreadRadius: 2,
+              ),
+              // Inner rim lighting
+              BoxShadow(
+                color: const Color(0xFF00B4D8).withValues(alpha: 0.35),
+                blurRadius: 50,
+                spreadRadius: -4,
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Concentric specular glass ring
+              Container(
+                width: 196,
+                height: 196,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.22),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+              // Button content
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // 3D Duel Emblem with specular sheen
+                  Container(
+                    width: 40,
+                    height: 40,
+                    margin: const EdgeInsets.only(bottom: 9),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.95),
+                          Colors.white.withValues(alpha: 0.6),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(13),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                    value: '$streak',
-                    onTap: () => StreakMilestoneTracker.show(
-                      context,
-                      streakDays: streak,
+                    transform: Matrix4.rotationZ(math.pi / 4),
+                    transformAlignment: Alignment.center,
+                    child: Center(
+                      child: Transform.rotate(
+                        angle: -math.pi / 4,
+                        child: const Icon(
+                          Icons.bolt_rounded,
+                          color: Color(0xFF03045E),
+                          size: 25,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'JANG BOSHLASH',
+                    textAlign: TextAlign.center,
+                    style: WBText.grotesk(
+                      size: 22,
+                      weight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: -0.01,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.32),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.22),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 5,
+                          height: 5,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF00F5D4),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          '1v1 TEZKOR DUEL',
+                          style: WBText.mono(
+                            size: 10.5,
+                            weight: FontWeight.w600,
+                            color: const Color(0xFFE0FAFF),
+                            letterSpacing: 0.04,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+        ),
+      ),
+    );
+  }
+
+  /// Gamified 7-Day Streak & Milestone Quest Teaser Card.
+  Widget _buildStreakQuestCard(BuildContext context) {
+    final streak = user?.streakDays ?? 0;
+    final progressInTier = streak > 0 ? (streak % 7 == 0 ? 7 : streak % 7) : 0;
+
+    return Pressable(
+      onTap: () => StreakMilestoneTracker.show(
+        context,
+        streakDays: streak,
+      ),
+      pressScale: 0.97,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              WBColors.amber.withValues(alpha: 0.12),
+              WBColors.flameTop.withValues(alpha: 0.05),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: WBColors.amber.withValues(alpha: 0.28),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                gradient: wbFlameGradient,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: WBColors.flameTop.withValues(alpha: 0.5),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.local_fire_department_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '7 KUNLIK SERIYA',
+                        style: WBText.mono(
+                          size: 10,
+                          weight: FontWeight.w700,
+                          color: WBColors.amber,
+                          letterSpacing: 0.04,
+                        ),
+                      ),
+                      Text(
+                        '$progressInTier / 7 KUN',
+                        style: WBText.mono(
+                          size: 10.5,
+                          weight: FontWeight.w700,
+                          color: WBColors.textA(0.85),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  // 7-day dot/step progress bar
+                  Row(
+                    children: List.generate(7, (i) {
+                      final isDone = i < progressInTier;
+                      final isRewardDay = i == 6;
+                      return Expanded(
+                        child: Container(
+                          height: 5,
+                          margin: EdgeInsets.only(right: i < 6 ? 4 : 0),
+                          decoration: BoxDecoration(
+                            color: isDone
+                                ? (isRewardDay ? WBColors.amber : WBColors.flameTop)
+                                : WBColors.whiteA(0.1),
+                            borderRadius: BorderRadius.circular(3),
+                            boxShadow: isDone
+                                ? [
+                                    BoxShadow(
+                                      color: (isRewardDay ? WBColors.amber : WBColors.flameTop)
+                                          .withValues(alpha: 0.6),
+                                      blurRadius: 4,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Icon(
+              Icons.card_giftcard_rounded,
+              size: 20,
+              color: WBColors.amber,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Modern Game Mode Cards (Bot Battle, Friends Duel, Solo Practice).
+  Widget _buildModeCards() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 1. Bot Battle Action Tile (Full Width Hero Card)
+        Pressable(
+          onTap: onBotBattle,
+          hoverColor: WBColors.whiteA(0.08),
+          pressScale: 0.98,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: WBColors.whiteA(0.045),
+              border: Border.all(
+                color: WBColors.amber.withValues(alpha: 0.25),
+                width: 1.2,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
               children: [
-                Transform.translate(
-                  offset: const Offset(0, -24),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: wbAmberGradient,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: WBColors.amber.withValues(alpha: 0.4),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.smart_toy_rounded,
+                    size: 20,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Bot bilan jang',
+                        style: WBText.grotesk(
+                          size: 14.5,
+                          weight: FontWeight.w700,
+                          color: WBColors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 1.5),
+                      Text(
+                        'Sun\'iy intellekt · kuch darajasini tanlang',
+                        style: WBText.grotesk(
+                          size: 11.5,
+                          weight: FontWeight.w400,
+                          color: WBColors.textA(0.55),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: WBColors.amber.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(
+                      color: WBColors.amber.withValues(alpha: 0.3),
+                    ),
+                  ),
                   child: Text(
-                    'HOZIR ONLAYN · $onlineCount',
-                    style: WBText.mono(
-                      size: 11,
-                      weight: FontWeight.w500,
-                      color: WBColors.textA(.35),
-                      letterSpacing: .2,
+                    'Tanlash',
+                    style: WBText.grotesk(
+                      size: 11.5,
+                      weight: FontWeight.w600,
+                      color: WBColors.amber,
                     ),
                   ),
-                ),
-                const SizedBox(height: 22),
-                GlowOrb(
-                  glowColor: WBColors.accent,
-                  child: Pressable(
-                    onTap: onStartMatch,
-                    pressScale: .97,
-                    child: Container(
-                      width: 232,
-                      height: 232,
-                      decoration: BoxDecoration(gradient: wbAccentGradient, shape: BoxShape.circle),
-                      alignment: Alignment.center,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // The margin has to sit outside the rotation: on the
-                          // Container it turns with the diamond and the gap
-                          // ends up pointing 45° off to the side.
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Transform.rotate(
-                              angle: math.pi / 4,
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: WBColors.accentInk.withValues(alpha: .75),
-                                    width: 3,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Text(
-                            'JANG BOSHLASH',
-                            style: WBText.grotesk(
-                              size: 24,
-                              weight: FontWeight.w700,
-                              color: WBColors.accentInk,
-                              letterSpacing: -.01,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            'Raqib qidiriladi',
-                            style: WBText.mono(
-                              size: 12,
-                              weight: FontWeight.w500,
-                              color: WBColors.accentInk.withValues(alpha: .62),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 30),
-                Pressable(
-                  onTap: onBotBattle,
-                  hoverColor: WBColors.whiteA(.08),
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                    decoration: BoxDecoration(
-                      color: WBColors.whiteA(.05),
-                      border: Border.all(color: WBColors.whiteA(.1)),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.smart_toy_outlined, size: 16, color: WBColors.amber),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Bot bilan jang · kuchini tanlang',
-                          style: WBText.grotesk(size: 14.5, weight: FontWeight.w500, color: WBColors.textA(.82)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Pressable(
-                      onTap: onFriends,
-                      hoverColor: WBColors.whiteA(.08),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                        decoration: BoxDecoration(
-                          color: WBColors.whiteA(.05),
-                          border: Border.all(color: WBColors.whiteA(.1)),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: WBColors.green,
-                                shape: BoxShape.circle,
-                                boxShadow: [BoxShadow(color: WBColors.greenA(.8), blurRadius: 8)],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              "Do'stlar · $friendsOnlineCount onlayn",
-                              style: WBText.grotesk(
-                                size: 14.5,
-                                weight: FontWeight.w500,
-                                color: WBColors.textA(.82),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 9),
-                    Pressable(
-                      onTap: onPractice,
-                      hoverColor: WBColors.whiteA(.08),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-                        decoration: BoxDecoration(
-                          color: WBColors.whiteA(.05),
-                          border: Border.all(color: WBColors.whiteA(.1)),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: WBColors.indigo,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Mashq',
-                              style: WBText.grotesk(
-                                size: 14.5,
-                                weight: FontWeight.w500,
-                                color: WBColors.textA(.82),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
           ),
-          if (incoming != null)
-            Pressable(
-              onTap: onIncoming,
-              hoverColor: WBColors.greenA(.14),
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                decoration: BoxDecoration(
-                  color: WBColors.greenA(.09),
-                  border: Border.all(color: WBColors.greenA(.28)),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        gradient: wbTealGradient,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        incoming!.user.initial,
-                        style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
-                      ),
+        ),
+        const SizedBox(height: 10),
+        // 2. Split Row: Friends Duel & Solo Practice
+        Row(
+          children: [
+            // Friends Duel Card
+            Expanded(
+              child: Pressable(
+                onTap: onFriends,
+                hoverColor: WBColors.whiteA(0.08),
+                pressScale: 0.97,
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: WBColors.whiteA(0.045),
+                    border: Border.all(
+                      color: WBColors.green.withValues(alpha: 0.25),
+                      width: 1.2,
                     ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${incoming!.user.label} seni chaqirmoqda',
-                            style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
-                          ),
-                          Text(
-                            "do'stlik jangi · javob ber",
-                            style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
-                          ),
-                        ],
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: WBColors.green,
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: Text(
-                        "Ko'rish",
-                        style: WBText.grotesk(
-                          size: 12.5,
-                          weight: FontWeight.w600,
-                          color: WBColors.greenInk,
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          gradient: wbTealGradient,
+                          borderRadius: BorderRadius.circular(11),
+                          boxShadow: [
+                            BoxShadow(
+                              color: WBColors.green.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.people_alt_rounded,
+                          size: 19,
+                          color: Colors.white,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Do\'stlar',
+                              style: WBText.grotesk(
+                                size: 14,
+                                weight: FontWeight.w700,
+                                color: WBColors.text,
+                              ),
+                            ),
+                            const SizedBox(height: 1.5),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: WBColors.green,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: WBColors.green.withValues(alpha: 0.8),
+                                        blurRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    '$friendsOnlineCount onlayn',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: WBText.mono(
+                                      size: 11,
+                                      weight: FontWeight.w500,
+                                      color: WBColors.textA(0.6),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          if (incomingTeam != null)
-            Pressable(
-              onTap: onIncomingTeam,
-              hoverColor: WBColors.accentA(.14),
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                decoration: BoxDecoration(
-                  color: WBColors.accentA(.09),
-                  border: Border.all(color: WBColors.accentA(.28)),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        gradient: wbTealGradient,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        incomingTeam!.user.initial,
-                        style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
-                      ),
+            const SizedBox(width: 10),
+            // Solo Practice Card
+            Expanded(
+              child: Pressable(
+                onTap: onPractice,
+                hoverColor: WBColors.whiteA(0.08),
+                pressScale: 0.97,
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: WBColors.whiteA(0.045),
+                    border: Border.all(
+                      color: WBColors.indigo.withValues(alpha: 0.25),
+                      width: 1.2,
                     ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${incomingTeam!.user.label} jamoaga taklif qilmoqda',
-                            style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
-                          ),
-                          Text(
-                            "2v2 jamoa taklifi · javob ber",
-                            style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
-                          ),
-                        ],
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: WBColors.accent,
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: Text(
-                        "Ko'rish",
-                        style: WBText.grotesk(
-                          size: 12.5,
-                          weight: FontWeight.w600,
-                          color: WBColors.accentInk,
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          gradient: wbIndigoGradient,
+                          borderRadius: BorderRadius.circular(11),
+                          boxShadow: [
+                            BoxShadow(
+                              color: WBColors.indigo.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.psychology_rounded,
+                          size: 20,
+                          color: Colors.white,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Mashq',
+                              style: WBText.grotesk(
+                                size: 14,
+                                weight: FontWeight.w700,
+                                color: WBColors.text,
+                              ),
+                            ),
+                            const SizedBox(height: 1.5),
+                            Text(
+                              'Solo rejim',
+                              style: WBText.mono(
+                                size: 11,
+                                weight: FontWeight.w500,
+                                color: WBColors.textA(0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          if (teamPartner != null)
-            _TeamReadyBanner(partner: teamPartner!, onQueue: onStartTeamQueue, onCancel: onCancelTeam),
-          if (tournamentInvite != null)
-            _TournamentInviteBanner(invite: tournamentInvite!, onTap: onOpenTournamentInvite)
-          else if (tournamentMatchReady != null)
-            _TournamentReadyBanner(prompt: tournamentMatchReady!, onTap: onStartTournamentMatch)
-          else if (activeTournament != null)
-            _TournamentDiscoveryBanner(tournament: activeTournament!, onTap: onOpenTournamentBracket),
-          _TournamentsBrowseLink(onTap: onOpenTournamentsBrowse),
-          const SizedBox(height: 75),
-        ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Incoming 1v1 Challenge Banner.
+  Widget _buildIncomingInvite() {
+    return Pressable(
+      onTap: onIncoming,
+      hoverColor: WBColors.greenA(.14),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: WBColors.greenA(.09),
+          border: Border.all(color: WBColors.greenA(.28)),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                gradient: wbTealGradient,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                incoming!.user.initial,
+                style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${incoming!.user.label} seni chaqirmoqda',
+                    style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
+                  ),
+                  Text(
+                    "do'stlik jangi · javob ber",
+                    style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+              decoration: BoxDecoration(
+                color: WBColors.green,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Text(
+                "Ko'rish",
+                style: WBText.grotesk(
+                  size: 12.5,
+                  weight: FontWeight.w600,
+                  color: WBColors.greenInk,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-    Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: BottomNav(
-        active: WBTab.home,
-        previous: previousTab,
-        horizontalMargin: 36,
-        friendRequestCount: friendRequestCount,
-        onHome: () {},
-        onFriends: onFriends,
-        onBoard: onBoard,
-        onProfile: onProfile,
+    );
+  }
+
+  /// Incoming 2v2 Team Challenge Banner.
+  Widget _buildIncomingTeamInvite() {
+    return Pressable(
+      onTap: onIncomingTeam,
+      hoverColor: WBColors.accentA(.14),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          color: WBColors.accentA(.09),
+          border: Border.all(color: WBColors.accentA(.28)),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                gradient: wbTealGradient,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                incomingTeam!.user.initial,
+                style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${incomingTeam!.user.label} jamoaga taklif qilmoqda',
+                    style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
+                  ),
+                  Text(
+                    "2v2 jamoa taklifi · javob ber",
+                    style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+              decoration: BoxDecoration(
+                color: WBColors.accent,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Text(
+                "Ko'rish",
+                style: WBText.grotesk(
+                  size: 12.5,
+                  weight: FontWeight.w600,
+                  color: WBColors.accentInk,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  ],
-);
+    );
   }
 }
 
@@ -593,12 +1230,7 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-/// "You've formed a 2v2 team" — shown from the moment `team.formed` lands
-/// until the team queues, plays and finishes, or is cancelled. Two actions
-/// rather than the one tap the tournament banners take, so both sit as their
-/// own [Pressable] rather than the whole strip being one: nesting a second tap
-/// target inside a tappable banner is the row the request cards in
-/// `friends_screen.dart` already avoid the same way.
+/// "You've formed a 2v2 team" banner.
 class _TeamReadyBanner extends StatelessWidget {
   const _TeamReadyBanner({required this.partner, required this.onQueue, required this.onCancel});
 
@@ -609,7 +1241,6 @@ class _TeamReadyBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       decoration: BoxDecoration(
         color: WBColors.accentA(.09),
@@ -683,9 +1314,7 @@ class _TeamReadyBanner extends StatelessWidget {
   }
 }
 
-/// "You've been invited to a tournament" — the same weight as the friend
-/// challenge strip above, in the app's accent colour rather than green so the
-/// two are never mistaken for each other.
+/// "You've been invited to a tournament" banner.
 class _TournamentInviteBanner extends StatelessWidget {
   const _TournamentInviteBanner({required this.invite, required this.onTap});
 
@@ -699,7 +1328,6 @@ class _TournamentInviteBanner extends StatelessWidget {
       hoverColor: WBColors.accentA(.14),
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         decoration: BoxDecoration(
           color: WBColors.accentA(.09),
@@ -750,8 +1378,7 @@ class _TournamentInviteBanner extends StatelessWidget {
   }
 }
 
-/// "Your tournament match is ready" — tapping sends the start frame directly,
-/// the same one-tap shape as accepting a friend's challenge.
+/// "Your tournament match is ready" banner.
 class _TournamentReadyBanner extends StatelessWidget {
   const _TournamentReadyBanner({required this.prompt, required this.onTap});
 
@@ -773,7 +1400,6 @@ class _TournamentReadyBanner extends StatelessWidget {
       hoverColor: WBColors.greenA(.14),
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         decoration: BoxDecoration(
           color: WBColors.greenA(.09),
@@ -834,8 +1460,7 @@ class _TournamentReadyBanner extends StatelessWidget {
   }
 }
 
-/// "A tournament is being played" — the opt-in spectator entry point, deliber-
-/// ately quieter than the two banners above: nobody has to look at this.
+/// "A tournament is being played" spectator banner.
 class _TournamentDiscoveryBanner extends StatelessWidget {
   const _TournamentDiscoveryBanner({required this.tournament, required this.onTap});
 
@@ -849,7 +1474,6 @@ class _TournamentDiscoveryBanner extends StatelessWidget {
       hoverColor: WBColors.whiteA(.08),
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: WBColors.whiteA(.04),
@@ -879,9 +1503,7 @@ class _TournamentDiscoveryBanner extends StatelessWidget {
   }
 }
 
-/// "See every tournament" — unlike the discovery banner above it, it does not
-/// depend on one being live to be worth tapping, since the browse list it
-/// opens also shows every finished bracket and every one still open to join.
+/// "See every tournament" link button.
 class _TournamentsBrowseLink extends StatelessWidget {
   const _TournamentsBrowseLink({required this.onTap});
 

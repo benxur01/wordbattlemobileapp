@@ -49,6 +49,7 @@ import 'screens/organize_tournament_screen.dart';
 import 'screens/organize_tournament_manage_screen.dart';
 import 'screens/tournaments_browse_screen.dart';
 import 'widgets/bottom_nav.dart';
+import 'widgets/device_frame.dart';
 import 'widgets/player_actions.dart';
 import 'admin/admin_google_button.dart';
 
@@ -2908,41 +2909,52 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final effectiveWidth = constraints.maxWidth > 500.0 ? 500.0 : constraints.maxWidth;
+              final isDesktop = constraints.maxWidth > 580.0;
+              final effectiveWidth = isDesktop ? 400.0 : (constraints.maxWidth > 500.0 ? 500.0 : constraints.maxWidth);
               final scale = effectiveWidth / _designWidth;
               final available = constraints.maxHeight - media.viewInsets.bottom;
-              final designHeight = (available < 0 ? 0.0 : available) / scale;
+              final designHeight = isDesktop
+                  ? 844.0
+                  : ((available < 0 ? 0.0 : available) / scale);
+
+              final mobileCanvas = SizedBox(
+                width: isDesktop ? 400.0 : _designWidth,
+                height: isDesktop ? null : designHeight,
+                child: MediaQuery(
+                  data: media.copyWith(
+                    textScaler: isDesktop
+                        ? media.textScaler
+                        : TextScaler.linear(media.textScaler.scale(1) / scale),
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: _screen()),
+                      if (banner != null)
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: 16,
+                          child: _Banner(message: banner!, onDismiss: () => setState(() => banner = null)),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+
+              if (isDesktop) {
+                return DeviceFrameWrapper(
+                  screenWidth: 400.0,
+                  screenHeight: 844.0,
+                  isDesktop: true,
+                  child: mobileCanvas,
+                );
+              }
 
               return Center(
                 child: FittedBox(
                   fit: BoxFit.fitWidth,
                   alignment: Alignment.topCenter,
-                child: SizedBox(
-                  width: _designWidth,
-                  height: designHeight,
-                  child: MediaQuery(
-                    // The canvas is fitted to the phone width after layout.
-                    // Scale text in the opposite direction while laying it out
-                    // so the final rendered text still honors the OS setting.
-                    // This keeps small phones from silently shrinking every
-                    // label and lets larger accessibility text reflow first.
-                    data: media.copyWith(
-                      textScaler: TextScaler.linear(media.textScaler.scale(1) / scale),
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned.fill(child: _screen()),
-                        if (banner != null)
-                          Positioned(
-                            left: 16,
-                            right: 16,
-                            bottom: 16,
-                            child: _Banner(message: banner!, onDismiss: () => setState(() => banner = null)),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
+                  child: mobileCanvas,
                 ),
               );
             },
