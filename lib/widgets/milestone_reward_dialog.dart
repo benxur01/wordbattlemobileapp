@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -221,6 +222,7 @@ class _MilestoneRewardDialogState extends State<MilestoneRewardDialog>
   late final AnimationController _bounceController;
   late final Animation<double> _bounceAnimation;
   final GlobalKey<ConfettiCannonState> _confettiKey = GlobalKey<ConfettiCannonState>();
+  Timer? _closeTimer;
   bool _claimed = false;
 
   @override
@@ -245,6 +247,7 @@ class _MilestoneRewardDialogState extends State<MilestoneRewardDialog>
 
   @override
   void dispose() {
+    _closeTimer?.cancel();
     _bounceController.dispose();
     super.dispose();
   }
@@ -258,9 +261,14 @@ class _MilestoneRewardDialogState extends State<MilestoneRewardDialog>
     widget.onClaim?.call();
 
     // Auto close after brief acknowledgment delay
-    Future.delayed(const Duration(milliseconds: 500), () {
+    _closeTimer?.cancel();
+    _closeTimer = Timer(const Duration(milliseconds: 400), () {
       if (mounted) {
-        widget.onClose != null ? widget.onClose!() : Navigator.of(context).pop();
+        if (widget.onClose != null) {
+          widget.onClose!();
+        } else {
+          Navigator.of(context).pop();
+        }
       }
     });
   }
@@ -326,8 +334,9 @@ class _MilestoneRewardDialogState extends State<MilestoneRewardDialog>
                     ),
 
                 // 2. Foreground Card Content
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 26, 20, 22),
+                SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
