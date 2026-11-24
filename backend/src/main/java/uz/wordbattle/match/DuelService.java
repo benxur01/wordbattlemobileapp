@@ -976,25 +976,65 @@ public class DuelService {
 
     /**
      * How long the bot sits on its answer before playing it. It has the word
-     * the moment the turn reaches it — a pause is the only thing between that
-     * and a duel where every reply lands before the player has looked up.
+     * the moment the turn reaches it — a natural human-like pause is the only thing
+     * between that and a robotic duel where every reply lands unnaturally instant.
      */
-    private static final int BOT_DELAY_MIN_MS = 1200;
-
-    private static final int BOT_DELAY_SPREAD_MS = 1200;
+    public static final int BOT_DELAY_MIN_MS = 1200;
+    public static final int BOT_DELAY_SPREAD_MS = 1000;
 
     /**
      * The same pause once {@link PowerUp#PRESSURE} has been spent on it: about
      * as fast as an answer can arrive and still be read as one.
      */
-    private static final int PRESSED_BOT_DELAY_MIN_MS = 300;
+    public static final int PRESSED_BOT_DELAY_MIN_MS = 300;
+    public static final int PRESSED_BOT_DELAY_SPREAD_MS = 300;
 
-    private static final int PRESSED_BOT_DELAY_SPREAD_MS = 300;
+    /**
+     * Calculates realistic, human-like thinking delay for bot moves based on:
+     * 1. Pressure power-up (fast 300-600ms).
+     * 2. Bot difficulty tier determined by rating:
+     *    - Novice (< 900): 1800ms - 3000ms (searching everyday words)
+     *    - Tactician (900 - 1499): 1200ms - 2200ms (steady natural pacing)
+     *    - Master (>= 1500): 800ms - 1500ms (rapid mastery)
+     * 3. Rare-letter cognitive contemplation: adds 300-600ms for uncommon starting letters ('x', 'q', 'z', 'j').
+     */
+    public static long calculateBotThinkingDelayMs(boolean isPressed, double botRating, Character requiredLetter) {
+        if (isPressed) {
+            return PRESSED_BOT_DELAY_MIN_MS + ThreadLocalRandom.current().nextInt(PRESSED_BOT_DELAY_SPREAD_MS);
+        }
+
+        int baseMin;
+        int spread;
+        if (botRating < 900) {
+            // Novice: beginner hesitation searching vocabulary
+            baseMin = 1800;
+            spread = 1200;
+        } else if (botRating < 1500) {
+            // Tactician: natural human rhythm
+            baseMin = 1200;
+            spread = 1000;
+        } else {
+            // Master: sharp and quick
+            baseMin = 800;
+            spread = 700;
+        }
+
+        long delay = baseMin + ThreadLocalRandom.current().nextInt(spread);
+
+        // Rare starting letter contemplation bonus
+        if (requiredLetter != null) {
+            char lower = Character.toLowerCase(requiredLetter);
+            if (lower == 'x' || lower == 'q' || lower == 'z' || lower == 'j') {
+                delay += 300 + ThreadLocalRandom.current().nextInt(300);
+            }
+        }
+
+        return delay;
+    }
 
     private void scheduleBotMove(DuelSession session) {
-        long delay = session.takePressure()
-                ? PRESSED_BOT_DELAY_MIN_MS + ThreadLocalRandom.current().nextInt(PRESSED_BOT_DELAY_SPREAD_MS)
-                : BOT_DELAY_MIN_MS + ThreadLocalRandom.current().nextInt(BOT_DELAY_SPREAD_MS);
+        boolean isPressed = session.takePressure();
+        long delay = calculateBotThinkingDelayMs(isPressed, session.botRating(), session.requiredLetter());
         scheduler.schedule(() -> playBotMove(session), delay, TimeUnit.MILLISECONDS);
     }
 

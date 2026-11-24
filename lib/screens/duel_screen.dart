@@ -467,18 +467,36 @@ class _DuelScreenState extends State<DuelScreen> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: !duel.rated ? 14 : 18,
+                          vertical: !duel.rated ? 11 : 14,
+                        ),
                         decoration: BoxDecoration(
-                          color: WBColors.whiteA(.05),
-                          border: Border.all(color: WBColors.whiteA(.1)),
+                          color: !duel.rated
+                              ? WBColors.amber.withValues(alpha: 0.08)
+                              : WBColors.whiteA(.05),
+                          border: Border.all(
+                            color: !duel.rated
+                                ? WBColors.amber.withValues(alpha: 0.28)
+                                : WBColors.whiteA(.1),
+                          ),
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(18),
                             topRight: Radius.circular(18),
                             bottomRight: Radius.circular(18),
                             bottomLeft: Radius.circular(6),
                           ),
+                          boxShadow: !duel.rated
+                              ? [
+                                  BoxShadow(
+                                    color: WBColors.amber.withValues(alpha: 0.12),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
                         ),
-                        child: _TypingDots(),
+                        child: _TypingDots(isBot: !duel.rated),
                       ),
                     ),
                 ],
@@ -633,7 +651,9 @@ class _DuelScreenState extends State<DuelScreen> {
                           filled: true,
                           fillColor: WBColors.whiteA(.05),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 18),
-                          hintText: duel.yourTurn ? "so'zni yoz…" : "raqib o'ylayapti…",
+                          hintText: duel.yourTurn
+                              ? "so'zni yoz…"
+                              : (!duel.rated ? "🤖 Bot o'ylayapti…" : "raqib o'ylayapti…"),
                           hintStyle: WBText.grotesk(
                             size: 19,
                             weight: FontWeight.w600,
@@ -1154,7 +1174,9 @@ class _PowerUpBar extends StatelessWidget {
 }
 
 class _TypingDots extends StatefulWidget {
-  const _TypingDots();
+  const _TypingDots({this.isBot = false});
+
+  final bool isBot;
 
   @override
   State<_TypingDots> createState() => _TypingDotsState();
@@ -1163,7 +1185,7 @@ class _TypingDots extends StatefulWidget {
 class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: const Duration(milliseconds: 1000),
   )..repeat();
 
   @override
@@ -1174,28 +1196,74 @@ class _TypingDotsState extends State<_TypingDots> with SingleTickerProviderState
 
   @override
   Widget build(BuildContext context) {
+    final dotColor = widget.isBot ? WBColors.amber : WBColors.textA(.7);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (i) {
-        return Padding(
-          padding: EdgeInsets.only(right: i == 2 ? 0 : 5),
-          child: AnimatedBuilder(
-            animation: _c,
-            builder: (context, _) {
-              final t = (_c.value + i * .15) % 1.0;
-              final o = 0.4 + 0.6 * (0.5 + 0.5 * math.sin(t * 2 * math.pi));
-              return Opacity(
-                opacity: o.clamp(0.0, 1.0),
-                child: Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(color: WBColors.textA(.5), shape: BoxShape.circle),
+      children: [
+        if (widget.isBot) ...[
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              gradient: wbAmberGradient,
+              borderRadius: BorderRadius.circular(7),
+              boxShadow: [
+                BoxShadow(
+                  color: WBColors.amber.withValues(alpha: 0.35),
+                  blurRadius: 6,
                 ),
-              );
-            },
+              ],
+            ),
+            child: const Icon(
+              Icons.smart_toy_rounded,
+              size: 13,
+              color: Colors.black87,
+            ),
           ),
-        );
-      }),
+          const SizedBox(width: 8),
+          Text(
+            'Bot o\'ylayapti',
+            style: WBText.grotesk(
+              size: 12,
+              weight: FontWeight.w600,
+              color: WBColors.amber,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            return Padding(
+              padding: EdgeInsets.only(right: i == 2 ? 0 : 4),
+              child: AnimatedBuilder(
+                animation: _c,
+                builder: (context, _) {
+                  final t = (_c.value + i * .2) % 1.0;
+                  final wave = math.sin(t * math.pi);
+                  final bounce = -3.0 * wave;
+                  final opacity = 0.35 + 0.65 * wave;
+                  return Transform.translate(
+                    offset: Offset(0, bounce),
+                    child: Opacity(
+                      opacity: opacity.clamp(0.0, 1.0),
+                      child: Container(
+                        width: 5.5,
+                        height: 5.5,
+                        decoration: BoxDecoration(
+                          color: dotColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          }),
+        ),
+      ],
     );
   }
 }
