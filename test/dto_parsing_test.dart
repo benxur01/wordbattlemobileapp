@@ -177,4 +177,24 @@ void main() {
       expect(ReportContext.values.map((context) => context.name).toList(), ['chat', 'duel', 'profile']);
     });
   });
+
+  group('practice check response', () {
+    test('parses valid flag and optional rejection reason safely', () {
+      final valid = PracticeCheckDto.fromJson({'word': 'river', 'valid': true});
+      expect(valid.valid, isTrue);
+      expect(valid.reason, isNull);
+
+      final invalid = PracticeCheckDto.fromJson({
+        'word': 'rzzzz',
+        'valid': false,
+        'reason': "Bu so'z ingliz lug'atida yo'q",
+      });
+      expect(invalid.valid, isFalse);
+      expect(invalid.reason, "Bu so'z ingliz lug'atida yo'q");
+
+      final defaults = PracticeCheckDto.fromJson({});
+      expect(defaults.valid, isFalse);
+      expect(defaults.reason, isNull);
+    });
+  });
 }
