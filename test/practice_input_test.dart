@@ -271,5 +271,62 @@ void main() {
       expect(find.text('Tozalash'), findsNothing);
       await tester.pump(const Duration(seconds: 3));
     });
+
+    testWidgets('renders adaptive soft green glow in light theme', (tester) async {
+      WBTheme.followPlatform(Brightness.light);
+      addTearDown(() => WBTheme.followPlatform(Brightness.dark));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(brightness: Brightness.light, scaffoldBackgroundColor: WBColors.bg),
+          home: Scaffold(
+            body: SafeArea(
+              child: PracticeScreen(
+                word: _wordOfTheDay,
+                hints: const ['river'],
+                onHint: () {},
+                onBack: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), 'rain');
+      await tester.pump(const Duration(milliseconds: 250));
+
+      final decoration = _inputContainerDecoration(tester);
+      expect(decoration, isNotNull);
+      expect(decoration!.boxShadow, isNotEmpty);
+      expect(decoration.boxShadow!.first.color, WBColors.green.withValues(alpha: .26 * 0.85));
+    });
+
+    testWidgets('resets tested words and input state when word of the day changes', (tester) async {
+      await tester.pumpWidget(_wrapPractice());
+
+      await tester.enterText(find.byType(TextField), 'river');
+      await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pumpAndSettle();
+      expect(find.text("SINALGAN SO'ZLAR"), findsOneWidget);
+
+      await tester.pumpWidget(
+        _wrapPractice(
+          word: const PracticeWordDto(
+            word: 'summer',
+            ipa: '/ˈsʌmə/',
+            meaning: 'yoz fasli',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text("SINALGAN SO'ZLAR"), findsNothing);
+      expect(
+        tester.state<PracticeTestInputState>(find.byType(PracticeTestInput)).phase,
+        PracticeInputPhase.idle,
+      );
+      await tester.pump(const Duration(seconds: 3));
+    });
   });
 }
