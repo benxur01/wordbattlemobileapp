@@ -356,6 +356,24 @@ class PracticeTestInputState extends State<PracticeTestInput> with SingleTickerP
                           ),
                         ),
                       ),
+                      if (_controller.text.trim().isNotEmpty) ...[
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _statusColor().withValues(alpha: .14),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Text(
+                            '${_controller.text.trim().length}',
+                            style: WBText.mono(
+                              size: 11,
+                              weight: FontWeight.w700,
+                              color: _statusColor(),
+                            ),
+                          ),
+                        ),
+                      ],
                       if (_phase == PracticeInputPhase.valid || _phase == PracticeInputPhase.accepted)
                         Padding(
                           padding: const EdgeInsets.only(right: 6),
