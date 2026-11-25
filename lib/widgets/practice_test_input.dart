@@ -221,60 +221,66 @@ class PracticeTestInputState extends State<PracticeTestInput> with SingleTickerP
   }
 
   Color _borderColor() => switch (_phase) {
-        PracticeInputPhase.valid => WBColors.green.withValues(alpha: .78),
+        PracticeInputPhase.valid => WBColors.green.withValues(alpha: WBTheme.isLight ? .85 : .78),
         PracticeInputPhase.accepted => WBColors.green,
         PracticeInputPhase.invalid => WBColors.red.withValues(alpha: .85),
-        PracticeInputPhase.incomplete => WBColors.indigo.withValues(alpha: .68),
+        PracticeInputPhase.incomplete => WBColors.indigo.withValues(alpha: WBTheme.isLight ? .78 : .68),
         PracticeInputPhase.checking => WBColors.indigo.withValues(alpha: .75),
         PracticeInputPhase.idle => _hasFocus ? WBColors.indigoA(.55) : WBColors.whiteA(.13),
       };
 
-  Color _fillColor() => switch (_phase) {
-        PracticeInputPhase.valid => WBColors.greenA(.07),
-        PracticeInputPhase.accepted => WBColors.greenA(.10),
-        PracticeInputPhase.invalid => WBColors.redA(.08),
-        PracticeInputPhase.incomplete => WBColors.indigoA(.06),
-        PracticeInputPhase.checking => WBColors.indigoA(.06),
-        PracticeInputPhase.idle => WBColors.whiteA(.05),
-      };
+  Color _fillColor() {
+    final isLight = WBTheme.isLight;
+    return switch (_phase) {
+      PracticeInputPhase.valid => WBColors.greenA(isLight ? .09 : .07),
+      PracticeInputPhase.accepted => WBColors.greenA(isLight ? .13 : .10),
+      PracticeInputPhase.invalid => WBColors.redA(isLight ? .09 : .08),
+      PracticeInputPhase.incomplete => WBColors.indigoA(isLight ? .07 : .06),
+      PracticeInputPhase.checking => WBColors.indigoA(.06),
+      PracticeInputPhase.idle => isLight ? WBColors.bgPanel : WBColors.whiteA(.05),
+    };
+  }
 
-  List<BoxShadow> _glowShadows() => switch (_phase) {
-        PracticeInputPhase.valid => [
-            BoxShadow(
-              color: WBColors.green.withValues(alpha: .26),
-              blurRadius: 16,
-              spreadRadius: 1,
-            ),
-          ],
-        PracticeInputPhase.accepted => [
-            BoxShadow(
-              color: WBColors.green.withValues(alpha: .36),
-              blurRadius: 20,
-              spreadRadius: 1.5,
-            ),
-          ],
-        PracticeInputPhase.invalid => [
-            BoxShadow(
-              color: WBColors.red.withValues(alpha: .28),
-              blurRadius: 16,
-              spreadRadius: 1,
-            ),
-          ],
-        PracticeInputPhase.incomplete || PracticeInputPhase.checking => [
-            BoxShadow(
-              color: WBColors.indigo.withValues(alpha: .18),
-              blurRadius: 12,
-            ),
-          ],
-        PracticeInputPhase.idle => _hasFocus
-            ? [
-                BoxShadow(
-                  color: WBColors.indigo.withValues(alpha: .15),
-                  blurRadius: 12,
-                ),
-              ]
-            : const [],
-      };
+  List<BoxShadow> _glowShadows() {
+    final glowBoost = WBTheme.isLight ? 0.85 : 1.0;
+    return switch (_phase) {
+      PracticeInputPhase.valid => [
+          BoxShadow(
+            color: WBColors.green.withValues(alpha: .26 * glowBoost),
+            blurRadius: WBTheme.isLight ? 14 : 16,
+            spreadRadius: 1,
+          ),
+        ],
+      PracticeInputPhase.accepted => [
+          BoxShadow(
+            color: WBColors.green.withValues(alpha: .36 * glowBoost),
+            blurRadius: WBTheme.isLight ? 16 : 20,
+            spreadRadius: 1.5,
+          ),
+        ],
+      PracticeInputPhase.invalid => [
+          BoxShadow(
+            color: WBColors.red.withValues(alpha: .28 * glowBoost),
+            blurRadius: WBTheme.isLight ? 14 : 16,
+            spreadRadius: 1,
+          ),
+        ],
+      PracticeInputPhase.incomplete || PracticeInputPhase.checking => [
+          BoxShadow(
+            color: WBColors.indigo.withValues(alpha: .18 * glowBoost),
+            blurRadius: 12,
+          ),
+        ],
+      PracticeInputPhase.idle => _hasFocus
+          ? [
+              BoxShadow(
+                color: WBColors.indigo.withValues(alpha: .15 * glowBoost),
+                blurRadius: 12,
+              ),
+            ]
+          : const [],
+    };
+  }
 
   Color _statusColor() => switch (_phase) {
         PracticeInputPhase.valid || PracticeInputPhase.accepted => WBColors.green,
