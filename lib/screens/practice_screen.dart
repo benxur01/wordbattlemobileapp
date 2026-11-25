@@ -137,14 +137,37 @@ class _PracticeScreenState extends State<PracticeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      "YANGI SO'Z",
-                      style: WBText.mono(
-                        size: 10,
-                        weight: FontWeight.w500,
-                        color: WBColors.indigoText.withValues(alpha: .85),
-                        letterSpacing: .14,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "YANGI SO'Z",
+                          style: WBText.mono(
+                            size: 10,
+                            weight: FontWeight.w500,
+                            color: WBColors.indigoText.withValues(alpha: .85),
+                            letterSpacing: .14,
+                          ),
+                        ),
+                        if (word != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: WBColors.indigoA(.16),
+                              border: Border.all(color: WBColors.indigoA(.32)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'OXIRGI HARF: $needUpper',
+                              style: WBText.mono(
+                                size: 9.5,
+                                weight: FontWeight.w700,
+                                color: WBColors.indigoText,
+                                letterSpacing: .08,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 9),
                     Row(
