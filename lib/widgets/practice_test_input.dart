@@ -461,33 +461,37 @@ class PracticeTestInputState extends State<PracticeTestInput> with SingleTickerP
         ),
         if (_statusMessage != null) ...[
           const SizedBox(height: 8),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            child: Row(
-              key: ValueKey('${_phase.name}:$_statusMessage'),
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: _statusColor(),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    _statusMessage!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: WBText.grotesk(
-                      size: 12,
-                      weight: FontWeight.w600,
+          Semantics(
+            liveRegion: true,
+            label: _statusMessage,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: Row(
+                key: ValueKey('${_phase.name}:$_statusMessage'),
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
                       color: _statusColor(),
+                      shape: BoxShape.circle,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      _statusMessage!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: WBText.grotesk(
+                        size: 12,
+                        weight: FontWeight.w600,
+                        color: _statusColor(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

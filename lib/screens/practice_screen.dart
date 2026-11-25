@@ -412,6 +412,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
       onTap: () => _inputKey.currentState?.fillWord(word),
       pressScale: .96,
       borderRadius: BorderRadius.circular(14),
+      semanticLabel: "$word so'zini sinov maydoniga kiritish",
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
         decoration: BoxDecoration(
