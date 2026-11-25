@@ -59,6 +59,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
     });
   }
 
+  void _clearTestedWords() {
+    setState(() => _testedWords.clear());
+  }
+
+  int get _totalTestedCharacters => _testedWords.fold(0, (sum, w) => sum + w.length);
+
   @override
   Widget build(BuildContext context) {
     final word = widget.word;
@@ -215,8 +221,26 @@ class _PracticeScreenState extends State<PracticeScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '${_testedWords.length}',
+                        '${_testedWords.length} · +$_totalTestedCharacters harf',
                         style: WBText.mono(size: 10.5, weight: FontWeight.w700, color: WBColors.green),
+                      ),
+                    ),
+                    const Spacer(),
+                    Pressable(
+                      onTap: _clearTestedWords,
+                      pressScale: .94,
+                      borderRadius: BorderRadius.circular(8),
+                      semanticLabel: "Sinalgan so'zlarni tozalash",
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Text(
+                          'Tozalash',
+                          style: WBText.grotesk(
+                            size: 11.5,
+                            weight: FontWeight.w500,
+                            color: WBColors.textA(.45),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -342,28 +366,41 @@ class _PracticeScreenState extends State<PracticeScreen> {
   }
 
   Widget _testedChip(String word) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: WBColors.greenA(.10),
-        border: Border.all(color: WBColors.green.withValues(alpha: .42)),
-        borderRadius: BorderRadius.circular(12),
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('tested_$word'),
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) => Opacity(
+        opacity: value.clamp(0.0, 1.0),
+        child: Transform.scale(
+          scale: 0.86 + (0.14 * value),
+          child: child,
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.check_rounded, size: 14, color: WBColors.green),
-          const SizedBox(width: 6),
-          Text(
-            word,
-            style: WBText.grotesk(size: 15, weight: FontWeight.w600, color: WBColors.text),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '${word.length}',
-            style: WBText.mono(size: 11, weight: FontWeight.w600, color: WBColors.green),
-          ),
-        ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: WBColors.greenA(.10),
+          border: Border.all(color: WBColors.green.withValues(alpha: .42)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_rounded, size: 14, color: WBColors.green),
+            const SizedBox(width: 6),
+            Text(
+              word,
+              style: WBText.grotesk(size: 15, weight: FontWeight.w600, color: WBColors.text),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '${word.length}',
+              style: WBText.mono(size: 11, weight: FontWeight.w600, color: WBColors.green),
+            ),
+          ],
+        ),
       ),
     );
   }
