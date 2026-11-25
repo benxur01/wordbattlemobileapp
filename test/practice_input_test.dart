@@ -248,5 +248,28 @@ void main() {
       );
       expect(find.text("Qoidaga mos — tekshirish uchun yuboring"), findsOneWidget);
     });
+
+    testWidgets('displays OXIRGI HARF badge, live length pill, and Tozalash clear action', (tester) async {
+      await tester.pumpWidget(_wrapPractice());
+
+      expect(find.text('OXIRGI HARF: R'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'rocket');
+      await tester.pump();
+      expect(find.text('6'), findsOneWidget);
+
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 · +6 harf'), findsOneWidget);
+      expect(find.text('Tozalash'), findsOneWidget);
+
+      await tester.tap(find.text('Tozalash'));
+      await tester.pumpAndSettle();
+
+      expect(find.text("SINALGAN SO'ZLAR"), findsNothing);
+      expect(find.text('Tozalash'), findsNothing);
+      await tester.pump(const Duration(seconds: 3));
+    });
   });
 }
