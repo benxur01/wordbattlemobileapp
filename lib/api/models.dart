@@ -280,6 +280,18 @@ class PracticeWordDto {
   final String meaning;
 }
 
+class PracticeCheckDto {
+  const PracticeCheckDto({required this.valid, this.reason});
+
+  factory PracticeCheckDto.fromJson(Map<String, dynamic> json) => PracticeCheckDto(
+        valid: json['valid'] as bool? ?? false,
+        reason: json['reason'] as String?,
+      );
+
+  final bool valid;
+  final String? reason;
+}
+
 /// One topic a bot duel can be played inside. [id] is what `queue.bot` carries;
 /// [name] is the Uzbek label the server sends ready to draw.
 class WordThemeDto {

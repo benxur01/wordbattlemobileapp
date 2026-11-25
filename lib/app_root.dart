@@ -1212,6 +1212,22 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     }
   }
 
+  Future<PracticeCheckDto> _checkPracticeWord(String candidate) async {
+    final word = practiceWord;
+    final needLetter = word == null || word.word.isEmpty
+        ? null
+        : word.word.substring(word.word.length - 1).toLowerCase();
+    try {
+      return await _api.checkPracticeWord(candidate, requiredLetter: needLetter);
+    } on ApiException catch (e) {
+      if (_isSessionOver(e)) _onApiError(e);
+      return const PracticeCheckDto(valid: true);
+    } catch (_) {
+      // Network hiccup: accept rule-valid practice input locally rather than blocking solo practice.
+      return const PracticeCheckDto(valid: true);
+    }
+  }
+
   // ------------------------------------------------------------ tournaments
 
   /// The lobby's low-key "a tournament is being played" card. Silent on
@@ -3194,6 +3210,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           word: practiceWord,
           hints: practiceHints,
           onHint: loadHints,
+          onCheckWord: _checkPracticeWord,
           onBack: () => go(WBScreen.lobby),
         ),
       WBScreen.friends => FriendsScreen(

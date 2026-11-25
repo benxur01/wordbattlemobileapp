@@ -219,6 +219,16 @@ class ApiClient {
     return list.map((e) => e as String).toList();
   }
 
+  Future<PracticeCheckDto> checkPracticeWord(String word, {String? requiredLetter}) async {
+    final query = <String, dynamic>{'word': word};
+    if (requiredLetter != null && requiredLetter.isNotEmpty) {
+      query['requiredLetter'] = requiredLetter;
+    }
+    return PracticeCheckDto.fromJson(
+      await _get('/practice/check', query) as Map<String, dynamic>,
+    );
+  }
+
   /// The topics the bot picker offers. Fixed for the life of a server build,
   /// so it is fetched once when the picker is opened rather than watched.
   Future<List<WordThemeDto>> wordThemes() async {

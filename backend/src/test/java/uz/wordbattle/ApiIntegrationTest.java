@@ -204,6 +204,29 @@ class ApiIntegrationTest {
         mvc.perform(get("/api/practice/word").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.word").isNotEmpty());
+
+        mvc.perform(get("/api/practice/check")
+                        .param("word", "river")
+                        .param("requiredLetter", "r")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(true));
+
+        mvc.perform(get("/api/practice/check")
+                        .param("word", "apple")
+                        .param("requiredLetter", "r")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.reason").value("«R» harfi bilan boshlanishi kerak"));
+
+        mvc.perform(get("/api/practice/check")
+                        .param("word", "rzzzzzz")
+                        .param("requiredLetter", "r")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.reason").value("Bu so'z ingliz lug'atida yo'q"));
     }
 
     private void claim(String token, String nickname) throws Exception {

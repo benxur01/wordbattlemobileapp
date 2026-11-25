@@ -2,26 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../api/models.dart';
 import '../theme.dart';
+import '../widgets/practice_test_input.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/stroke_glyph.dart';
 
-/// The practice screen: the server's word of the day, its meaning, and hints
-/// on demand. The design left the input unwired and so does this — practice
-/// duels are not a backend feature yet, so a text box that swallowed words
-/// would be worse than none.
-///
-/// Nor should anything else here read as a duel waiting for a move. The
-/// design's footer asked for a word ("… bilan boshlansin") and dealt the hints
-/// out as a chain's alternating bubbles, so one tap on the hint button looked
-/// like two players had traded moves. The footer only names the letter now,
-/// and the hints are a plain row of chips.
-class PracticeScreen extends StatelessWidget {
+/// The practice screen: the server's word of the day, its meaning, hints on
+/// demand, and an interactive test input field with real-time soft glow
+/// validation and elastic shake feedback on invalid input.
+class PracticeScreen extends StatefulWidget {
   const PracticeScreen({
     super.key,
     required this.word,
     required this.hints,
     required this.onHint,
     required this.onBack,
+    this.onCheckWord,
   });
 
   /// Null while the request is in flight.
@@ -30,8 +25,45 @@ class PracticeScreen extends StatelessWidget {
   final VoidCallback onHint;
   final VoidCallback onBack;
 
+  /// Optional async dictionary check against the server.
+  final Future<PracticeCheckDto> Function(String word)? onCheckWord;
+
+  @override
+  State<PracticeScreen> createState() => _PracticeScreenState();
+}
+
+class _PracticeScreenState extends State<PracticeScreen> {
+  final GlobalKey<PracticeTestInputState> _inputKey = GlobalKey<PracticeTestInputState>();
+  final List<String> _testedWords = [];
+
+  @override
+  void didUpdateWidget(covariant PracticeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.word?.word != widget.word?.word) {
+      _testedWords.clear();
+      _inputKey.currentState?.resetInput();
+    }
+  }
+
+  String? get _needLetter {
+    final raw = widget.word?.word;
+    if (raw == null || raw.isEmpty) return null;
+    return raw.substring(raw.length - 1).toLowerCase();
+  }
+
+  void _onAcceptedWord(String word) {
+    setState(() {
+      if (!_testedWords.contains(word)) {
+        _testedWords.insert(0, word);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final word = widget.word;
+    final needUpper = _needLetter?.toUpperCase() ?? '·';
+
     return Column(
       children: [
         Container(
@@ -43,7 +75,7 @@ class PracticeScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Pressable(
-                onTap: onBack,
+                onTap: widget.onBack,
                 borderRadius: BorderRadius.circular(12),
                 semanticLabel: 'Orqaga',
                 child: Container(
@@ -80,7 +112,7 @@ class PracticeScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  word == null ? '…' : '${word!.word.length}',
+                  word == null ? '…' : '${word.word.length}',
                   style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.indigoText),
                 ),
               ),
@@ -139,24 +171,70 @@ class PracticeScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
-              if (hints.isEmpty)
+              if (_testedWords.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Text(
+                      "SINALGAN SO'ZLAR",
+                      style: WBText.mono(
+                        size: 10,
+                        weight: FontWeight.w600,
+                        color: WBColors.green,
+                        letterSpacing: .12,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: WBColors.greenA(.16),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${_testedWords.length}',
+                        style: WBText.mono(size: 10.5, weight: FontWeight.w700, color: WBColors.green),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [for (final tested in _testedWords) _testedChip(tested)],
+                ),
+              ],
+              const SizedBox(height: 16),
+              if (widget.hints.isEmpty)
                 Text(
                   "Bu so'z bilan boshlanadigan so'zlarni ko'rish uchun «?» tugmasini bosing",
                   style: WBText.grotesk(size: 13, height: 1.5, color: WBColors.textA(.5)),
                 )
-              else
+              else ...[
+                Text(
+                  "MASLAHAT SO'ZLAR",
+                  style: WBText.mono(
+                    size: 10,
+                    weight: FontWeight.w500,
+                    color: WBColors.textA(.45),
+                    letterSpacing: .12,
+                  ),
+                ),
+                const SizedBox(height: 9),
                 Wrap(
                   spacing: 9,
                   runSpacing: 9,
-                  children: [for (final hint in hints) _hintChip(hint)],
+                  children: [for (final hint in widget.hints) _hintChip(hint)],
                 ),
+              ],
             ],
           ),
         ),
         Container(
-          padding: const EdgeInsets.fromLTRB(22, 12, 22, 22),
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 18),
           decoration: BoxDecoration(
+            color: WBColors.bg.withValues(alpha: .94),
             border: Border(top: BorderSide(color: WBColors.whiteA(.07))),
           ),
           child: Column(
@@ -174,7 +252,7 @@ class PracticeScreen extends StatelessWidget {
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      word == null ? '·' : word!.word.substring(word!.word.length - 1).toUpperCase(),
+                      needUpper,
                       style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.indigoText),
                     ),
                   ),
@@ -182,54 +260,56 @@ class PracticeScreen extends StatelessWidget {
                   Expanded(
                     child: Text(
                       "harfi bilan boshlanadigan so'zlar",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: WBText.grotesk(size: 12.5, color: WBColors.textA(.5)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Pressable(
+                    onTap: widget.onHint,
+                    pressScale: .95,
+                    borderRadius: BorderRadius.circular(11),
+                    semanticLabel: "Maslahat so'zlarni olish",
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: wbIndigoGradient,
+                        borderRadius: BorderRadius.circular(11),
+                        boxShadow: [
+                          BoxShadow(
+                            color: WBColors.indigo.withValues(alpha: .22),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '?',
+                            style: WBText.mono(size: 12.5, weight: FontWeight.w700, color: WBColors.indigoInk),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Maslahat',
+                            style: WBText.grotesk(size: 12, weight: FontWeight.w600, color: WBColors.indigoInk),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Pressable(
-                onTap: onHint,
-                pressScale: .98,
-                borderRadius: BorderRadius.circular(19),
-                child: Container(
-                  height: 56,
-                  decoration: BoxDecoration(
-                    gradient: wbIndigoGradient,
-                    borderRadius: BorderRadius.circular(19),
-                    boxShadow: [
-                      BoxShadow(
-                        color: WBColors.indigo.withValues(alpha: .25),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  alignment: Alignment.center,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: WBColors.indigoInk.withValues(alpha: .15),
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '?',
-                          style: WBText.mono(size: 15, weight: FontWeight.w700, color: WBColors.indigoInk),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        "Maslahat so'zlarni olish",
-                        style: WBText.grotesk(size: 16, weight: FontWeight.w600, color: WBColors.indigoInk),
-                      ),
-                    ],
-                  ),
-                ),
+              const SizedBox(height: 10),
+              PracticeTestInput(
+                key: _inputKey,
+                needLetter: _needLetter,
+                triedWords: _testedWords.toSet(),
+                enabled: word != null,
+                onCheckWord: widget.onCheckWord,
+                onAcceptedWord: _onAcceptedWord,
               ),
             ],
           ),
@@ -238,26 +318,58 @@ class PracticeScreen extends StatelessWidget {
     );
   }
 
-  static Widget _hintChip(String word) {
+  Widget _testedChip(String word) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: WBColors.greenA(.10),
+        border: Border.all(color: WBColors.green.withValues(alpha: .42)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_rounded, size: 14, color: WBColors.green),
+          const SizedBox(width: 6),
+          Text(
+            word,
+            style: WBText.grotesk(size: 15, weight: FontWeight.w600, color: WBColors.text),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '${word.length}',
+            style: WBText.mono(size: 11, weight: FontWeight.w600, color: WBColors.green),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _hintChip(String word) {
     final head = word.substring(0, word.length - 1);
     final last = word.substring(word.length - 1);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-      decoration: BoxDecoration(
-        color: WBColors.whiteA(.05),
-        border: Border.all(color: WBColors.whiteA(.1)),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: RichText(
-        text: TextSpan(
-          style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.textA(.85)),
-          children: [
-            TextSpan(text: head),
-            TextSpan(
-              text: last,
-              style: TextStyle(color: WBColors.accent),
-            ),
-          ],
+    return Pressable(
+      onTap: () => _inputKey.currentState?.fillWord(word),
+      pressScale: .96,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+        decoration: BoxDecoration(
+          color: WBColors.whiteA(.05),
+          border: Border.all(color: WBColors.whiteA(.1)),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: RichText(
+          text: TextSpan(
+            style: WBText.grotesk(size: 17, weight: FontWeight.w600, color: WBColors.textA(.85)),
+            children: [
+              TextSpan(text: head),
+              TextSpan(
+                text: last,
+                style: TextStyle(color: WBColors.accent),
+              ),
+            ],
+          ),
         ),
       ),
     );
