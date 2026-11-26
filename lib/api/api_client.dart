@@ -223,8 +223,8 @@ class ApiClient {
     final query = <String, dynamic>{
       'letter': letter,
       'limit': limit,
-      if (minLength != null) 'minLength': minLength,
-      if (maxLength != null) 'maxLength': maxLength,
+      'minLength': ?minLength,
+      'maxLength': ?maxLength,
     };
     final list = await _get('/practice/hints', query) as List;
     return list.map((e) => e as String).toList();
