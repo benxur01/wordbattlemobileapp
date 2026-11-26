@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../api/models.dart';
 import '../theme.dart';
+import '../utils/hint_filter.dart';
+import '../widgets/hint_filter_bar.dart';
 import '../widgets/practice_test_input.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/stroke_glyph.dart';
 
-/// The practice screen: the server's word of the day, its meaning, hints on
-/// demand, and an interactive test input field with real-time soft glow
-/// validation and elastic shake feedback on invalid input.
+/// The practice screen: the server's word of the day, its meaning, filterable
+/// hints on demand, and an interactive test input field with real-time soft
+/// glow validation and elastic shake feedback on invalid input.
 class PracticeScreen extends StatefulWidget {
   const PracticeScreen({
     super.key,
@@ -17,6 +19,9 @@ class PracticeScreen extends StatefulWidget {
     required this.onHint,
     required this.onBack,
     this.onCheckWord,
+    this.selectedHintLetter,
+    this.selectedLengthFilter = HintLengthFilter.all,
+    this.onHintFilterChanged,
   });
 
   /// Null while the request is in flight.
@@ -28,6 +33,17 @@ class PracticeScreen extends StatefulWidget {
   /// Optional async dictionary check against the server.
   final Future<PracticeCheckDto> Function(String word)? onCheckWord;
 
+  /// Active starting letter filter for hints (`a`..`z`), defaulting to the
+  /// ending letter of [word] when null.
+  final String? selectedHintLetter;
+
+  /// Active word-length filter bucket for hints.
+  final HintLengthFilter selectedLengthFilter;
+
+  /// Called when the player switches either the hint starting letter or length
+  /// filter chip so the parent can fetch fresh filtered hints.
+  final void Function(String letter, HintLengthFilter length)? onHintFilterChanged;
+
   @override
   State<PracticeScreen> createState() => _PracticeScreenState();
 }
@@ -35,12 +51,16 @@ class PracticeScreen extends StatefulWidget {
 class _PracticeScreenState extends State<PracticeScreen> {
   final GlobalKey<PracticeTestInputState> _inputKey = GlobalKey<PracticeTestInputState>();
   final List<String> _testedWords = [];
+  String? _localHintLetter;
+  HintLengthFilter _localLengthFilter = HintLengthFilter.all;
 
   @override
   void didUpdateWidget(covariant PracticeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.word?.word != widget.word?.word) {
       _testedWords.clear();
+      _localHintLetter = null;
+      _localLengthFilter = HintLengthFilter.all;
       _inputKey.currentState?.resetInput();
     }
   }
@@ -65,10 +85,43 @@ class _PracticeScreenState extends State<PracticeScreen> {
 
   int get _totalTestedCharacters => _testedWords.fold(0, (sum, w) => sum + w.length);
 
+  String? get _activeHintLetter =>
+      HintFilterHelper.normalizeLetter(widget.selectedHintLetter) ??
+      HintFilterHelper.normalizeLetter(_localHintLetter) ??
+      _needLetter;
+
+  HintLengthFilter get _activeLengthFilter =>
+      widget.onHintFilterChanged != null ? widget.selectedLengthFilter : _localLengthFilter;
+
+  void _updateHintFilter({String? letter, HintLengthFilter? length}) {
+    final nextLetter = HintFilterHelper.normalizeLetter(letter ?? _activeHintLetter);
+    final nextLength = length ?? _activeLengthFilter;
+    if (widget.onHintFilterChanged != null && nextLetter != null) {
+      widget.onHintFilterChanged!(nextLetter, nextLength);
+      return;
+    }
+    setState(() {
+      _localHintLetter = nextLetter;
+      _localLengthFilter = nextLength;
+    });
+  }
+
+  void _resetHintFilters() {
+    final fallback = _needLetter ?? 'a';
+    _updateHintFilter(letter: fallback, length: HintLengthFilter.all);
+  }
+
   @override
   Widget build(BuildContext context) {
     final word = widget.word;
     final needUpper = _needLetter?.toUpperCase() ?? '·';
+    final activeLetter = _activeHintLetter;
+    final activeLength = _activeLengthFilter;
+    final visibleHints = HintFilterHelper.apply(
+      widget.hints,
+      startingLetter: activeLetter,
+      lengthFilter: activeLength,
+    );
 
     return Column(
       children: [
@@ -252,29 +305,100 @@ class _PracticeScreenState extends State<PracticeScreen> {
                   children: [for (final tested in _testedWords) _testedChip(tested)],
                 ),
               ],
-              const SizedBox(height: 16),
-              if (widget.hints.isEmpty)
-                Text(
-                  "Bu so'z bilan boshlanadigan so'zlarni ko'rish uchun «?» tugmasini bosing",
-                  style: WBText.grotesk(size: 13, height: 1.5, color: WBColors.textA(.5)),
-                )
-              else ...[
-                Text(
-                  "MASLAHAT SO'ZLAR",
-                  style: WBText.mono(
-                    size: 10,
-                    weight: FontWeight.w500,
-                    color: WBColors.textA(.45),
-                    letterSpacing: .12,
-                  ),
+              const SizedBox(height: 14),
+              if (word != null) ...[
+                HintFilterBar(
+                  selectedLetter: activeLetter,
+                  defaultLetter: _needLetter,
+                  selectedLength: activeLength,
+                  onLetterSelected: (letter) => _updateHintFilter(letter: letter),
+                  onLengthSelected: (length) => _updateHintFilter(length: length),
                 ),
-                const SizedBox(height: 9),
-                Wrap(
-                  spacing: 9,
-                  runSpacing: 9,
-                  children: [for (final hint in widget.hints) _hintChip(hint)],
-                ),
+                const SizedBox(height: 14),
               ],
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: widget.hints.isEmpty
+                    ? Align(
+                        key: const ValueKey('hints_empty'),
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          "Bu so'z bilan boshlanadigan so'zlarni ko'rish uchun «?» tugmasini bosing",
+                          style: WBText.grotesk(size: 13, height: 1.5, color: WBColors.textA(.5)),
+                        ),
+                      )
+                    : visibleHints.isEmpty
+                        ? Container(
+                            key: ValueKey('hints_filtered_empty_${activeLetter}_${activeLength.name}'),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: WBColors.whiteA(.035),
+                              border: Border.all(color: WBColors.whiteA(.08)),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    "Ushbu filtr bo'yicha maslahat topilmadi",
+                                    style: WBText.grotesk(size: 12.5, color: WBColors.textA(.55)),
+                                  ),
+                                ),
+                                Pressable(
+                                  onTap: _resetHintFilters,
+                                  pressScale: .95,
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    child: Text(
+                                      'Filtrni tiklash',
+                                      style: WBText.grotesk(
+                                        size: 12,
+                                        weight: FontWeight.w600,
+                                        color: WBColors.indigoText,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Column(
+                            key: ValueKey('hints_${activeLetter}_${activeLength.name}_${visibleHints.length}'),
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    "MASLAHAT SO'ZLAR",
+                                    style: WBText.mono(
+                                      size: 10,
+                                      weight: FontWeight.w500,
+                                      color: WBColors.textA(.45),
+                                      letterSpacing: .12,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (activeLetter != null)
+                                    Text(
+                                      '${activeLetter.toUpperCase()} · ${activeLength.label}',
+                                      style: WBText.mono(
+                                        size: 10,
+                                        weight: FontWeight.w600,
+                                        color: WBColors.indigoText,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 9),
+                              Wrap(
+                                spacing: 9,
+                                runSpacing: 9,
+                                children: [for (final hint in visibleHints) _hintChip(hint)],
+                              ),
+                            ],
+                          ),
+              ),
             ],
           ),
         ),
