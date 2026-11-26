@@ -37,11 +37,16 @@ public class PracticeController {
         return new WordOfTheDay(word.getWord(), word.getIpa(), word.getMeaning());
     }
 
-    /** The "?" button: a few common words starting with the required letter. */
+    /**
+     * The "?" button and practice filters: words starting with [letter] and
+     * optionally bounded by [minLength]..[maxLength].
+     */
     @GetMapping("/hints")
     public List<String> hints(
             @RequestParam("letter") String letter,
-            @RequestParam(value = "limit", defaultValue = "3") int limit) {
+            @RequestParam(value = "limit", defaultValue = "3") int limit,
+            @RequestParam(value = "minLength", required = false) Integer minLength,
+            @RequestParam(value = "maxLength", required = false) Integer maxLength) {
         if (letter == null || letter.isBlank()) {
             throw ApiException.badRequest("letter_required", "Harf ko'rsatilmagan");
         }
@@ -49,9 +54,24 @@ public class PracticeController {
         if (first < 'a' || first > 'z') {
             throw ApiException.badRequest("letter_invalid", "Faqat ingliz harfi");
         }
+        if ((minLength != null && minLength < 1) || (maxLength != null && maxLength < 1)) {
+            throw ApiException.badRequest("length_invalid", "So'z uzunligi musbat bo'lishi kerak");
+        }
+        if (minLength != null && maxLength != null && minLength > maxLength) {
+            throw ApiException.badRequest("length_range_invalid", "Uzunlik oralig'i noto'g'ri");
+        }
         // Clamped rather than trusted: `limit=-1` reached `new ArrayList<>(-1)`
         // and came back as a 500.
-        return dictionary.hints(first, List.of(), Math.max(1, Math.min(limit, 10)));
+        int clampedLimit = Math.max(1, Math.min(limit, 12));
+        if (minLength == null && maxLength == null) {
+            return dictionary.hints(first, List.of(), clampedLimit);
+        }
+        return dictionary.hints(first, List.of(), clampedLimit, minLength, maxLength);
+    }
+
+    /** Convenience overload preserving two-argument programmatic callers and tests. */
+    List<String> hints(String letter, int limit) {
+        return hints(letter, limit, null, null);
     }
 
     /** Interactive practice validation: checks chain rules and the duel dictionary. */
