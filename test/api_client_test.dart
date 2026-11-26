@@ -143,6 +143,34 @@ void main() {
     expect(uri.queryParameters, isEmpty);
     expect(uri.scheme, anyOf('ws', 'wss'));
   });
+
+  test('practiceHints forwards starting letter, limit, and optional length bounds', () async {
+    final requests = <Uri>[];
+    final api = ApiClient(
+      httpClient: MockClient((request) async {
+        requests.add(request.url);
+        return http.Response(jsonEncode(['mango', 'maple']), 200, headers: {'content-type': 'application/json'});
+      }),
+    )..token = 'x';
+
+    final filtered = await api.practiceHints('m', minLength: 5, maxLength: 6, limit: 6);
+    final unfiltered = await api.practiceHints('r');
+
+    expect(filtered, ['mango', 'maple']);
+    expect(requests.first.path, '/api/practice/hints');
+    expect(requests.first.queryParameters, {
+      'letter': 'm',
+      'limit': '6',
+      'minLength': '5',
+      'maxLength': '6',
+    });
+
+    expect(unfiltered, ['mango', 'maple']);
+    expect(requests.last.queryParameters, {
+      'letter': 'r',
+      'limit': '6',
+    });
+  });
 }
 
 /// Stands in for a dart:io SocketException without importing dart:io, so the
