@@ -85,4 +85,16 @@ class PracticeControllerTest {
         assertThatThrownBy(() -> controller.hints("1", 3)).isInstanceOf(ApiException.class);
         assertThatThrownBy(() -> controller.hints("  ", 3)).isInstanceOf(ApiException.class);
     }
+
+    @Test
+    void hintsForwardsLengthFiltersAndRejectsInvalidBounds() {
+        when(dictionary.hints(eq('r'), anyList(), eq(6), eq(3), eq(4))).thenReturn(List.of("rain", "rock"));
+        when(dictionary.hints(eq('r'), anyList(), eq(6), eq(7), eq((Integer) null))).thenReturn(List.of("rainbow"));
+
+        assertThat(controller.hints("r", 6, 3, 4)).containsExactly("rain", "rock");
+        assertThat(controller.hints("r", 6, 7, null)).containsExactly("rainbow");
+
+        assertThatThrownBy(() -> controller.hints("r", 6, 0, 4)).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> controller.hints("r", 6, 6, 3)).isInstanceOf(ApiException.class);
+    }
 }

@@ -221,6 +221,18 @@ class DictionaryServiceTest {
     }
 
     @Test
+    void hintsRespectLengthFilterBoundsAcrossShortMediumAndLongRanges() {
+        List<String> shortWords = dictionary.hints('r', Set.of(), 6, 3, 4);
+        assertThat(shortWords).isNotEmpty().allSatisfy(w -> assertThat(w).startsWith("r").hasSizeBetween(3, 4));
+
+        List<String> mediumWords = dictionary.hints('r', Set.of(), 6, 5, 6);
+        assertThat(mediumWords).isNotEmpty().allSatisfy(w -> assertThat(w).startsWith("r").hasSizeBetween(5, 6));
+
+        List<String> longWords = dictionary.hints('r', Set.of(), 6, 7, null);
+        assertThat(longWords).isNotEmpty().allSatisfy(w -> assertThat(w).startsWith("r").hasSizeGreaterThanOrEqualTo(7));
+    }
+
+    @Test
     void hintsComeFromTheSameFilteredPool() {
         List<String> hints = dictionary.hints('a', Set.of(), 10);
         Set<String> pool = botPoolFor('a');
