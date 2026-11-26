@@ -214,8 +214,19 @@ class ApiClient {
   Future<PracticeWordDto> practiceWord() async =>
       PracticeWordDto.fromJson(await _get('/practice/word') as Map<String, dynamic>);
 
-  Future<List<String>> practiceHints(String letter) async {
-    final list = await _get('/practice/hints', {'letter': letter}) as List;
+  Future<List<String>> practiceHints(
+    String letter, {
+    int? minLength,
+    int? maxLength,
+    int limit = 6,
+  }) async {
+    final query = <String, dynamic>{
+      'letter': letter,
+      'limit': limit,
+      if (minLength != null) 'minLength': minLength,
+      if (maxLength != null) 'maxLength': maxLength,
+    };
+    final list = await _get('/practice/hints', query) as List;
     return list.map((e) => e as String).toList();
   }
 
