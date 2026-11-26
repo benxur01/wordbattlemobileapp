@@ -18,6 +18,7 @@ import 'api/tournament_models.dart';
 import 'audio/sound_effects.dart';
 import 'models.dart';
 import 'theme.dart';
+import 'utils/hint_filter.dart';
 import 'screens/onboarding1_screen.dart';
 import 'screens/onboarding2_screen.dart';
 import 'screens/lobby_screen.dart';
@@ -328,6 +329,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   List<BlockedUserDto>? blockedUsers;
   PracticeWordDto? practiceWord;
   List<String> practiceHints = const [];
+  String? practiceHintLetter;
+  HintLengthFilter practiceHintLength = HintLengthFilter.all;
 
   // ---- realtime ----
   DuelView? duel;
@@ -1176,6 +1179,8 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
       setState(() {
         practiceWord = word;
         practiceHints = const [];
+        practiceHintLetter = null;
+        practiceHintLength = HintLengthFilter.all;
       });
     } on ApiException catch (e) {
       _onApiError(e);
@@ -1201,15 +1206,34 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> loadHints() async {
+  Future<void> loadHints({String? letter, HintLengthFilter? length}) async {
     final word = practiceWord;
     if (word == null) return;
+    final targetLetter = HintFilterHelper.normalizeLetter(letter ?? practiceHintLetter) ??
+        word.word.substring(word.word.length - 1).toLowerCase();
+    final targetLength = length ?? practiceHintLength;
     try {
-      final hints = await _api.practiceHints(word.word.substring(word.word.length - 1));
-      if (mounted) setState(() => practiceHints = hints);
+      final hints = await _api.practiceHints(
+        targetLetter,
+        minLength: targetLength.minLength,
+        maxLength: targetLength.maxLength,
+      );
+      if (!mounted) return;
+      final currentLetter = HintFilterHelper.normalizeLetter(practiceHintLetter) ??
+          practiceWord?.word.substring(practiceWord!.word.length - 1).toLowerCase();
+      if (currentLetter != targetLetter || practiceHintLength != targetLength) return;
+      setState(() => practiceHints = hints);
     } on ApiException catch (_) {
       // The hint button is optional; stay quiet if it fails.
     }
+  }
+
+  void _onPracticeHintFilterChanged(String letter, HintLengthFilter length) {
+    setState(() {
+      practiceHintLetter = letter;
+      practiceHintLength = length;
+    });
+    unawaited(loadHints(letter: letter, length: length));
   }
 
   Future<PracticeCheckDto> _checkPracticeWord(String candidate) async {
@@ -3210,6 +3234,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           word: practiceWord,
           hints: practiceHints,
           onHint: loadHints,
+          selectedHintLetter: practiceHintLetter,
+          selectedLengthFilter: practiceHintLength,
+          onHintFilterChanged: _onPracticeHintFilterChanged,
           onCheckWord: _checkPracticeWord,
           onBack: () => go(WBScreen.lobby),
         ),
