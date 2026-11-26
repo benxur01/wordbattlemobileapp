@@ -73,12 +73,13 @@ class _HintFilterBarState extends State<HintFilterBar> {
     final def = HintFilterHelper.normalizeLetter(widget.defaultLetter);
     final active = HintFilterHelper.normalizeLetter(widget.selectedLetter) ?? def;
     final showResetLetter = def != null && active != null && active != def;
+    final isLight = WBTheme.isLight;
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: WBColors.whiteA(.035),
-        border: Border.all(color: WBColors.whiteA(.09)),
+        color: isLight ? WBColors.bgPanel.withValues(alpha: .88) : WBColors.whiteA(.035),
+        border: Border.all(color: isLight ? WBColors.textA(.10) : WBColors.whiteA(.09)),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -91,7 +92,7 @@ class _HintFilterBarState extends State<HintFilterBar> {
                 style: WBText.mono(
                   size: 9.5,
                   weight: FontWeight.w600,
-                  color: WBColors.textA(.48),
+                  color: WBColors.textA(.52),
                   letterSpacing: .11,
                 ),
               ),
@@ -110,6 +111,7 @@ class _HintFilterBarState extends State<HintFilterBar> {
                   },
                   pressScale: .94,
                   borderRadius: BorderRadius.circular(8),
+                  semanticLabel: "Asl harf ${def.toUpperCase()} ga qaytarish",
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     child: Text(
@@ -125,15 +127,19 @@ class _HintFilterBarState extends State<HintFilterBar> {
             ],
           ),
           const SizedBox(height: 8),
-          _buildStartingLetterStrip(active: active, defaultNorm: def),
+          _buildStartingLetterStrip(active: active, defaultNorm: def, isLight: isLight),
           const SizedBox(height: 10),
-          _buildLengthSegmentedBar(),
+          _buildLengthSegmentedBar(isLight: isLight),
         ],
       ),
     );
   }
 
-  Widget _buildStartingLetterStrip({required String? active, required String? defaultNorm}) {
+  Widget _buildStartingLetterStrip({
+    required String? active,
+    required String? defaultNorm,
+    required bool isLight,
+  }) {
     final letters = _orderedLetters;
     return SizedBox(
       height: 34,
@@ -148,45 +154,52 @@ class _HintFilterBarState extends State<HintFilterBar> {
           final isWordDefault = letter == defaultNorm;
           final upper = letter.toUpperCase();
 
-          return Pressable(
-            onTap: () => _selectLetter(letter),
-            pressScale: .92,
-            borderRadius: BorderRadius.circular(10),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              constraints: const BoxConstraints(minWidth: 34),
-              padding: const EdgeInsets.symmetric(horizontal: 9),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                gradient: selected ? wbIndigoGradient : null,
-                color: selected
-                    ? null
-                    : (isWordDefault ? WBColors.indigoA(.10) : WBColors.whiteA(.045)),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
+          return Semantics(
+            selected: selected,
+            button: true,
+            label: "$upper harfi bilan boshlanadigan maslahatlar",
+            child: Pressable(
+              onTap: () => _selectLetter(letter),
+              pressScale: .92,
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                constraints: const BoxConstraints(minWidth: 34),
+                padding: const EdgeInsets.symmetric(horizontal: 9),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: selected ? wbIndigoGradient : null,
                   color: selected
-                      ? WBColors.indigo.withValues(alpha: .85)
-                      : (isWordDefault ? WBColors.indigoA(.32) : WBColors.whiteA(.08)),
+                      ? null
+                      : (isWordDefault
+                          ? WBColors.indigoA(isLight ? .12 : .10)
+                          : WBColors.whiteA(isLight ? .06 : .045)),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: selected
+                        ? WBColors.indigo.withValues(alpha: .88)
+                        : (isWordDefault ? WBColors.indigoA(.34) : WBColors.whiteA(.09)),
+                  ),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: WBColors.indigo.withValues(alpha: isLight ? .20 : .28),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : const [],
                 ),
-                boxShadow: selected
-                    ? [
-                        BoxShadow(
-                          color: WBColors.indigo.withValues(alpha: .28),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : const [],
-              ),
-              child: Text(
-                upper,
-                style: WBText.mono(
-                  size: 12.5,
-                  weight: selected ? FontWeight.w700 : FontWeight.w600,
-                  color: selected
-                      ? WBColors.indigoInk
-                      : (isWordDefault ? WBColors.indigoText : WBColors.textA(.72)),
+                child: Text(
+                  upper,
+                  style: WBText.mono(
+                    size: 12.5,
+                    weight: selected ? FontWeight.w700 : FontWeight.w600,
+                    color: selected
+                        ? WBColors.indigoInk
+                        : (isWordDefault ? WBColors.indigoText : WBColors.textA(.74)),
+                  ),
                 ),
               ),
             ),
@@ -196,7 +209,7 @@ class _HintFilterBarState extends State<HintFilterBar> {
     );
   }
 
-  Widget _buildLengthSegmentedBar() {
+  Widget _buildLengthSegmentedBar({required bool isLight}) {
     const filters = HintLengthFilter.values;
     final activeIndex = filters.indexOf(widget.selectedLength);
 
@@ -204,9 +217,9 @@ class _HintFilterBarState extends State<HintFilterBar> {
       height: 44,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: WBColors.whiteA(.04),
+        color: isLight ? WBColors.textA(.045) : WBColors.whiteA(.04),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: WBColors.whiteA(.07)),
+        border: Border.all(color: WBColors.whiteA(.08)),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -225,9 +238,12 @@ class _HintFilterBarState extends State<HintFilterBar> {
                   decoration: BoxDecoration(
                     gradient: wbIndigoGradient,
                     borderRadius: BorderRadius.circular(10),
+                    border: Border(
+                      top: BorderSide(color: Colors.white.withValues(alpha: isLight ? .35 : .18)),
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: WBColors.indigo.withValues(alpha: .28),
+                        color: WBColors.indigo.withValues(alpha: isLight ? .20 : .28),
                         blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
@@ -239,39 +255,44 @@ class _HintFilterBarState extends State<HintFilterBar> {
                 children: [
                   for (final filter in filters)
                     Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => _selectLength(filter),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                filter.label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: WBText.grotesk(
-                                  size: 11.5,
-                                  weight: filter == widget.selectedLength
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: filter == widget.selectedLength
-                                      ? WBColors.indigoInk
-                                      : WBColors.textA(.68),
-                                ),
-                              ),
-                              if (filter.rangeBadge != null)
+                      child: Semantics(
+                        selected: filter == widget.selectedLength,
+                        button: true,
+                        label: filter.semanticDescription,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _selectLength(filter),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
                                 Text(
-                                  filter.rangeBadge!,
-                                  style: WBText.mono(
-                                    size: 9,
-                                    weight: FontWeight.w600,
+                                  filter.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: WBText.grotesk(
+                                    size: 11.5,
+                                    weight: filter == widget.selectedLength
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
                                     color: filter == widget.selectedLength
-                                        ? WBColors.indigoInk.withValues(alpha: .82)
-                                        : WBColors.textA(.42),
+                                        ? WBColors.indigoInk
+                                        : WBColors.textA(.70),
                                   ),
                                 ),
-                            ],
+                                if (filter.rangeBadge != null)
+                                  Text(
+                                    filter.rangeBadge!,
+                                    style: WBText.mono(
+                                      size: 9,
+                                      weight: FontWeight.w600,
+                                      color: filter == widget.selectedLength
+                                          ? WBColors.indigoInk.withValues(alpha: .84)
+                                          : WBColors.textA(.46),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
