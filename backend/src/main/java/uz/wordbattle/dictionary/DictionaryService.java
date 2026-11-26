@@ -358,8 +358,31 @@ public class DictionaryService {
 
     /** Suggestions for the practice screen's hint button and the lose screen. */
     public List<String> hints(char letter, Collection<String> used, int limit) {
+        return hints(letter, used, limit, null, null);
+    }
+
+    /**
+     * Suggestions constrained to an optional length window (used by the
+     * practice hint length filter chips). Falls back to rare words only when an
+     * explicit length filter leaves fewer common matches than requested.
+     */
+    public List<String> hints(
+            char letter,
+            Collection<String> used,
+            int limit,
+            Integer minLength,
+            Integer maxLength) {
+        char normalized = Character.toLowerCase(letter);
+        boolean filtered = minLength != null || maxLength != null;
+        int effectiveMin = minLength != null ? Math.max(3, minLength) : 4;
+        int effectiveMax = maxLength != null ? Math.max(effectiveMin, maxLength) : Integer.MAX_VALUE;
+
         List<String> out = new ArrayList<>(limit);
-        addHints(commonByFirstLetter.getOrDefault(letter, List.of()), used, limit, out);
+        Set<String> seen = new LinkedHashSet<>(used);
+        addHints(commonByFirstLetter.getOrDefault(normalized, List.of()), seen, effectiveMin, effectiveMax, limit, out);
+        if (filtered && out.size() < limit) {
+            addHints(rareByFirstLetter.getOrDefault(normalized, List.of()), seen, effectiveMin, effectiveMax, limit, out);
+        }
         return out;
     }
 
@@ -372,15 +395,25 @@ public class DictionaryService {
     public List<String> hints(WordTheme theme, char letter, Collection<String> used, int limit) {
         ThemePool pool = themePools.get(theme);
         List<String> out = new ArrayList<>(limit);
-        addHints(pool.commonByFirstLetter().getOrDefault(letter, List.of()), used, limit, out);
-        addHints(pool.rareByFirstLetter().getOrDefault(letter, List.of()), used, limit, out);
+        Set<String> seen = new LinkedHashSet<>(used);
+        addHints(pool.commonByFirstLetter().getOrDefault(letter, List.of()), seen, 4, Integer.MAX_VALUE, limit, out);
+        addHints(pool.rareByFirstLetter().getOrDefault(letter, List.of()), seen, 4, Integer.MAX_VALUE, limit, out);
         return out;
     }
 
-    private void addHints(List<String> pool, Collection<String> used, int limit, List<String> out) {
+    private void addHints(
+            List<String> pool,
+            Set<String> seen,
+            int minLength,
+            int maxLength,
+            int limit,
+            List<String> out) {
         for (String candidate : pool) {
             if (out.size() == limit) return;
-            if (candidate.length() >= 4 && !used.contains(candidate)) out.add(candidate);
+            int len = candidate.length();
+            if (len >= minLength && len <= maxLength && seen.add(candidate)) {
+                out.add(candidate);
+            }
         }
     }
 }
