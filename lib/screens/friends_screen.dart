@@ -162,18 +162,23 @@ class FriendsScreen extends StatelessWidget {
                   height: 46,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    color: WBColors.accentA(.1),
-                    border: Border.all(color: WBColors.accentA(.3)),
+                    color: WBColors.bgSurface,
+                    border: Border.all(color: WBColors.hairline),
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.emoji_events_outlined, size: 18, color: WBColors.accent),
+                      Icon(Icons.emoji_events_outlined, size: 18, color: WBColors.amber),
                       const SizedBox(width: 10),
-                      Text(
-                        'Turnir tashkil qilish',
-                        style: WBText.grotesk(size: 14, weight: FontWeight.w600, color: WBColors.accent),
+                      Expanded(
+                        child: Text(
+                          'Turnir tashkil qilish',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: WBText.grotesk(size: 14, weight: FontWeight.w600, color: WBColors.text),
+                        ),
                       ),
+                      Icon(Icons.chevron_right_rounded, size: 18, color: WBColors.textA(.38)),
                     ],
                   ),
                 ),
