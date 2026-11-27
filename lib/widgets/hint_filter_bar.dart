@@ -78,8 +78,8 @@ class _HintFilterBarState extends State<HintFilterBar> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isLight ? WBColors.bgPanel.withValues(alpha: .88) : WBColors.whiteA(.035),
-        border: Border.all(color: isLight ? WBColors.textA(.10) : WBColors.whiteA(.09)),
+        color: WBColors.bgSurface,
+        border: Border.all(color: WBColors.hairline),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -119,7 +119,7 @@ class _HintFilterBarState extends State<HintFilterBar> {
                       style: WBText.grotesk(
                         size: 11,
                         weight: FontWeight.w600,
-                        color: WBColors.indigoText,
+                        color: WBColors.textA(.72),
                       ),
                     ),
                   ),
@@ -169,27 +169,13 @@ class _HintFilterBarState extends State<HintFilterBar> {
                 padding: const EdgeInsets.symmetric(horizontal: 9),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  gradient: selected ? wbIndigoGradient : null,
-                  color: selected
-                      ? null
-                      : (isWordDefault
-                          ? WBColors.indigoA(isLight ? .12 : .10)
-                          : WBColors.whiteA(isLight ? .06 : .045)),
+                  color: selected ? WBColors.text : WBColors.bgElevated,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: selected
-                        ? WBColors.indigo.withValues(alpha: .88)
-                        : (isWordDefault ? WBColors.indigoA(.34) : WBColors.whiteA(.09)),
+                        ? WBColors.text
+                        : (isWordDefault ? WBColors.hairlineStrong : WBColors.hairline),
                   ),
-                  boxShadow: selected
-                      ? [
-                          BoxShadow(
-                            color: WBColors.indigo.withValues(alpha: isLight ? .20 : .28),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : const [],
                 ),
                 child: Text(
                   upper,
@@ -197,8 +183,8 @@ class _HintFilterBarState extends State<HintFilterBar> {
                     size: 12.5,
                     weight: selected ? FontWeight.w700 : FontWeight.w600,
                     color: selected
-                        ? WBColors.indigoInk
-                        : (isWordDefault ? WBColors.indigoText : WBColors.textA(.74)),
+                        ? WBColors.bg
+                        : (isWordDefault ? WBColors.text : WBColors.textA(.68)),
                   ),
                 ),
               ),
@@ -217,9 +203,9 @@ class _HintFilterBarState extends State<HintFilterBar> {
       height: 44,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: isLight ? WBColors.textA(.045) : WBColors.whiteA(.04),
+        color: WBColors.bgDeep,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: WBColors.whiteA(.08)),
+        border: Border.all(color: WBColors.hairline),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -236,16 +222,14 @@ class _HintFilterBarState extends State<HintFilterBar> {
                 width: segmentWidth,
                 child: Container(
                   decoration: BoxDecoration(
-                    gradient: wbIndigoGradient,
+                    color: isLight ? Colors.white : WBColors.bgPressed,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border(
-                      top: BorderSide(color: Colors.white.withValues(alpha: isLight ? .35 : .18)),
-                    ),
+                    border: Border.all(color: WBColors.hairlineStrong),
                     boxShadow: [
                       BoxShadow(
-                        color: WBColors.indigo.withValues(alpha: isLight ? .20 : .28),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
+                        color: Colors.black.withValues(alpha: isLight ? .08 : .22),
+                        blurRadius: 6,
+                        offset: const Offset(0, 1.5),
                       ),
                     ],
                   ),
@@ -276,8 +260,8 @@ class _HintFilterBarState extends State<HintFilterBar> {
                                         ? FontWeight.w700
                                         : FontWeight.w500,
                                     color: filter == widget.selectedLength
-                                        ? WBColors.indigoInk
-                                        : WBColors.textA(.70),
+                                        ? WBColors.text
+                                        : WBColors.textA(.58),
                                   ),
                                 ),
                                 if (filter.rangeBadge != null)
@@ -287,8 +271,8 @@ class _HintFilterBarState extends State<HintFilterBar> {
                                       size: 9,
                                       weight: FontWeight.w600,
                                       color: filter == widget.selectedLength
-                                          ? WBColors.indigoInk.withValues(alpha: .84)
-                                          : WBColors.textA(.46),
+                                          ? WBColors.textA(.68)
+                                          : WBColors.textA(.42),
                                     ),
                                   ),
                               ],

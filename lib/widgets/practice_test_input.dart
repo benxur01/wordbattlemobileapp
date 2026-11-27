@@ -224,9 +224,9 @@ class PracticeTestInputState extends State<PracticeTestInput> with SingleTickerP
         PracticeInputPhase.valid => WBColors.green.withValues(alpha: WBTheme.isLight ? .85 : .78),
         PracticeInputPhase.accepted => WBColors.green,
         PracticeInputPhase.invalid => WBColors.red.withValues(alpha: .85),
-        PracticeInputPhase.incomplete => WBColors.indigo.withValues(alpha: WBTheme.isLight ? .78 : .68),
-        PracticeInputPhase.checking => WBColors.indigo.withValues(alpha: .75),
-        PracticeInputPhase.idle => _hasFocus ? WBColors.indigoA(.55) : WBColors.whiteA(.13),
+        PracticeInputPhase.incomplete => WBColors.cta.withValues(alpha: WBTheme.isLight ? .78 : .72),
+        PracticeInputPhase.checking => WBColors.cta.withValues(alpha: .72),
+        PracticeInputPhase.idle => _hasFocus ? WBColors.hairlineStrong : WBColors.hairline,
       };
 
   Color _fillColor() {
@@ -235,9 +235,8 @@ class PracticeTestInputState extends State<PracticeTestInput> with SingleTickerP
       PracticeInputPhase.valid => WBColors.greenA(isLight ? .09 : .07),
       PracticeInputPhase.accepted => WBColors.greenA(isLight ? .13 : .10),
       PracticeInputPhase.invalid => WBColors.redA(isLight ? .09 : .08),
-      PracticeInputPhase.incomplete => WBColors.indigoA(isLight ? .07 : .06),
-      PracticeInputPhase.checking => WBColors.indigoA(.06),
-      PracticeInputPhase.idle => isLight ? WBColors.bgPanel : WBColors.whiteA(.05),
+      PracticeInputPhase.incomplete || PracticeInputPhase.checking || PracticeInputPhase.idle =>
+        WBColors.bgElevated,
     };
   }
 
@@ -265,20 +264,10 @@ class PracticeTestInputState extends State<PracticeTestInput> with SingleTickerP
             spreadRadius: 1,
           ),
         ],
-      PracticeInputPhase.incomplete || PracticeInputPhase.checking => [
-          BoxShadow(
-            color: WBColors.indigo.withValues(alpha: .18 * glowBoost),
-            blurRadius: 12,
-          ),
-        ],
-      PracticeInputPhase.idle => _hasFocus
-          ? [
-              BoxShadow(
-                color: WBColors.indigo.withValues(alpha: .15 * glowBoost),
-                blurRadius: 12,
-              ),
-            ]
-          : const [],
+      PracticeInputPhase.incomplete ||
+      PracticeInputPhase.checking ||
+      PracticeInputPhase.idle =>
+        const [],
     };
   }
 
@@ -426,16 +415,19 @@ class PracticeTestInputState extends State<PracticeTestInput> with SingleTickerP
                             end: Alignment.bottomRight,
                             colors: [WBColors.green, WBColors.teal],
                           )
-                        : wbIndigoGradient,
+                        : wbCtaGradient,
                     borderRadius: BorderRadius.circular(18),
                     boxShadow: [
+                      if (_phase != PracticeInputPhase.valid && _phase != PracticeInputPhase.accepted)
+                        BoxShadow(
+                          color: WBColors.ctaLip,
+                          offset: const Offset(0, 2.5),
+                          blurRadius: 0,
+                        ),
                       BoxShadow(
-                        color: (_phase == PracticeInputPhase.valid
-                                ? WBColors.green
-                                : WBColors.indigo)
-                            .withValues(alpha: .28),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
+                        color: Colors.black.withValues(alpha: .28),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -451,7 +443,7 @@ class PracticeTestInputState extends State<PracticeTestInput> with SingleTickerP
                           thickness: 2.8,
                           color: _phase == PracticeInputPhase.valid || _phase == PracticeInputPhase.accepted
                               ? WBColors.greenInk
-                              : WBColors.indigoInk,
+                              : WBColors.ctaInk,
                           offset: const Offset(-3, 0),
                         ),
                 ),
