@@ -48,25 +48,33 @@ class ReactionPickerDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
+    return Stack(
       clipBehavior: Clip.none,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-          decoration: BoxDecoration(
-            color: WBColors.whiteA(.045),
-            border: Border.all(color: WBColors.whiteA(.12)),
+      children: [
+        Positioned.fill(
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: WBColors.whiteA(.045),
+                  border: Border.all(color: WBColors.whiteA(.12)),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -97,7 +105,7 @@ class ReactionPickerDock extends StatelessWidget {
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -173,6 +181,7 @@ class _DockEmojiItemState extends State<_DockEmojiItem>
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
+      excludeSemantics: true,
       label: 'Reaksiya: ${widget.emoji}',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
