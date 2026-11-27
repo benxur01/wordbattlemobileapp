@@ -194,13 +194,13 @@ class _PracticeScreenState extends State<PracticeScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       decoration: BoxDecoration(
-                        color: WBColors.indigoA(.11),
-                        border: Border.all(color: WBColors.indigoA(.3)),
+                        color: WBColors.bgSurface,
+                        border: Border.all(color: WBColors.hairline),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         word == null ? '…' : '${word.word.length}',
-                        style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.indigoText),
+                        style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.text),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -215,12 +215,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
                           width: 38,
                           height: 38,
                           decoration: BoxDecoration(
-                            color: WBColors.whiteA(.05),
-                            border: Border.all(color: WBColors.whiteA(.1)),
+                            color: WBColors.bgSurface,
+                            border: Border.all(color: WBColors.hairline),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           alignment: Alignment.center,
-                          child: Icon(Icons.ios_share, size: 16, color: WBColors.textA(.78)),
+                          child: Icon(Icons.ios_share, size: 16, color: WBColors.textA(.8)),
                         ),
                       ),
                     ),
@@ -237,12 +237,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [WBColors.indigoA(.14), WBColors.indigoA(.04)],
-                  ),
-                  border: Border.all(color: WBColors.indigoA(.26)),
+                  color: WBColors.bgSurface,
+                  border: Border.all(color: WBColors.hairline),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Column(
@@ -255,17 +251,17 @@ class _PracticeScreenState extends State<PracticeScreen> {
                           "YANGI SO'Z",
                           style: WBText.mono(
                             size: 10,
-                            weight: FontWeight.w500,
-                            color: WBColors.indigoText.withValues(alpha: .85),
-                            letterSpacing: .14,
+                            weight: FontWeight.w600,
+                            color: WBColors.textA(.48),
+                            letterSpacing: .12,
                           ),
                         ),
                         if (word != null)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
                             decoration: BoxDecoration(
-                              color: WBColors.indigoA(.16),
-                              border: Border.all(color: WBColors.indigoA(.32)),
+                              color: WBColors.bgElevated,
+                              border: Border.all(color: WBColors.hairlineStrong),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -273,8 +269,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
                               style: WBText.mono(
                                 size: 9.5,
                                 weight: FontWeight.w700,
-                                color: WBColors.indigoText,
-                                letterSpacing: .08,
+                                color: WBColors.text,
+                                letterSpacing: .07,
                               ),
                             ),
                           ),
@@ -457,8 +453,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
         Container(
           padding: const EdgeInsets.fromLTRB(22, 12, 22, 18),
           decoration: BoxDecoration(
-            color: WBColors.bg.withValues(alpha: .94),
-            border: Border(top: BorderSide(color: WBColors.whiteA(.07))),
+            color: WBColors.bg.withValues(alpha: .96),
+            border: Border(top: BorderSide(color: WBColors.hairline)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -469,23 +465,23 @@ class _PracticeScreenState extends State<PracticeScreen> {
                     width: 24,
                     height: 24,
                     decoration: BoxDecoration(
-                      color: WBColors.indigoA(.16),
-                      border: Border.all(color: WBColors.indigoA(.4)),
-                      borderRadius: BorderRadius.circular(8),
+                      color: WBColors.bgElevated,
+                      border: Border.all(color: WBColors.hairlineStrong),
+                      borderRadius: BorderRadius.circular(7.5),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       needUpper,
-                      style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.indigoText),
+                      style: WBText.mono(size: 12.5, weight: FontWeight.w700, color: WBColors.text),
                     ),
                   ),
-                  const SizedBox(width: 7),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       "harfi bilan boshlanadigan so'zlar",
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: WBText.grotesk(size: 12.5, color: WBColors.textA(.5)),
+                      style: WBText.grotesk(size: 12.5, color: WBColors.textA(.52)),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -495,29 +491,23 @@ class _PracticeScreenState extends State<PracticeScreen> {
                     borderRadius: BorderRadius.circular(11),
                     semanticLabel: "Maslahat so'zlarni olish",
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6.5),
                       decoration: BoxDecoration(
-                        gradient: wbIndigoGradient,
+                        color: WBColors.bgElevated,
+                        border: Border.all(color: WBColors.hairlineStrong),
                         borderRadius: BorderRadius.circular(11),
-                        boxShadow: [
-                          BoxShadow(
-                            color: WBColors.indigo.withValues(alpha: .22),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             '?',
-                            style: WBText.mono(size: 12.5, weight: FontWeight.w700, color: WBColors.indigoInk),
+                            style: WBText.mono(size: 12, weight: FontWeight.w700, color: WBColors.indigoText),
                           ),
                           const SizedBox(width: 5),
                           Text(
                             'Maslahat',
-                            style: WBText.grotesk(size: 12, weight: FontWeight.w600, color: WBColors.indigoInk),
+                            style: WBText.grotesk(size: 12, weight: FontWeight.w600, color: WBColors.text),
                           ),
                         ],
                       ),
