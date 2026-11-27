@@ -12,11 +12,11 @@ import '../widgets/primary_button.dart';
 import '../widgets/provisional_badge.dart';
 import '../widgets/streak_milestone_tracker.dart';
 
-/// Top-tier AAA Mobile Game Lobby Screen for Word Battle.
+/// Clean, restrained Obsidian Dark Lobby Screen for Word Battle.
 ///
-/// Features rich layered cosmic ambient lighting, modern player profile header,
-/// 3D battle energy portal CTA, gamified 7-day streak quest teaser, and action
-/// tiles for Bot Battle, Friends Duel, and Solo Practice.
+/// Features a flush identity strip, sculpted Hero Duel Card CTA,
+/// 7-day streak progress tracker, and unified matte action tiles for
+/// Bot Battle, Friends Duel, Solo Practice, and Tournaments.
 class LobbyScreen extends StatelessWidget {
   const LobbyScreen({
     super.key,
@@ -363,46 +363,59 @@ class LobbyScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: WBColors.bgElevated,
-                  borderRadius: BorderRadius.circular(99),
-                  border: Border.all(color: WBColors.hairline),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6.5,
-                      height: 6.5,
-                      decoration: BoxDecoration(
-                        color: WBColors.green,
-                        shape: BoxShape.circle,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: WBColors.bgElevated,
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(color: WBColors.hairline),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6.5,
+                        height: 6.5,
+                        decoration: BoxDecoration(
+                          color: WBColors.green,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'ONLAYN · $onlineCount',
-                      style: WBText.mono(
-                        size: 10.5,
-                        weight: FontWeight.w600,
-                        color: WBColors.textA(0.72),
-                        letterSpacing: 0.04,
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'ONLAYN · $onlineCount',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: WBText.mono(
+                            size: 10.5,
+                            weight: FontWeight.w600,
+                            color: WBColors.textA(0.72),
+                            letterSpacing: 0.04,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-              Text(
-                '1v1 TEZKOR DUEL',
-                style: WBText.mono(
-                  size: 10.5,
-                  weight: FontWeight.w600,
-                  color: WBColors.textA(0.42),
-                  letterSpacing: 0.05,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '1v1 TEZKOR DUEL',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: WBText.mono(
+                      size: 10.5,
+                      weight: FontWeight.w600,
+                      color: WBColors.textA(0.42),
+                      letterSpacing: 0.05,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -525,17 +538,21 @@ class LobbyScreen extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '7 KUNLIK SERIYA',
-                        style: WBText.mono(
-                          size: 10.5,
-                          weight: FontWeight.w600,
-                          color: WBColors.textA(0.55),
-                          letterSpacing: 0.04,
+                      Expanded(
+                        child: Text(
+                          '7 KUNLIK SERIYA',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: WBText.mono(
+                            size: 10.5,
+                            weight: FontWeight.w600,
+                            color: WBColors.textA(0.55),
+                            letterSpacing: 0.04,
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
                         '$progressInTier / 7 KUN',
                         style: WBText.mono(
