@@ -482,7 +482,7 @@ class LobbyScreen extends StatelessWidget {
     );
   }
 
-  /// Gamified 7-Day Streak & Milestone Quest Teaser Card.
+  /// Restrained 7-Day Streak & Milestone Quest Card.
   Widget _buildStreakQuestCard(BuildContext context) {
     final streak = user?.streakDays ?? 0;
     final progressInTier = streak > 0 ? (streak % 7 == 0 ? 7 : streak % 7) : 0;
@@ -492,52 +492,33 @@ class LobbyScreen extends StatelessWidget {
         context,
         streakDays: streak,
       ),
-      pressScale: 0.97,
+      pressScale: 0.98,
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              WBColors.amber.withValues(alpha: 0.12),
-              WBColors.flameTop.withValues(alpha: 0.05),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: WBColors.amber.withValues(alpha: 0.28),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 10,
-            ),
-          ],
+          color: WBColors.bgSurface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: WBColors.hairline),
         ),
         child: Row(
           children: [
             Container(
-              width: 34,
-              height: 34,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
-                gradient: wbFlameGradient,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: WBColors.flameTop.withValues(alpha: 0.5),
-                    blurRadius: 8,
-                  ),
-                ],
+                color: WBColors.bgElevated,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: WBColors.hairline),
               ),
-              child: const Icon(
+              alignment: Alignment.center,
+              child: Icon(
                 Icons.local_fire_department_rounded,
-                color: Colors.white,
-                size: 20,
+                color: WBColors.flameTop,
+                size: 19,
               ),
             ),
-            const SizedBox(width: 11),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -549,9 +530,9 @@ class LobbyScreen extends StatelessWidget {
                       Text(
                         '7 KUNLIK SERIYA',
                         style: WBText.mono(
-                          size: 10,
-                          weight: FontWeight.w700,
-                          color: WBColors.amber,
+                          size: 10.5,
+                          weight: FontWeight.w600,
+                          color: WBColors.textA(0.55),
                           letterSpacing: 0.04,
                         ),
                       ),
@@ -560,35 +541,25 @@ class LobbyScreen extends StatelessWidget {
                         style: WBText.mono(
                           size: 10.5,
                           weight: FontWeight.w700,
-                          color: WBColors.textA(0.85),
+                          color: WBColors.text,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 5),
-                  // 7-day dot/step progress bar
+                  const SizedBox(height: 6),
                   Row(
                     children: List.generate(7, (i) {
                       final isDone = i < progressInTier;
                       final isRewardDay = i == 6;
                       return Expanded(
                         child: Container(
-                          height: 5,
+                          height: 4.5,
                           margin: EdgeInsets.only(right: i < 6 ? 4 : 0),
                           decoration: BoxDecoration(
                             color: isDone
                                 ? (isRewardDay ? WBColors.amber : WBColors.flameTop)
-                                : WBColors.whiteA(0.1),
-                            borderRadius: BorderRadius.circular(3),
-                            boxShadow: isDone
-                                ? [
-                                    BoxShadow(
-                                      color: (isRewardDay ? WBColors.amber : WBColors.flameTop)
-                                          .withValues(alpha: 0.6),
-                                      blurRadius: 4,
-                                    ),
-                                  ]
-                                : null,
+                                : WBColors.bgPressed,
+                            borderRadius: BorderRadius.circular(99),
                           ),
                         ),
                       );
@@ -599,9 +570,9 @@ class LobbyScreen extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             Icon(
-              Icons.card_giftcard_rounded,
-              size: 20,
-              color: WBColors.amber,
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: WBColors.textA(0.34),
             ),
           ],
         ),
@@ -614,48 +585,34 @@ class LobbyScreen extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // 1. Bot Battle Action Tile (Full Width Hero Card)
+        // 1. Bot Battle Action Tile (Full Width Matte Card)
         Pressable(
           onTap: onBotBattle,
-          hoverColor: WBColors.whiteA(0.08),
+          hoverColor: WBColors.bgPressed,
           pressScale: 0.98,
           borderRadius: BorderRadius.circular(18),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             decoration: BoxDecoration(
-              color: WBColors.whiteA(0.045),
-              border: Border.all(
-                color: WBColors.amber.withValues(alpha: 0.25),
-                width: 1.2,
-              ),
+              color: WBColors.bgSurface,
+              border: Border.all(color: WBColors.hairline),
               borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
             ),
             child: Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    gradient: wbAmberGradient,
+                    color: WBColors.bgElevated,
                     borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: WBColors.amber.withValues(alpha: 0.4),
-                        blurRadius: 8,
-                      ),
-                    ],
+                    border: Border.all(color: WBColors.hairline),
                   ),
-                  child: const Icon(
+                  alignment: Alignment.center,
+                  child: Icon(
                     Icons.smart_toy_rounded,
                     size: 20,
-                    color: Colors.black87,
+                    color: WBColors.amber,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -666,40 +623,53 @@ class LobbyScreen extends StatelessWidget {
                     children: [
                       Text(
                         'Bot bilan jang',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: WBText.grotesk(
-                          size: 14.5,
+                          size: 15,
                           weight: FontWeight.w700,
                           color: WBColors.text,
                         ),
                       ),
-                      const SizedBox(height: 1.5),
+                      const SizedBox(height: 2),
                       Text(
-                        'Sun\'iy intellekt · kuch darajasini tanlang',
+                        "Sun'iy intellekt darajasini tanlang",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: WBText.grotesk(
-                          size: 11.5,
-                          weight: FontWeight.w400,
-                          color: WBColors.textA(0.55),
+                          size: 12,
+                          color: WBColors.textA(0.52),
                         ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: WBColors.amber.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(9),
-                    border: Border.all(
-                      color: WBColors.amber.withValues(alpha: 0.3),
-                    ),
+                    color: WBColors.bgElevated,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: WBColors.hairline),
                   ),
-                  child: Text(
-                    'Tanlash',
-                    style: WBText.grotesk(
-                      size: 11.5,
-                      weight: FontWeight.w600,
-                      color: WBColors.amber,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Tanlash',
+                        style: WBText.grotesk(
+                          size: 11.5,
+                          weight: FontWeight.w600,
+                          color: WBColors.textA(0.8),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 15,
+                        color: WBColors.textA(0.45),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -710,180 +680,31 @@ class LobbyScreen extends StatelessWidget {
         // 2. Split Row: Friends Duel & Solo Practice
         Row(
           children: [
-            // Friends Duel Card
             Expanded(
-              child: Pressable(
-                onTap: onFriends,
-                hoverColor: WBColors.whiteA(0.08),
-                pressScale: 0.97,
-                borderRadius: BorderRadius.circular(18),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: _SplitModeCard(
+                icon: Icons.people_alt_rounded,
+                iconColor: WBColors.green,
+                title: "Do'stlar",
+                subtitleLeading: Container(
+                  width: 5.5,
+                  height: 5.5,
                   decoration: BoxDecoration(
-                    color: WBColors.whiteA(0.045),
-                    border: Border.all(
-                      color: WBColors.green.withValues(alpha: 0.25),
-                      width: 1.2,
-                    ),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          gradient: wbTealGradient,
-                          borderRadius: BorderRadius.circular(11),
-                          boxShadow: [
-                            BoxShadow(
-                              color: WBColors.green.withValues(alpha: 0.35),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.people_alt_rounded,
-                          size: 19,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Do\'stlar',
-                              style: WBText.grotesk(
-                                size: 14,
-                                weight: FontWeight.w700,
-                                color: WBColors.text,
-                              ),
-                            ),
-                            const SizedBox(height: 1.5),
-                            Row(
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    color: WBColors.green,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: WBColors.green.withValues(alpha: 0.8),
-                                        blurRadius: 4,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(
-                                    '$friendsOnlineCount onlayn',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: WBText.mono(
-                                      size: 11,
-                                      weight: FontWeight.w500,
-                                      color: WBColors.textA(0.6),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    color: WBColors.green,
+                    shape: BoxShape.circle,
                   ),
                 ),
+                subtitle: '$friendsOnlineCount onlayn',
+                onTap: onFriends,
               ),
             ),
             const SizedBox(width: 10),
-            // Solo Practice Card
             Expanded(
-              child: Pressable(
+              child: _SplitModeCard(
+                icon: Icons.menu_book_rounded,
+                iconColor: WBColors.indigoText,
+                title: 'Mashq',
+                subtitle: 'Solo rejim',
                 onTap: onPractice,
-                hoverColor: WBColors.whiteA(0.08),
-                pressScale: 0.97,
-                borderRadius: BorderRadius.circular(18),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: WBColors.whiteA(0.045),
-                    border: Border.all(
-                      color: WBColors.indigo.withValues(alpha: 0.25),
-                      width: 1.2,
-                    ),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          gradient: wbIndigoGradient,
-                          borderRadius: BorderRadius.circular(11),
-                          boxShadow: [
-                            BoxShadow(
-                              color: WBColors.indigo.withValues(alpha: 0.35),
-                              blurRadius: 8,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.psychology_rounded,
-                          size: 20,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Mashq',
-                              style: WBText.grotesk(
-                                size: 14,
-                                weight: FontWeight.w700,
-                                color: WBColors.text,
-                              ),
-                            ),
-                            const SizedBox(height: 1.5),
-                            Text(
-                              'Solo rejim',
-                              style: WBText.mono(
-                                size: 11,
-                                weight: FontWeight.w500,
-                                color: WBColors.textA(0.6),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ),
           ],
@@ -1074,6 +895,97 @@ class _StatChip extends StatelessWidget {
       pressScale: 0.95,
       borderRadius: BorderRadius.circular(12),
       child: chip,
+    );
+  }
+}
+
+class _SplitModeCard extends StatelessWidget {
+  const _SplitModeCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.subtitleLeading,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final Widget? subtitleLeading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      hoverColor: WBColors.bgPressed,
+      pressScale: 0.975,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
+        decoration: BoxDecoration(
+          color: WBColors.bgSurface,
+          border: Border.all(color: WBColors.hairline),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: WBColors.bgElevated,
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: WBColors.hairline),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 19, color: iconColor),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: WBText.grotesk(
+                      size: 14.5,
+                      weight: FontWeight.w700,
+                      color: WBColors.text,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (subtitleLeading != null) ...[
+                        subtitleLeading!,
+                        const SizedBox(width: 5),
+                      ],
+                      Flexible(
+                        child: Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: WBText.mono(
+                            size: 11,
+                            weight: FontWeight.w500,
+                            color: WBColors.textA(0.52),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
