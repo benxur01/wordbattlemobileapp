@@ -7,6 +7,7 @@ import '../widgets/hint_filter_bar.dart';
 import '../widgets/practice_test_input.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/stroke_glyph.dart';
+import '../widgets/word_share_preview_sheet.dart';
 
 /// The practice screen: the server's word of the day, its meaning, filterable
 /// hints on demand, and an interactive test input field with real-time soft
@@ -111,6 +112,14 @@ class _PracticeScreenState extends State<PracticeScreen> {
     _updateHintFilter(letter: fallback, length: HintLengthFilter.all);
   }
 
+  void _shareWordCard(PracticeWordDto word) {
+    WordSharePreviewSheet.show(
+      context,
+      word: word,
+      practicedCount: _testedWords.length,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final word = widget.word;
@@ -131,48 +140,91 @@ class _PracticeScreenState extends State<PracticeScreen> {
             border: Border(bottom: BorderSide(color: WBColors.whiteA(.07))),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Pressable(
-                onTap: widget.onBack,
-                borderRadius: BorderRadius.circular(12),
-                semanticLabel: 'Orqaga',
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: WBColors.whiteA(.05),
-                    border: Border.all(color: WBColors.whiteA(.1)),
+              SizedBox(
+                width: 82,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Pressable(
+                    onTap: widget.onBack,
                     borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignment: Alignment.center,
-                  child: StrokeGlyph.chevronLeft(
-                    size: 11,
-                    thickness: 2,
-                    color: WBColors.textA(.8),
-                    offset: const Offset(2, 0),
+                    semanticLabel: 'Orqaga',
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: WBColors.whiteA(.05),
+                        border: Border.all(color: WBColors.whiteA(.1)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.center,
+                      child: StrokeGlyph.chevronLeft(
+                        size: 11,
+                        thickness: 2,
+                        color: WBColors.textA(.8),
+                        offset: const Offset(2, 0),
+                      ),
+                    ),
                   ),
                 ),
               ),
-              Column(
-                children: [
-                  Text('Mashq rejimi', style: WBText.grotesk(size: 15, weight: FontWeight.w600)),
-                  Text(
-                    'REYTINGSIZ · TAYMERSIZ',
-                    style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(.4)),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: WBColors.indigoA(.11),
-                  border: Border.all(color: WBColors.indigoA(.3)),
-                  borderRadius: BorderRadius.circular(12),
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      'Mashq rejimi',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: WBText.grotesk(size: 15, weight: FontWeight.w600),
+                    ),
+                    Text(
+                      'REYTINGSIZ · TAYMERSIZ',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(.4)),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  word == null ? '…' : '${word.word.length}',
-                  style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.indigoText),
+              ),
+              SizedBox(
+                width: 82,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: WBColors.indigoA(.11),
+                        border: Border.all(color: WBColors.indigoA(.3)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        word == null ? '…' : '${word.word.length}',
+                        style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.indigoText),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Pressable(
+                      onTap: word == null ? null : () => _shareWordCard(word),
+                      pressScale: .94,
+                      borderRadius: BorderRadius.circular(12),
+                      semanticLabel: 'Kun so\'zini ulashish',
+                      child: Opacity(
+                        opacity: word == null ? .38 : 1,
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: WBColors.whiteA(.05),
+                            border: Border.all(color: WBColors.whiteA(.1)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(Icons.ios_share, size: 16, color: WBColors.textA(.78)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
