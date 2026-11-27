@@ -1,4 +1,9 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../api/models.dart';
 import '../theme.dart';
@@ -47,6 +52,65 @@ enum WordShareStyle {
 /// Formats and dispatches shareable "Word of the Day" social captions and images.
 class WordShareService {
   WordShareService._();
+
+  /// Optional test hook intercepting outgoing PNG share payloads without
+  /// invoking platform share sheets during automated tests.
+  @visibleForTesting
+  static Future<void> Function(Uint8List pngBytes, String caption, String word)? testShareHandler;
+
+  /// Captures a mounted [RepaintBoundary] identified by [boundaryKey] into
+  /// high-resolution PNG bytes suitable for Instagram Stories and Telegram.
+  static Future<Uint8List?> captureBoundaryToPng(
+    GlobalKey boundaryKey, {
+    double pixelRatio = 3.0,
+  }) async {
+    final renderObject = boundaryKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderRepaintBoundary) return null;
+
+    final image = await renderObject.toImage(pixelRatio: pixelRatio);
+    try {
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      return byteData?.buffer.asUint8List();
+    } finally {
+      image.dispose();
+    }
+  }
+
+  /// Renders [boundaryKey] to PNG bytes and shares it via the OS share sheet
+  /// (falling back to caption-only sharing if image capture returns null).
+  static Future<bool> shareWordCard({
+    required GlobalKey boundaryKey,
+    required PracticeWordDto word,
+    int practicedCount = 0,
+    double pixelRatio = 3.0,
+  }) async {
+    final caption = buildCaption(word, practicedCount: practicedCount);
+    final pngBytes = await captureBoundaryToPng(boundaryKey, pixelRatio: pixelRatio);
+
+    if (pngBytes == null) {
+      await SharePlus.instance.share(ShareParams(text: caption));
+      return false;
+    }
+
+    if (testShareHandler != null) {
+      await testShareHandler!(pngBytes, caption, word.word);
+      return true;
+    }
+
+    final safeSlug = word.word.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    final file = XFile.fromData(
+      pngBytes,
+      mimeType: 'image/png',
+      name: 'word_battle_${safeSlug.isEmpty ? 'card' : safeSlug}.png',
+    );
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [file],
+        text: caption,
+      ),
+    );
+    return true;
+  }
 
   /// Builds a concise bilingual share caption for Telegram and Instagram.
   static String buildCaption(
