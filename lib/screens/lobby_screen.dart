@@ -196,26 +196,11 @@ class LobbyScreen extends StatelessWidget {
     final streak = user?.streakDays ?? 0;
     final city = user?.city;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: WBColors.whiteA(0.04),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: WBColors.whiteA(0.09),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          // Avatar with neon rim and online beacon
+          // Matte obsidian avatar with subtle presence indicator
           Pressable(
             onTap: onProfile,
             pressScale: 0.94,
@@ -223,30 +208,20 @@ class LobbyScreen extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    gradient: wbPurpleGradient,
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(
-                      color: WBColors.purpleText.withValues(alpha: 0.45),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: WBColors.purple.withValues(alpha: 0.35),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                    color: WBColors.bgSurface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: WBColors.hairlineStrong),
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     initial,
                     style: WBText.grotesk(
-                      size: 18,
+                      size: 17,
                       weight: FontWeight.w700,
-                      color: WBColors.purpleText,
+                      color: WBColors.text,
                     ),
                   ),
                 ),
@@ -254,21 +229,15 @@ class LobbyScreen extends StatelessWidget {
                   right: -2,
                   bottom: -2,
                   child: Container(
-                    width: 12,
-                    height: 12,
+                    width: 11,
+                    height: 11,
                     decoration: BoxDecoration(
                       color: WBColors.green,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: WBColors.bgDeep,
+                        color: WBColors.bg,
                         width: 2,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: WBColors.green.withValues(alpha: 0.8),
-                          blurRadius: 6,
-                        ),
-                      ],
                     ),
                   ),
                 ),
@@ -276,7 +245,7 @@ class LobbyScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // User Name & Location / Rank
+          // User Name & City / Rank
           Expanded(
             child: GestureDetector(
               onTap: onProfile,
@@ -290,12 +259,12 @@ class LobbyScreen extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: WBText.grotesk(
-                      size: 15.5,
+                      size: 16,
                       weight: FontWeight.w700,
-                      letterSpacing: -0.01,
+                      letterSpacing: -0.02,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1.5),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -314,7 +283,7 @@ class LobbyScreen extends StatelessWidget {
                             style: WBText.mono(
                               size: 11,
                               weight: FontWeight.w500,
-                              color: WBColors.textA(0.55),
+                              color: WBColors.textA(0.5),
                             ),
                           ),
                         ),
@@ -324,7 +293,7 @@ class LobbyScreen extends StatelessWidget {
                           style: WBText.mono(
                             size: 11,
                             weight: FontWeight.w500,
-                            color: WBColors.accent.withValues(alpha: 0.85),
+                            color: WBColors.textA(0.48),
                           ),
                         ),
                     ],
@@ -334,51 +303,40 @@ class LobbyScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // Stat Badges
+          // Compact neutral stat chips
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Rating Badge
+              // Rating chip (calm obsidian surface — no loud blue halo)
               _StatChip(
-                color: WBColors.blueText,
-                bg: WBColors.blueDark.withValues(alpha: 0.45),
-                border: WBColors.blue.withValues(alpha: 0.5),
+                color: WBColors.text,
+                bg: WBColors.bgSurface,
+                border: WBColors.hairline,
                 icon: Container(
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
                     color: WBColors.accent,
                     borderRadius: BorderRadius.circular(2),
-                    boxShadow: [
-                      BoxShadow(
-                        color: WBColors.accent.withValues(alpha: 0.75),
-                        blurRadius: 6,
-                      ),
-                    ],
                   ),
                   transform: Matrix4.rotationZ(math.pi / 4),
                   transformAlignment: Alignment.center,
                 ),
                 value: '$rating',
+                trailing: (user?.provisional ?? false) ? const ProvisionalBadge(size: 8.5) : null,
                 onTap: onProfile,
               ),
-              if (user?.provisional ?? false) ...[
-                const SizedBox(width: 5),
-                ProvisionalBadge(size: 9),
-              ],
               const SizedBox(width: 7),
-              // Streak Flame Badge
+              // Streak Flame Badge (calm obsidian surface)
               _StatChip(
-                color: WBColors.flameText,
-                bg: (streak > 0 && streak % 7 == 0)
-                    ? WBColors.amber.withValues(alpha: 0.2)
-                    : WBColors.flameTop.withValues(alpha: 0.12),
+                color: WBColors.text,
+                bg: WBColors.bgSurface,
                 border: (streak > 0 && streak % 7 == 0)
-                    ? WBColors.amber
-                    : WBColors.flameTop.withValues(alpha: 0.38),
+                    ? WBColors.amber.withValues(alpha: 0.45)
+                    : WBColors.hairline,
                 icon: FlameIcon(
-                  width: 13,
-                  height: 15,
+                  width: 12.5,
+                  height: 14.5,
                   tier: StreakFlameTier.fromDays(streak),
                 ),
                 value: '$streak',
@@ -1140,6 +1098,7 @@ class _StatChip extends StatelessWidget {
     required this.border,
     required this.icon,
     required this.value,
+    this.trailing,
     this.onTap,
   });
   final Color color;
@@ -1147,25 +1106,32 @@ class _StatChip extends StatelessWidget {
   final Color border;
   final Widget icon;
   final String value;
+  final Widget? trailing;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 11),
       decoration: BoxDecoration(
         color: bg,
         border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           icon,
           const SizedBox(width: 6),
           Text(
             value,
-            style: WBText.mono(size: 14, weight: FontWeight.w700, color: color),
+            style: WBText.mono(size: 13.5, weight: FontWeight.w700, color: color),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 5),
+            trailing!,
+          ],
         ],
       ),
     );
@@ -1174,7 +1140,7 @@ class _StatChip extends StatelessWidget {
     return Pressable(
       onTap: onTap,
       pressScale: 0.95,
-      borderRadius: BorderRadius.circular(13),
+      borderRadius: BorderRadius.circular(12),
       child: chip,
     );
   }

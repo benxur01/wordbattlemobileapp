@@ -19,10 +19,10 @@ class ProvisionalBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: size * .44, vertical: size * .16),
+      padding: EdgeInsets.symmetric(horizontal: size * .44, vertical: size * .14),
       decoration: BoxDecoration(
-        color: WBColors.amberA(.13),
-        border: Border.all(color: WBColors.amberA(.32)),
+        color: WBColors.bgElevated,
+        border: Border.all(color: WBColors.hairline),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
