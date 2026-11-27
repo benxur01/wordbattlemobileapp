@@ -29,7 +29,7 @@ class DeviceFrameWrapper extends StatelessWidget {
     return Container(
       width: double.infinity,
       height: double.infinity,
-      color: const Color(0xFF1B1C20),
+      color: const Color(0xFF0A0B0E),
       child: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
@@ -48,42 +48,42 @@ class DeviceFrameWrapper extends StatelessWidget {
     final frameH = math.max(screenHeight, 820.0);
 
     return Container(
-      padding: const EdgeInsets.all(11.5), // Outer bezel thickness
+      padding: const EdgeInsets.all(8.5), // Outer bezel thickness
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF484A52), // Top specular reflection
-            Color(0xFF28292E), // Titanium midtone
-            Color(0xFF1F2024),
-            Color(0xFF383A42), // Bottom metallic edge
+            Color(0xFF2F323A), // Subtle top chamfer reflection
+            Color(0xFF1D1F25), // Graphite titanium midtone
+            Color(0xFF16181D),
+            Color(0xFF262830), // Bottom subtle chamfer
           ],
-          stops: [0.0, 0.35, 0.7, 1.0],
+          stops: [0.0, 0.35, 0.72, 1.0],
         ),
-        borderRadius: BorderRadius.circular(54),
+        borderRadius: BorderRadius.circular(50),
         border: Border.all(
-          color: const Color(0xFF555861).withValues(alpha: 0.7),
-          width: 1.8,
+          color: Colors.white.withValues(alpha: 0.11),
+          width: 1.1,
         ),
         boxShadow: [
-          // Heavy ambient studio drop shadow
+          // Restrained studio drop shadow
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.55),
-            blurRadius: 45,
-            spreadRadius: 4,
+            color: Colors.black.withValues(alpha: 0.62),
+            blurRadius: 48,
+            spreadRadius: 2,
             offset: const Offset(0, 20),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
-            blurRadius: 75,
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 72,
             spreadRadius: 0,
             offset: const Offset(0, 10),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(44),
+        borderRadius: BorderRadius.circular(42),
         child: Container(
           width: frameW,
           height: frameH,
@@ -92,22 +92,22 @@ class DeviceFrameWrapper extends StatelessWidget {
             children: [
               // 1. Mobile Screen Content (offset for Dynamic Island notch)
               Positioned(
-                top: 40,
+                top: 38,
                 left: 0,
                 right: 0,
-                bottom: 12,
+                bottom: 10,
                 child: child,
               ),
 
               // 2. Dynamic Island / Sensor Notch
               Positioned(
-                top: 11,
+                top: 10,
                 left: 0,
                 right: 0,
                 child: Center(
                   child: Container(
-                    width: 110,
-                    height: 27,
+                    width: 96,
+                    height: 24,
                     decoration: BoxDecoration(
                       color: Colors.black,
                       borderRadius: BorderRadius.circular(20),
@@ -149,10 +149,12 @@ class DeviceFrameWrapper extends StatelessWidget {
                 right: 0,
                 child: Center(
                   child: Container(
-                    width: 134,
-                    height: 4.5,
+                    width: 112,
+                    height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.35),
+                      color: WBTheme.isLight
+                          ? Colors.black.withValues(alpha: 0.22)
+                          : Colors.white.withValues(alpha: 0.24),
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),
