@@ -97,5 +97,9 @@ void main() {
     await pumpBar(active: WBTab.board);
     await tester.pump();
     expect(tester.takeException(), isNull);
+
+    // Restrained monochrome contrast: active label uses crisp primary text ink.
+    final boardText = tester.widget<Text>(find.text('Reyting'));
+    expect(boardText.style?.color, WBColors.text);
   });
 }

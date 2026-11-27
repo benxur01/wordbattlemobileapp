@@ -97,5 +97,25 @@ void main() {
       expect(find.text('Uzun'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('selected pill uses solid surface in light and dark mode without indigo gradient', (tester) async {
+      await tester.pumpWidget(_wrapFilterBar(selectedLetter: 'r', selectedLength: HintLengthFilter.short));
+      await tester.pumpAndSettle();
+
+      final pill = tester.widget<AnimatedPositioned>(find.byKey(const ValueKey('hint_length_sliding_pill')));
+      final pillBox = (pill.child as Container).decoration! as BoxDecoration;
+      expect(pillBox.gradient, isNull);
+      expect(pillBox.color, WBColors.bgPressed);
+
+      WBTheme.followPlatform(Brightness.light);
+      addTearDown(() => WBTheme.followPlatform(Brightness.dark));
+      await tester.pumpWidget(_wrapFilterBar(selectedLetter: 'r', selectedLength: HintLengthFilter.short));
+      await tester.pumpAndSettle();
+
+      final lightPill = tester.widget<AnimatedPositioned>(find.byKey(const ValueKey('hint_length_sliding_pill')));
+      final lightBox = (lightPill.child as Container).decoration! as BoxDecoration;
+      expect(lightBox.gradient, isNull);
+      expect(lightBox.color, Colors.white);
+    });
   });
 }
