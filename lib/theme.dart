@@ -72,8 +72,11 @@ class WBColors {
 
   static Color _pick(Color dark, Color light) => WBTheme.isLight ? light : dark;
 
-  static Color get bg => _pick(const Color(0xFF141518), const Color(0xFFF5F3ED));
+  static Color get bg => _pick(const Color(0xFF111215), const Color(0xFFF6F5F0));
   static Color get bgPanel => _pick(const Color(0xFF2C2C2A), const Color(0xFFFFFFFF));
+  static Color get bgSurface => _pick(const Color(0xFF181A1F), const Color(0xFFFFFFFF));
+  static Color get bgElevated => _pick(const Color(0xFF20232A), const Color(0xFFF0EEE7));
+  static Color get bgPressed => _pick(const Color(0xFF272B33), const Color(0xFFE6E3DA));
 
   /// The phone body colour behind the screens (`#1F1F1E`), used where the
   /// design punches a ring out of a badge.
@@ -167,8 +170,21 @@ class WBColors {
   static Color blueA(double a) => blue.withValues(alpha: a);
   static Color tealA(double a) => teal.withValues(alpha: a);
 
+  static Color get cta => _pick(const Color(0xFF3567EC), const Color(0xFF2B59D9));
+  static Color get ctaDark => _pick(const Color(0xFF2750C4), const Color(0xFF1F44AE));
+  static Color get ctaLip => _pick(const Color(0xFF1B3991), const Color(0xFF163284));
+  static Color get ctaInk => Colors.white;
+
   static Color get cardFill => textA(.045);
   static Color get cardBorder => textA(.09);
+  static Color get hairline => _pick(
+        Colors.white.withValues(alpha: 0.068),
+        const Color(0xFF1F1E1A).withValues(alpha: 0.085),
+      );
+  static Color get hairlineStrong => _pick(
+        Colors.white.withValues(alpha: 0.13),
+        const Color(0xFF1F1E1A).withValues(alpha: 0.16),
+      );
 }
 
 class WBText {
@@ -260,6 +276,8 @@ LinearGradient get wbBlueGradient => _gradient(WBColors.blue, WBColors.blueDark)
 LinearGradient get wbAmber8Gradient => _gradient(WBColors.amber8, WBColors.amber8Dark);
 
 LinearGradient get wbIndigoGradient => _gradient(WBColors.indigo, WBColors.indigoDark);
+
+LinearGradient get wbCtaGradient => _gradient(WBColors.cta, WBColors.ctaDark);
 
 LinearGradient get wbFlameGradient => LinearGradient(
       begin: Alignment.topCenter,
