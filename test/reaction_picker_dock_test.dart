@@ -124,5 +124,21 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('😮'), findsOneWidget);
     });
+
+    testWidgets('clips BackdropFilter cleanly instead of Clip.none to prevent header blur bleed', (tester) async {
+      await tester.pumpWidget(
+        wrap(
+          ReactionPickerDock(onReact: (_) {}),
+        ),
+      );
+
+      final clip = tester.widget<ClipRRect>(
+        find.ancestor(
+          of: find.byType(BackdropFilter),
+          matching: find.byType(ClipRRect),
+        ),
+      );
+      expect(clip.clipBehavior, isNot(Clip.none));
+    });
   });
 }
