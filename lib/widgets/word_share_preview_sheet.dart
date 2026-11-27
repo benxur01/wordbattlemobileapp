@@ -37,6 +37,7 @@ class WordSharePreviewSheet extends StatefulWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      constraints: const BoxConstraints(maxWidth: 420),
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: .6),
       builder: (context) => WordSharePreviewSheet(
@@ -277,12 +278,16 @@ class _WordSharePreviewSheetState extends State<WordSharePreviewSheet> {
                                     children: [
                                       Icon(Icons.ios_share, size: 17, color: WBColors.indigoInk),
                                       const SizedBox(width: 8),
-                                      Text(
-                                        'Rasmni ulashish',
-                                        style: WBText.grotesk(
-                                          size: 15,
-                                          weight: FontWeight.w700,
-                                          color: WBColors.indigoInk,
+                                      Flexible(
+                                        child: Text(
+                                          'Rasmni ulashish',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: WBText.grotesk(
+                                            size: 15,
+                                            weight: FontWeight.w700,
+                                            color: WBColors.indigoInk,
+                                          ),
                                         ),
                                       ),
                                     ],
