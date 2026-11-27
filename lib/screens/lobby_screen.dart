@@ -715,130 +715,30 @@ class LobbyScreen extends StatelessWidget {
 
   /// Incoming 1v1 Challenge Banner.
   Widget _buildIncomingInvite() {
-    return Pressable(
+    return _LobbyBannerCard(
       onTap: onIncoming,
-      hoverColor: WBColors.greenA(.14),
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: BoxDecoration(
-          color: WBColors.greenA(.09),
-          border: Border.all(color: WBColors.greenA(.28)),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                gradient: wbTealGradient,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                incoming!.user.initial,
-                style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
-              ),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${incoming!.user.label} seni chaqirmoqda',
-                    style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
-                  ),
-                  Text(
-                    "do'stlik jangi · javob ber",
-                    style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-              decoration: BoxDecoration(
-                color: WBColors.green,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Text(
-                "Ko'rish",
-                style: WBText.grotesk(
-                  size: 12.5,
-                  weight: FontWeight.w600,
-                  color: WBColors.greenInk,
-                ),
-              ),
-            ),
-          ],
-        ),
+      avatar: _BannerAvatar.initial(incoming!.user.initial, accent: WBColors.green),
+      title: '${incoming!.user.label} seni chaqirmoqda',
+      subtitle: "do'stlik jangi · javob ber",
+      trailing: _BannerActionPill(
+        label: "Ko'rish",
+        bg: WBColors.green,
+        fg: WBColors.greenInk,
       ),
     );
   }
 
   /// Incoming 2v2 Team Challenge Banner.
   Widget _buildIncomingTeamInvite() {
-    return Pressable(
+    return _LobbyBannerCard(
       onTap: onIncomingTeam,
-      hoverColor: WBColors.accentA(.14),
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: BoxDecoration(
-          color: WBColors.accentA(.09),
-          border: Border.all(color: WBColors.accentA(.28)),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                gradient: wbTealGradient,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                incomingTeam!.user.initial,
-                style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
-              ),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${incomingTeam!.user.label} jamoaga taklif qilmoqda',
-                    style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
-                  ),
-                  Text(
-                    "2v2 jamoa taklifi · javob ber",
-                    style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-              decoration: BoxDecoration(
-                color: WBColors.accent,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: Text(
-                "Ko'rish",
-                style: WBText.grotesk(
-                  size: 12.5,
-                  weight: FontWeight.w600,
-                  color: WBColors.accentInk,
-                ),
-              ),
-            ),
-          ],
-        ),
+      avatar: _BannerAvatar.initial(incomingTeam!.user.initial, accent: WBColors.cta),
+      title: '${incomingTeam!.user.label} jamoaga taklif qilmoqda',
+      subtitle: '2v2 jamoa taklifi · javob ber',
+      trailing: _BannerActionPill(
+        label: "Ko'rish",
+        bg: WBColors.cta,
+        fg: WBColors.ctaInk,
       ),
     );
   }
@@ -990,6 +890,131 @@ class _SplitModeCard extends StatelessWidget {
   }
 }
 
+class _LobbyBannerCard extends StatelessWidget {
+  const _LobbyBannerCard({
+    required this.avatar,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+    this.extraLine,
+    this.onTap,
+  });
+
+  final Widget avatar;
+  final String title;
+  final String subtitle;
+  final String? extraLine;
+  final Widget trailing;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: WBColors.bgSurface,
+        border: Border.all(color: WBColors.hairline),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          avatar,
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
+                ),
+                if (extraLine != null)
+                  Text(
+                    extraLine!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: WBText.grotesk(size: 11.5, color: WBColors.textA(.42)),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          trailing,
+        ],
+      ),
+    );
+
+    if (onTap == null) return content;
+    return Pressable(
+      onTap: onTap,
+      hoverColor: WBColors.bgPressed,
+      pressScale: 0.98,
+      borderRadius: BorderRadius.circular(18),
+      child: content,
+    );
+  }
+}
+
+class _BannerAvatar extends StatelessWidget {
+  const _BannerAvatar._({required this.child});
+
+  factory _BannerAvatar.initial(String text, {required Color accent}) => _BannerAvatar._(
+        child: Text(
+          text,
+          style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: accent),
+        ),
+      );
+
+  factory _BannerAvatar.icon(IconData icon, {required Color accent}) => _BannerAvatar._(
+        child: Icon(icon, size: 18, color: accent),
+      );
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: WBColors.bgElevated,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: WBColors.hairline),
+      ),
+      alignment: Alignment.center,
+      child: child,
+    );
+  }
+}
+
+class _BannerActionPill extends StatelessWidget {
+  const _BannerActionPill({required this.label, required this.bg, required this.fg});
+
+  final String label;
+  final Color bg;
+  final Color fg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      child: Text(
+        label,
+        style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: fg),
+      ),
+    );
+  }
+}
+
 /// "You've formed a 2v2 team" banner.
 class _TeamReadyBanner extends StatelessWidget {
   const _TeamReadyBanner({required this.partner, required this.onQueue, required this.onCancel});
@@ -1000,73 +1025,36 @@ class _TeamReadyBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      decoration: BoxDecoration(
-        color: WBColors.accentA(.09),
-        border: Border.all(color: WBColors.accentA(.28)),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
+    return _LobbyBannerCard(
+      avatar: _BannerAvatar.initial(partner.initial, accent: WBColors.cta),
+      title: '${partner.label} bilan jamoa tayyor',
+      subtitle: '2v2 raqib jamoa qidirasiz',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(gradient: wbTealGradient, borderRadius: BorderRadius.circular(12)),
-            alignment: Alignment.center,
-            child: Text(
-              partner.initial,
-              style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${partner.label} bilan jamoa tayyor',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
-                ),
-                Text(
-                  '2v2 raqib jamoa qidirasiz',
-                  style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
-                ),
-              ],
-            ),
-          ),
           Pressable(
             onTap: onCancel,
-            hoverColor: WBColors.whiteA(.08),
-            borderRadius: BorderRadius.circular(11),
+            hoverColor: WBColors.bgPressed,
+            borderRadius: BorderRadius.circular(10),
             semanticLabel: 'Jamoani bekor qilish',
             child: Container(
-              width: 34,
-              height: 34,
+              width: 32,
+              height: 32,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: WBColors.whiteA(.05),
-                border: Border.all(color: WBColors.whiteA(.12)),
-                borderRadius: BorderRadius.circular(11),
+                color: WBColors.bgElevated,
+                border: Border.all(color: WBColors.hairline),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Text('×', style: WBText.grotesk(size: 16, color: WBColors.textA(.5))),
+              child: Text('×', style: WBText.grotesk(size: 16, color: WBColors.textA(.55))),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 7),
           Pressable(
             onTap: onQueue,
             pressScale: .96,
-            borderRadius: BorderRadius.circular(11),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-              decoration: BoxDecoration(color: WBColors.accent, borderRadius: BorderRadius.circular(11)),
-              child: Text(
-                'Navbat',
-                style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.accentInk),
-              ),
-            ),
+            borderRadius: BorderRadius.circular(10),
+            child: _BannerActionPill(label: 'Navbat', bg: WBColors.cta, fg: WBColors.ctaInk),
           ),
         ],
       ),
@@ -1083,57 +1071,14 @@ class _TournamentInviteBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Pressable(
+    return _LobbyBannerCard(
       onTap: onTap,
-      hoverColor: WBColors.accentA(.14),
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: BoxDecoration(
-          color: WBColors.accentA(.09),
-          border: Border.all(color: WBColors.accentA(.28)),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(gradient: wbAccentGradient, borderRadius: BorderRadius.circular(12)),
-              alignment: Alignment.center,
-              child: Icon(Icons.emoji_events_outlined, size: 18, color: WBColors.accentInk),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    invite.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
-                  ),
-                  Text(
-                    invite.isTeam
-                        ? "2v2 turnir taklifi · ${invite.size} jamoa"
-                        : "turnir taklifi · ${invite.size} o'yinchi",
-                    style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-              decoration: BoxDecoration(color: WBColors.accent, borderRadius: BorderRadius.circular(11)),
-              child: Text(
-                "Ko'rish",
-                style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.accentInk),
-              ),
-            ),
-          ],
-        ),
-      ),
+      avatar: _BannerAvatar.icon(Icons.emoji_events_outlined, accent: WBColors.amber),
+      title: invite.name,
+      subtitle: invite.isTeam
+          ? '2v2 turnir taklifi · ${invite.size} jamoa'
+          : "turnir taklifi · ${invite.size} o'yinchi",
+      trailing: _BannerActionPill(label: "Ko'rish", bg: WBColors.cta, fg: WBColors.ctaInk),
     );
   }
 }
@@ -1155,67 +1100,13 @@ class _TournamentReadyBanner extends StatelessWidget {
         : opponentPartner == null
             ? opponent.label
             : '${opponent.label} + ${opponentPartner.label}';
-    return Pressable(
+    return _LobbyBannerCard(
       onTap: onTap,
-      hoverColor: WBColors.greenA(.14),
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: BoxDecoration(
-          color: WBColors.greenA(.09),
-          border: Border.all(color: WBColors.greenA(.28)),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(gradient: wbTealGradient, borderRadius: BorderRadius.circular(12)),
-              alignment: Alignment.center,
-              child: Text(
-                opponent?.initial ?? '?',
-                style: WBText.grotesk(size: 15, weight: FontWeight.w700, color: WBColors.tealText),
-              ),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    opponentLabel == null ? 'Turnir jangi tayyor' : '$opponentLabel bilan turnir jangi tayyor',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: WBText.grotesk(size: 13.5, weight: FontWeight.w600),
-                  ),
-                  Text(
-                    '${prompt.tournamentName} · ${prompt.roundLabel}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: WBText.grotesk(size: 11.5, color: WBColors.textA(.5)),
-                  ),
-                  if (partner != null)
-                    Text(
-                      'juftingiz: ${partner.label}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: WBText.grotesk(size: 11.5, color: WBColors.textA(.4)),
-                    ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-              decoration: BoxDecoration(color: WBColors.green, borderRadius: BorderRadius.circular(11)),
-              child: Text(
-                'Boshlash',
-                style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.greenInk),
-              ),
-            ),
-          ],
-        ),
-      ),
+      avatar: _BannerAvatar.initial(opponent?.initial ?? '?', accent: WBColors.green),
+      title: opponentLabel == null ? 'Turnir jangi tayyor' : '$opponentLabel bilan turnir jangi tayyor',
+      subtitle: '${prompt.tournamentName} · ${prompt.roundLabel}',
+      extraLine: partner == null ? null : 'juftingiz: ${partner.label}',
+      trailing: _BannerActionPill(label: 'Boshlash', bg: WBColors.green, fg: WBColors.greenInk),
     );
   }
 }
@@ -1231,30 +1122,30 @@ class _TournamentDiscoveryBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Pressable(
       onTap: onTap,
-      hoverColor: WBColors.whiteA(.08),
-      borderRadius: BorderRadius.circular(20),
+      hoverColor: WBColors.bgPressed,
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: WBColors.whiteA(.04),
-          border: Border.all(color: WBColors.whiteA(.09)),
-          borderRadius: BorderRadius.circular(20),
+          color: WBColors.bgSurface,
+          border: Border.all(color: WBColors.hairline),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Row(
           children: [
-            Icon(Icons.emoji_events_outlined, size: 18, color: WBColors.textA(.5)),
+            Icon(Icons.emoji_events_outlined, size: 17, color: WBColors.textA(.55)),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 '${tournament.name} · jonli bracket',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: WBText.grotesk(size: 12.5, weight: FontWeight.w500, color: WBColors.textA(.7)),
+                style: WBText.grotesk(size: 12.5, weight: FontWeight.w500, color: WBColors.textA(.76)),
               ),
             ),
             Text(
               "Ko'rish",
-              style: WBText.grotesk(size: 12.5, weight: FontWeight.w600, color: WBColors.textA(.55)),
+              style: WBText.grotesk(size: 12, weight: FontWeight.w600, color: WBColors.textA(.55)),
             ),
           ],
         ),
@@ -1272,28 +1163,36 @@ class _TournamentsBrowseLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 10),
+      padding: const EdgeInsets.only(top: 10, bottom: 10),
       child: Pressable(
         onTap: onTap,
-        hoverColor: WBColors.whiteA(.06),
-        borderRadius: BorderRadius.circular(15),
+        hoverColor: WBColors.bgPressed,
+        pressScale: 0.985,
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          height: 46,
+          height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: WBColors.accentA(.1),
-            border: Border.all(color: WBColors.accentA(.3)),
-            borderRadius: BorderRadius.circular(15),
+            color: WBColors.bgSurface,
+            border: Border.all(color: WBColors.hairline),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.emoji_events_outlined, size: 18, color: WBColors.accent),
+              Icon(Icons.emoji_events_outlined, size: 18, color: WBColors.amber),
               const SizedBox(width: 10),
-              Text(
-                'Barchasini ko\'rish',
-                style: WBText.grotesk(size: 14, weight: FontWeight.w600, color: WBColors.accent),
+              Expanded(
+                child: Text(
+                  "Barchasini ko'rish",
+                  style: WBText.grotesk(size: 14, weight: FontWeight.w600, color: WBColors.text),
+                ),
               ),
+              Text(
+                'Turnirlar',
+                style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(.44)),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded, size: 18, color: WBColors.textA(.38)),
             ],
           ),
         ),
