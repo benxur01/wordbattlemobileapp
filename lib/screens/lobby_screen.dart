@@ -115,13 +115,11 @@ class LobbyScreen extends StatelessWidget {
                   physics: const BouncingScrollPhysics(),
                   child: Column(
                     children: [
-                      const SizedBox(height: 4),
-                      _buildOnlineCapsule(),
-                      const SizedBox(height: 16),
-                      _buildBattlePortal(),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 8),
+                      _buildHeroArenaCard(),
+                      const SizedBox(height: 12),
                       _buildStreakQuestCard(context),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
                       _buildModeCards(),
                       if (incoming != null) ...[
                         const SizedBox(height: 12),
@@ -352,203 +350,137 @@ class LobbyScreen extends StatelessWidget {
     );
   }
 
-  /// Live Online Players Capsule Pill.
-  Widget _buildOnlineCapsule() {
+  /// Tactile Hero Arena Card unifying live online presence and primary 1v1 CTA.
+  Widget _buildHeroArenaCard() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
       decoration: BoxDecoration(
-        color: WBColors.whiteA(0.04),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: WBColors.whiteA(0.09),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 8,
-          ),
-        ],
+        color: WBColors.bgSurface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: WBColors.hairline),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(
-              color: WBColors.green,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: WBColors.green.withValues(alpha: 0.8),
-                  blurRadius: 6,
-                  spreadRadius: 1,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: WBColors.bgElevated,
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: WBColors.hairline),
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6.5,
+                      height: 6.5,
+                      decoration: BoxDecoration(
+                        color: WBColors.green,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'ONLAYN · $onlineCount',
+                      style: WBText.mono(
+                        size: 10.5,
+                        weight: FontWeight.w600,
+                        color: WBColors.textA(0.72),
+                        letterSpacing: 0.04,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '1v1 TEZKOR DUEL',
+                style: WBText.mono(
+                  size: 10.5,
+                  weight: FontWeight.w600,
+                  color: WBColors.textA(0.42),
+                  letterSpacing: 0.05,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "So'z jangiga kiring",
+            style: WBText.grotesk(
+              size: 22,
+              weight: FontWeight.w700,
+              color: WBColors.text,
+              letterSpacing: -0.025,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(height: 4),
           Text(
-            'ONLAYN · $onlineCount O\'YINCHI',
-            style: WBText.mono(
-              size: 10.5,
-              weight: FontWeight.w600,
-              color: WBColors.textA(0.58),
-              letterSpacing: 0.05,
+            'Teng darajali raqib bilan jonli 15 soniyali navbat',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: WBText.grotesk(
+              size: 13,
+              color: WBColors.textA(0.54),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Pressable(
+            onTap: onStartMatch,
+            pressScale: 0.975,
+            borderRadius: BorderRadius.circular(15),
+            child: Container(
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: wbCtaGradient,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.14),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: WBColors.ctaLip,
+                    offset: const Offset(0, 3),
+                    blurRadius: 0,
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.26),
+                    blurRadius: 14,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.bolt_rounded,
+                    color: WBColors.ctaInk,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    'JANG BOSHLASH',
+                    style: WBText.grotesk(
+                      size: 15,
+                      weight: FontWeight.w700,
+                      color: WBColors.ctaInk,
+                      letterSpacing: 0.03,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
-
-  /// 3D Energy Battle Portal CTA Button ("JANG BOSHLASH").
-  Widget _buildBattlePortal() {
-    return Pressable(
-      onTap: onStartMatch,
-      pressScale: 0.96,
-      child: Container(
-        width: 224,
-        height: 224,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const RadialGradient(
-            center: Alignment(-0.25, -0.3),
-            radius: 0.95,
-            colors: [
-              Color(0xFF00F5D4), // Vibrant electric cyan
-              Color(0xFF00B4D8), // Electric teal
-              Color(0xFF0077B6), // Deep oceanic sapphire
-              Color(0xFF03045E), // Cosmic dark base
-            ],
-            stops: [0.0, 0.4, 0.78, 1.0],
-          ),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.48),
-            width: 3.5,
-          ),
-          boxShadow: [
-            // Deep ambient drop shadow
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.45),
-              blurRadius: 22,
-              offset: const Offset(0, 10),
-            ),
-            // Soft localized rim glow (does not bleed into background)
-            BoxShadow(
-              color: const Color(0xFF00F5D4).withValues(alpha: 0.28),
-              blurRadius: 18,
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Concentric specular glass ring
-              Container(
-                width: 196,
-                height: 196,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.22),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-              // Button content
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // 3D Duel Emblem with specular sheen
-                  Container(
-                    width: 40,
-                    height: 40,
-                    margin: const EdgeInsets.only(bottom: 9),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.95),
-                          Colors.white.withValues(alpha: 0.6),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(13),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    transform: Matrix4.rotationZ(math.pi / 4),
-                    transformAlignment: Alignment.center,
-                    child: Center(
-                      child: Transform.rotate(
-                        angle: -math.pi / 4,
-                        child: const Icon(
-                          Icons.bolt_rounded,
-                          color: Color(0xFF03045E),
-                          size: 25,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    'JANG BOSHLASH',
-                    textAlign: TextAlign.center,
-                    style: WBText.grotesk(
-                      size: 22,
-                      weight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: -0.01,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.32),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.22),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 5,
-                          height: 5,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF00F5D4),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          '1v1 TEZKOR DUEL',
-                          style: WBText.mono(
-                            size: 10.5,
-                            weight: FontWeight.w600,
-                            color: const Color(0xFFE0FAFF),
-                            letterSpacing: 0.04,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    }
 
   /// Gamified 7-Day Streak & Milestone Quest Teaser Card.
   Widget _buildStreakQuestCard(BuildContext context) {
