@@ -34,7 +34,9 @@ class WordShareCard extends StatelessWidget {
     final accent = style.accent;
     final secondary = style.secondaryAccent;
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
       width: cardWidth,
       height: cardHeight,
       clipBehavior: Clip.antiAlias,
@@ -46,12 +48,17 @@ class WordShareCard extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: Colors.white.withValues(alpha: .14),
+          color: Colors.white.withValues(alpha: .15),
           width: 1.4,
         ),
       ),
       child: Stack(
         children: [
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _CardDotGridPainter(color: accent.withValues(alpha: .12)),
+            ),
+          ),
           Positioned(
             top: -54,
             right: -42,
@@ -62,7 +69,7 @@ class WordShareCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    accent.withValues(alpha: .32),
+                    accent.withValues(alpha: .34),
                     accent.withValues(alpha: 0),
                   ],
                 ),
@@ -79,7 +86,7 @@ class WordShareCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    secondary.withValues(alpha: .28),
+                    secondary.withValues(alpha: .30),
                     secondary.withValues(alpha: 0),
                   ],
                 ),
@@ -95,9 +102,16 @@ class WordShareCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: .06),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: .10),
+                        Colors.white.withValues(alpha: .04),
+                      ],
+                    ),
                     borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: Colors.white.withValues(alpha: .14)),
+                    border: Border.all(color: Colors.white.withValues(alpha: .16)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,13 +221,28 @@ class WordShareCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 9),
                           Expanded(
-                            child: Text(
-                              'Word Battle',
-                              style: WBText.grotesk(
-                                size: 13.5,
-                                weight: FontWeight.w700,
-                                color: Colors.white.withValues(alpha: .92),
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Word Battle',
+                                  style: WBText.grotesk(
+                                    size: 13.5,
+                                    weight: FontWeight.w700,
+                                    color: Colors.white.withValues(alpha: .94),
+                                  ),
+                                ),
+                                Text(
+                                  'KUNLIK MASHQ',
+                                  style: WBText.mono(
+                                    size: 8.5,
+                                    weight: FontWeight.w500,
+                                    color: Colors.white.withValues(alpha: .46),
+                                    letterSpacing: .12,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           if (practicedCount > 0)
@@ -245,4 +274,24 @@ class WordShareCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CardDotGridPainter extends CustomPainter {
+  const _CardDotGridPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    const spacing = 22.0;
+    for (double y = spacing / 2; y < size.height; y += spacing) {
+      for (double x = spacing / 2; x < size.width; x += spacing) {
+        canvas.drawCircle(Offset(x, y), 1.0, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CardDotGridPainter oldDelegate) => oldDelegate.color != color;
 }
