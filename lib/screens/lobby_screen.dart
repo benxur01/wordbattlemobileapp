@@ -650,7 +650,7 @@ class LobbyScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        "Sun'iy intellekt darajasini tanlang",
+                        'AI daraja · oson / qiyin',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: WBText.grotesk(
