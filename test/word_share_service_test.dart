@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:word_battle/api/models.dart';
 import 'package:word_battle/utils/word_share_service.dart';
+import 'package:word_battle/widgets/word_share_card.dart';
 
 void main() {
   const sampleWord = PracticeWordDto(
@@ -34,6 +36,58 @@ void main() {
       expect(caption, contains("5 ta so'z topdim"));
       expect(caption, contains('«W»'));
       expect(caption, isNot(contains('  \n')));
+    });
+  });
+
+  group('WordShareService PNG image export', () {
+    tearDown(() {
+      WordShareService.testShareHandler = null;
+    });
+
+    testWidgets('captures mounted RepaintBoundary into valid 3x PNG bytes', (tester) async {
+      final boundaryKey = GlobalKey();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: const WordShareCard(word: sampleWord, practicedCount: 3),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final bytes = await tester.runAsync(
+        () => WordShareService.captureBoundaryToPng(boundaryKey, pixelRatio: 2.0),
+      );
+
+      expect(bytes, isNotNull);
+      expect(bytes!.length, greaterThan(1000));
+      // Valid PNG magic signature: 0x89 P N G
+      expect(bytes.take(4).toList(), [0x89, 0x50, 0x4E, 0x47]);
+
+      String? seenWord;
+      int? seenLength;
+      WordShareService.testShareHandler = (pngBytes, caption, word) async {
+        seenWord = word;
+        seenLength = pngBytes.length;
+      };
+
+      final shared = await tester.runAsync(
+        () => WordShareService.shareWordCard(
+          boundaryKey: boundaryKey,
+          word: sampleWord,
+          practicedCount: 3,
+          pixelRatio: 2.0,
+        ),
+      );
+
+      expect(shared, isTrue);
+      expect(seenWord, 'harbour');
+      expect(seenLength, greaterThan(1000));
     });
   });
 }
