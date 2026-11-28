@@ -97,4 +97,20 @@ class PracticeControllerTest {
         assertThatThrownBy(() -> controller.hints("r", 6, 0, 4)).isInstanceOf(ApiException.class);
         assertThatThrownBy(() -> controller.hints("r", 6, 6, 3)).isInstanceOf(ApiException.class);
     }
+
+    @Test
+    void exposesRareLetterDrillsForXAndQ() {
+        when(dictionary.hints(eq('x'), anyList(), eq(6), eq(3), eq((Integer) null)))
+                .thenReturn(List.of("xray", "xenon"));
+        when(dictionary.hints(eq('q'), anyList(), eq(6), eq(3), eq((Integer) null)))
+                .thenReturn(List.of("queen", "quartz"));
+
+        var drills = controller.drills(0);
+        assertThat(drills).extracting(RareLetterDrillService.RareLetterDrillDto::letter).containsExactly("x", "q");
+
+        var qDrill = controller.drill("Q", 1);
+        assertThat(qDrill.letter()).isEqualTo("q");
+        assertThat(qDrill.hints()).containsExactly("queen", "quartz");
+        assertThatThrownBy(() -> controller.drill("z", 0)).isInstanceOf(ApiException.class);
+    }
 }
