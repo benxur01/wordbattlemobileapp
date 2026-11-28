@@ -1,17 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api/models.dart';
+import '../audio/sound_effects.dart';
 import '../theme.dart';
 import '../utils/hint_filter.dart';
+import '../utils/rare_letter_drill.dart';
 import '../widgets/hint_filter_bar.dart';
 import '../widgets/practice_test_input.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/rare_letter_drill_panel.dart';
 import '../widgets/stroke_glyph.dart';
 import '../widgets/word_share_preview_sheet.dart';
 
-/// The practice screen: the server's word of the day, its meaning, filterable
-/// hints on demand, and an interactive test input field with real-time soft
-/// glow validation and elastic shake feedback on invalid input.
+enum _PracticeMode { daily, rareDrills }
+
+/// The practice screen: switches seamlessly between the server's word of the
+/// day and specialized rare-letter X & Q mastery drills.
 class PracticeScreen extends StatefulWidget {
   const PracticeScreen({
     super.key,
@@ -23,6 +30,11 @@ class PracticeScreen extends StatefulWidget {
     this.selectedHintLetter,
     this.selectedLengthFilter = HintLengthFilter.all,
     this.onHintFilterChanged,
+    this.rareDrills = const [],
+    this.selectedDrillLetter = 'x',
+    this.onSelectDrillLetter,
+    this.onRotateDrillPrompt,
+    this.onCheckDrillWord,
   });
 
   /// Null while the request is in flight.
@@ -45,6 +57,21 @@ class PracticeScreen extends StatefulWidget {
   /// filter chip so the parent can fetch fresh filtered hints.
   final void Function(String letter, HintLengthFilter length)? onHintFilterChanged;
 
+  /// Rare-letter X & Q drills fetched from the server (falls back locally).
+  final List<RareLetterDrillDto> rareDrills;
+
+  /// Parent-driven selected rare letter (`'x'` or `'q'`).
+  final String selectedDrillLetter;
+
+  /// Called when the player switches between X and Q drill tiles.
+  final ValueChanged<String>? onSelectDrillLetter;
+
+  /// Rotates the active drill's prompt word sample.
+  final VoidCallback? onRotateDrillPrompt;
+
+  /// Optional server validation specifically for rare-letter drill inputs.
+  final Future<PracticeCheckDto> Function(String letter, String word)? onCheckDrillWord;
+
   @override
   State<PracticeScreen> createState() => _PracticeScreenState();
 }
@@ -54,6 +81,23 @@ class _PracticeScreenState extends State<PracticeScreen> {
   final List<String> _testedWords = [];
   String? _localHintLetter;
   HintLengthFilter _localLengthFilter = HintLengthFilter.all;
+  _PracticeMode _mode = _PracticeMode.daily;
+  String _localDrillLetter = 'x';
+  int _localDrillOffset = 0;
+  Map<String, RareLetterProgress> _drillProgress = RareLetterDrillHelper.emptyProgressMap();
+  final Map<String, int> _drillBurstNonce = {'x': 0, 'q': 0};
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_restoreDrillProgress());
+  }
+
+  Future<void> _restoreDrillProgress() async {
+    final loaded = await RareLetterDrillHelper.loadProgress();
+    if (!mounted) return;
+    setState(() => _drillProgress = loaded);
+  }
 
   @override
   void didUpdateWidget(covariant PracticeScreen oldWidget) {
@@ -64,6 +108,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
       _localLengthFilter = HintLengthFilter.all;
       _inputKey.currentState?.resetInput();
     }
+    if (oldWidget.selectedDrillLetter != widget.selectedDrillLetter) {
+      _inputKey.currentState?.resetInput();
+    }
   }
 
   String? get _needLetter {
@@ -72,12 +119,100 @@ class _PracticeScreenState extends State<PracticeScreen> {
     return raw.substring(raw.length - 1).toLowerCase();
   }
 
+  String get _activeDrillLetter =>
+      RareLetterDrillHelper.normalizeLetter(
+        widget.onSelectDrillLetter != null ? widget.selectedDrillLetter : _localDrillLetter,
+      ) ??
+      'x';
+
+  List<RareLetterDrillDto> get _resolvedDrills {
+    if (widget.rareDrills.isNotEmpty) return widget.rareDrills;
+    final base = RareLetterDrillHelper.fallbackDrills();
+    if (_localDrillOffset == 0) return base;
+    const altX = [
+      ('apex', '/ˈeɪpeks/', "cho'qqi — eng yuqori nuqta"),
+      ('matrix', '/ˈmeɪtrɪks/', 'matritsa — qator va ustunlar jadvali'),
+      ('vortex', '/ˈvɔːteks/', 'girdob — kuchli aylanma oqim'),
+    ];
+    const altQ = [
+      ('quartz', '/kwɔːts/', 'kvars — shaffof va qattiq mineral tosh'),
+      ('quest', '/kwest/', 'izlanish, maqsadli safar'),
+      ('quorum', '/ˈkwɔːrəm/', 'kvorum — qaror qabul qilish uchun yetarli son'),
+    ];
+    return [
+      for (final d in base)
+        RareLetterDrillDto(
+          letter: d.letter,
+          badge: d.badge,
+          title: d.title,
+          subtitle: d.subtitle,
+          tip: d.tip,
+          promptWord: d.normalizedLetter == 'x'
+              ? altX[_localDrillOffset % altX.length].$1
+              : altQ[_localDrillOffset % altQ.length].$1,
+          promptIpa: d.normalizedLetter == 'x'
+              ? altX[_localDrillOffset % altX.length].$2
+              : altQ[_localDrillOffset % altQ.length].$2,
+          promptMeaning: d.normalizedLetter == 'x'
+              ? altX[_localDrillOffset % altX.length].$3
+              : altQ[_localDrillOffset % altQ.length].$3,
+          targetCount: d.targetCount,
+          hints: d.hints,
+        ),
+    ];
+  }
+
+  void _selectDrillLetter(String letter) {
+    final clean = RareLetterDrillHelper.normalizeLetter(letter);
+    if (clean == null) return;
+    setState(() => _localDrillLetter = clean);
+    widget.onSelectDrillLetter?.call(clean);
+    _inputKey.currentState?.resetInput();
+  }
+
+  void _rotateDrillPrompt() {
+    if (widget.onRotateDrillPrompt != null) {
+      widget.onRotateDrillPrompt!();
+      return;
+    }
+    setState(() => _localDrillOffset++);
+  }
+
   void _onAcceptedWord(String word) {
+    if (_mode == _PracticeMode.rareDrills) {
+      final key = _activeDrillLetter;
+      final current = _drillProgress[key] ?? RareLetterProgress(letter: key, solvedWords: const []);
+      final res = current.record(word);
+      if (res.added) {
+        HapticFeedback.lightImpact();
+        setState(() {
+          _drillProgress = {..._drillProgress, key: res.next};
+          _drillBurstNonce[key] = (_drillBurstNonce[key] ?? 0) + 1;
+        });
+        if (res.justMastered) {
+          HapticFeedback.mediumImpact();
+          SoundEffects.instance.playVictory();
+        }
+        unawaited(RareLetterDrillHelper.saveProgress(_drillProgress));
+      }
+      return;
+    }
     setState(() {
       if (!_testedWords.contains(word)) {
         _testedWords.insert(0, word);
       }
     });
+  }
+
+  void _resetActiveDrillProgress() {
+    final key = _activeDrillLetter;
+    final current = _drillProgress[key];
+    if (current == null || current.solvedWords.isEmpty) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _drillProgress = {..._drillProgress, key: current.cleared()};
+    });
+    unawaited(RareLetterDrillHelper.saveProgress(_drillProgress));
   }
 
   void _clearTestedWords() {
@@ -123,7 +258,23 @@ class _PracticeScreenState extends State<PracticeScreen> {
   @override
   Widget build(BuildContext context) {
     final word = widget.word;
-    final needUpper = _needLetter?.toUpperCase() ?? '·';
+    final isDrillMode = _mode == _PracticeMode.rareDrills;
+    final drills = _resolvedDrills;
+    final activeDrillKey = _activeDrillLetter;
+    final activeDrill = drills.firstWhere(
+      (d) => d.normalizedLetter == activeDrillKey,
+      orElse: () => drills.first,
+    );
+    final effectiveNeedLetter = isDrillMode ? activeDrill.normalizedLetter : _needLetter;
+    final needUpper = effectiveNeedLetter?.toUpperCase() ?? '·';
+    final shareWord = word ??
+        (isDrillMode
+            ? PracticeWordDto(
+                word: activeDrill.promptWord,
+                ipa: activeDrill.promptIpa,
+                meaning: activeDrill.promptMeaning,
+              )
+            : null);
     final activeLetter = _activeHintLetter;
     final activeLength = _activeLengthFilter;
     final visibleHints = HintFilterHelper.apply(
@@ -137,95 +288,73 @@ class _PracticeScreenState extends State<PracticeScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
           decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: WBColors.whiteA(.07))),
+            border: Border(bottom: BorderSide(color: WBColors.hairline)),
           ),
           child: Row(
             children: [
-              SizedBox(
-                width: 82,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Pressable(
-                    onTap: widget.onBack,
+              Pressable(
+                onTap: widget.onBack,
+                borderRadius: BorderRadius.circular(12),
+                semanticLabel: 'Orqaga',
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: WBColors.bgSurface,
+                    border: Border.all(color: WBColors.hairline),
                     borderRadius: BorderRadius.circular(12),
-                    semanticLabel: 'Orqaga',
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: WBColors.whiteA(.05),
-                        border: Border.all(color: WBColors.whiteA(.1)),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      alignment: Alignment.center,
-                      child: StrokeGlyph.chevronLeft(
-                        size: 11,
-                        thickness: 2,
-                        color: WBColors.textA(.8),
-                        offset: const Offset(2, 0),
-                      ),
-                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: StrokeGlyph.chevronLeft(
+                    size: 11,
+                    thickness: 2,
+                    color: WBColors.textA(.8),
+                    offset: const Offset(2, 0),
                   ),
                 ),
               ),
-              Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      'Mashq rejimi',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: WBText.grotesk(size: 15, weight: FontWeight.w600),
-                    ),
-                    Text(
-                      'REYTINGSIZ · TAYMERSIZ',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: WBText.mono(size: 10.5, weight: FontWeight.w500, color: WBColors.textA(.4)),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(
-                width: 82,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: WBColors.bgSurface,
-                        border: Border.all(color: WBColors.hairline),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        word == null ? '…' : '${word.word.length}',
-                        style: WBText.mono(size: 13, weight: FontWeight.w700, color: WBColors.text),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Pressable(
-                      onTap: word == null ? null : () => _shareWordCard(word),
-                      pressScale: .94,
+              const SizedBox(width: 10),
+              Expanded(child: _buildModeSwitcher()),
+              const SizedBox(width: 10),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: WBColors.bgSurface,
+                      border: Border.all(color: WBColors.hairline),
                       borderRadius: BorderRadius.circular(12),
-                      semanticLabel: 'Kun so\'zini ulashish',
-                      child: Opacity(
-                        opacity: word == null ? .38 : 1,
-                        child: Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: WBColors.bgSurface,
-                            border: Border.all(color: WBColors.hairline),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          alignment: Alignment.center,
-                          child: Icon(Icons.ios_share, size: 16, color: WBColors.textA(.8)),
+                    ),
+                    child: Text(
+                      isDrillMode
+                          ? '${_drillProgress[activeDrill.normalizedLetter]?.solvedCount ?? 0}/${activeDrill.targetCount}'
+                          : (word == null ? '…' : '${word.word.length}'),
+                      style: WBText.mono(size: 12.5, weight: FontWeight.w700, color: WBColors.text),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Pressable(
+                    onTap: shareWord == null ? null : () => _shareWordCard(shareWord),
+                    pressScale: .94,
+                    borderRadius: BorderRadius.circular(12),
+                    semanticLabel: 'Kun so\'zini ulashish',
+                    child: Opacity(
+                      opacity: shareWord == null ? .38 : 1,
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: WBColors.bgSurface,
+                          border: Border.all(color: WBColors.hairline),
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        alignment: Alignment.center,
+                        child: Icon(Icons.ios_share, size: 16, color: WBColors.textA(.8)),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -234,6 +363,18 @@ class _PracticeScreenState extends State<PracticeScreen> {
           child: ListView(
             padding: const EdgeInsets.all(22),
             children: [
+              if (isDrillMode)
+                RareLetterDrillPanel(
+                  drills: drills,
+                  activeLetter: activeDrill.normalizedLetter,
+                  progressMap: _drillProgress,
+                  burstNonceMap: _drillBurstNonce,
+                  onSelectLetter: _selectDrillLetter,
+                  onRotatePrompt: _rotateDrillPrompt,
+                  onResetProgress: _resetActiveDrillProgress,
+                  onTapWordChip: (hint) => _inputKey.currentState?.fillWord(hint),
+                )
+              else ...[
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
@@ -447,6 +588,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
                             ],
                           ),
               ),
+              ],
             ],
           ),
         ),
@@ -486,10 +628,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
                   ),
                   const SizedBox(width: 8),
                   Pressable(
-                    onTap: widget.onHint,
+                    onTap: isDrillMode ? _rotateDrillPrompt : widget.onHint,
                     pressScale: .95,
                     borderRadius: BorderRadius.circular(11),
-                    semanticLabel: "Maslahat so'zlarni olish",
+                    semanticLabel: isDrillMode
+                        ? "Keyingi namuna so'zni olish"
+                        : "Maslahat so'zlarni olish",
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6.5),
                       decoration: BoxDecoration(
@@ -501,12 +645,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '?',
+                            isDrillMode ? '↻' : '?',
                             style: WBText.mono(size: 12, weight: FontWeight.w700, color: WBColors.indigoText),
                           ),
                           const SizedBox(width: 5),
                           Text(
-                            'Maslahat',
+                            isDrillMode ? 'Keyingi' : 'Maslahat',
                             style: WBText.grotesk(size: 12, weight: FontWeight.w600, color: WBColors.text),
                           ),
                         ],
@@ -518,10 +662,16 @@ class _PracticeScreenState extends State<PracticeScreen> {
               const SizedBox(height: 10),
               PracticeTestInput(
                 key: _inputKey,
-                needLetter: _needLetter,
-                triedWords: _testedWords.toSet(),
-                enabled: word != null,
-                onCheckWord: widget.onCheckWord,
+                needLetter: effectiveNeedLetter,
+                triedWords: isDrillMode
+                    ? (_drillProgress[activeDrill.normalizedLetter]?.solvedWords.toSet() ?? const {})
+                    : _testedWords.toSet(),
+                enabled: isDrillMode || word != null,
+                onCheckWord: isDrillMode
+                    ? (widget.onCheckDrillWord != null
+                        ? (candidate) => widget.onCheckDrillWord!(activeDrill.normalizedLetter, candidate)
+                        : null)
+                    : widget.onCheckWord,
                 onAcceptedWord: _onAcceptedWord,
               ),
             ],
@@ -594,6 +744,117 @@ class _PracticeScreenState extends State<PracticeScreen> {
               TextSpan(
                 text: last,
                 style: TextStyle(color: WBColors.accent),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeSwitcher() {
+    final anyMastered = _drillProgress.values.any((p) => p.isMastered);
+    return Container(
+      key: const Key('practice_mode_switcher'),
+      height: 40,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: WBColors.bgDeep,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: WBColors.hairline),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ModeTabButton(
+              label: "Kun so'zi",
+              selected: _mode == _PracticeMode.daily,
+              onTap: () {
+                if (_mode == _PracticeMode.daily) return;
+                HapticFeedback.selectionClick();
+                SoundEffects.instance.playTap();
+                setState(() => _mode = _PracticeMode.daily);
+                _inputKey.currentState?.resetInput();
+              },
+            ),
+          ),
+          const SizedBox(width: 3),
+          Expanded(
+            child: _ModeTabButton(
+              label: 'X · Q',
+              badgeColor: anyMastered ? WBColors.green : WBColors.amber,
+              selected: _mode == _PracticeMode.rareDrills,
+              onTap: () {
+                if (_mode == _PracticeMode.rareDrills) return;
+                HapticFeedback.selectionClick();
+                SoundEffects.instance.playTap();
+                setState(() => _mode = _PracticeMode.rareDrills);
+                _inputKey.currentState?.resetInput();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeTabButton extends StatelessWidget {
+  const _ModeTabButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.badgeColor,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color? badgeColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = WBTheme.isLight;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: label,
+      child: Pressable(
+        onTap: onTap,
+        pressScale: .97,
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? (isLight ? Colors.white : WBColors.bgPressed) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: selected ? Border.all(color: WBColors.hairlineStrong) : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (badgeColor != null) ...[
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(color: badgeColor, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: WBText.grotesk(
+                    size: 12.5,
+                    weight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected ? WBColors.text : WBColors.textA(.58),
+                  ),
+                ),
               ),
             ],
           ),
