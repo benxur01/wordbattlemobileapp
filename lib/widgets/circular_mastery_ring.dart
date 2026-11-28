@@ -82,6 +82,7 @@ class _CircularMasteryRingState extends State<CircularMasteryRing>
     final pct = (_currentProgress * 100).round();
 
     return Semantics(
+      excludeSemantics: true,
       label: "$upper harfi mahorati: $pct foiz",
       child: SizedBox(
         width: widget.size,

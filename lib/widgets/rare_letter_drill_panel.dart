@@ -311,7 +311,8 @@ class RareLetterDrillPanel extends StatelessWidget {
             runSpacing: 8,
             children: [
               for (final hint in activeDrill.hints)
-                Pressable(
+                if (hint != activeDrill.promptWord)
+                  Pressable(
                   onTap: onTapWordChip == null ? null : () => onTapWordChip!(hint),
                   pressScale: .95,
                   borderRadius: BorderRadius.circular(12),
