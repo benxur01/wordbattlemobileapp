@@ -292,6 +292,51 @@ class PracticeCheckDto {
   final String? reason;
 }
 
+/// Curated rare-letter practice drill prompt and starter hints (`x`, `q`).
+class RareLetterDrillDto {
+  const RareLetterDrillDto({
+    required this.letter,
+    required this.badge,
+    required this.title,
+    required this.subtitle,
+    required this.tip,
+    required this.promptWord,
+    required this.promptIpa,
+    required this.promptMeaning,
+    required this.targetCount,
+    required this.hints,
+  });
+
+  factory RareLetterDrillDto.fromJson(Map<String, dynamic> json) => RareLetterDrillDto(
+        letter: (json['letter'] as String? ?? 'x').trim().toLowerCase(),
+        badge: (json['badge'] as String?) ?? '',
+        title: (json['title'] as String?) ?? '',
+        subtitle: (json['subtitle'] as String?) ?? '',
+        tip: (json['tip'] as String?) ?? '',
+        promptWord: (json['promptWord'] as String?) ?? '',
+        promptIpa: (json['promptIpa'] as String?) ?? '',
+        promptMeaning: (json['promptMeaning'] as String?) ?? '',
+        targetCount: (json['targetCount'] as num?)?.toInt() ?? 5,
+        hints: ((json['hints'] as List?) ?? const [])
+            .whereType<String>()
+            .toList(),
+      );
+
+  final String letter;
+  final String badge;
+  final String title;
+  final String subtitle;
+  final String tip;
+  final String promptWord;
+  final String promptIpa;
+  final String promptMeaning;
+  final int targetCount;
+  final List<String> hints;
+
+  String get normalizedLetter => letter.isEmpty ? 'x' : letter[0].toLowerCase();
+  String get upperLetter => normalizedLetter.toUpperCase();
+}
+
 /// One topic a bot duel can be played inside. [id] is what `queue.bot` carries;
 /// [name] is the Uzbek label the server sends ready to draw.
 class WordThemeDto {

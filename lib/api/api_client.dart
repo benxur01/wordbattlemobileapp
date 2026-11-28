@@ -240,6 +240,25 @@ class ApiClient {
     );
   }
 
+  /// Fetches the rare-letter specialization drills (`x` and `q`).
+  Future<List<RareLetterDrillDto>> practiceDrills({int offset = 0}) async {
+    final query = offset > 0 ? <String, dynamic>{'offset': offset} : null;
+    final list = await _get('/practice/drills', query) as List;
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map(RareLetterDrillDto.fromJson)
+        .toList();
+  }
+
+  /// Fetches a single rare-letter drill (`x` or `q`) with optional prompt offset.
+  Future<RareLetterDrillDto> practiceDrill(String letter, {int offset = 0}) async {
+    final clean = letter.trim().toLowerCase();
+    final query = offset > 0 ? <String, dynamic>{'offset': offset} : null;
+    return RareLetterDrillDto.fromJson(
+      await _get('/practice/drills/$clean', query) as Map<String, dynamic>,
+    );
+  }
+
   /// The topics the bot picker offers. Fixed for the life of a server build,
   /// so it is fetched once when the picker is opened rather than watched.
   Future<List<WordThemeDto>> wordThemes() async {
