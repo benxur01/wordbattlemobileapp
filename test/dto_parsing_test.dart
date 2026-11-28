@@ -197,4 +197,33 @@ void main() {
       expect(defaults.reason, isNull);
     });
   });
+
+  group('rare letter drill payload', () {
+    test('parses complete X/Q drill payload and tolerates missing optional fields', () {
+      final full = RareLetterDrillDto.fromJson({
+        'letter': ' X ',
+        'badge': 'NOYOB · X',
+        'title': 'X harfi hujumi',
+        'subtitle': 'Tez javob bering',
+        'tip': 'xenon, xylem',
+        'promptWord': 'matrix',
+        'promptIpa': '/ˈmeɪtrɪks/',
+        'promptMeaning': 'matritsa',
+        'targetCount': 5,
+        'hints': ['xray', 'xenon'],
+      });
+
+      expect(full.normalizedLetter, 'x');
+      expect(full.upperLetter, 'X');
+      expect(full.badge, 'NOYOB · X');
+      expect(full.promptWord, 'matrix');
+      expect(full.targetCount, 5);
+      expect(full.hints, ['xray', 'xenon']);
+
+      final minimal = RareLetterDrillDto.fromJson({});
+      expect(minimal.normalizedLetter, 'x');
+      expect(minimal.targetCount, 5);
+      expect(minimal.hints, isEmpty);
+    });
+  });
 }
