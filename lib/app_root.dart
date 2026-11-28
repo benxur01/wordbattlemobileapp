@@ -331,6 +331,9 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   List<String> practiceHints = const [];
   String? practiceHintLetter;
   HintLengthFilter practiceHintLength = HintLengthFilter.all;
+  List<RareLetterDrillDto> rareDrills = const [];
+  String rareDrillLetter = 'x';
+  int _rareDrillOffset = 0;
 
   // ---- realtime ----
   DuelView? duel;
@@ -1173,6 +1176,7 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
   }
 
   Future<void> _loadPractice() async {
+    unawaited(_loadRareDrills());
     try {
       final word = await _api.practiceWord();
       if (!mounted) return;
@@ -1187,6 +1191,23 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     } catch (_) {
       _onLoadFailure();
     }
+  }
+
+  Future<void> _loadRareDrills() async {
+    try {
+      final list = await _api.practiceDrills(offset: _rareDrillOffset);
+      if (!mounted || list.isEmpty) return;
+      setState(() => rareDrills = list);
+    } on ApiException catch (e) {
+      if (_isSessionOver(e)) _onApiError(e);
+    } catch (_) {
+      // Offline / transient failures keep PracticeScreen fallback catalog active.
+    }
+  }
+
+  void _rotateRareDrillPrompt() {
+    setState(() => _rareDrillOffset++);
+    unawaited(_loadRareDrills());
   }
 
   /// The bot picker's topic row. Fetched only while it is empty: the themes a
@@ -1236,11 +1257,12 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
     unawaited(loadHints(letter: letter, length: length));
   }
 
-  Future<PracticeCheckDto> _checkPracticeWord(String candidate) async {
+  Future<PracticeCheckDto> _checkPracticeWord(String candidate, {String? requiredLetter}) async {
     final word = practiceWord;
-    final needLetter = word == null || word.word.isEmpty
-        ? null
-        : word.word.substring(word.word.length - 1).toLowerCase();
+    final needLetter = requiredLetter ??
+        (word == null || word.word.isEmpty
+            ? null
+            : word.word.substring(word.word.length - 1).toLowerCase());
     try {
       return await _api.checkPracticeWord(candidate, requiredLetter: needLetter);
     } on ApiException catch (e) {
@@ -3238,6 +3260,11 @@ class _AppRootState extends State<AppRoot> with WidgetsBindingObserver {
           selectedLengthFilter: practiceHintLength,
           onHintFilterChanged: _onPracticeHintFilterChanged,
           onCheckWord: _checkPracticeWord,
+          rareDrills: rareDrills,
+          selectedDrillLetter: rareDrillLetter,
+          onSelectDrillLetter: (letter) => setState(() => rareDrillLetter = letter),
+          onRotateDrillPrompt: _rotateRareDrillPrompt,
+          onCheckDrillWord: (letter, candidate) => _checkPracticeWord(candidate, requiredLetter: letter),
           onBack: () => go(WBScreen.lobby),
         ),
       WBScreen.friends => FriendsScreen(
