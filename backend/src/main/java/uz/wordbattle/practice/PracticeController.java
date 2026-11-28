@@ -2,6 +2,7 @@ package uz.wordbattle.practice;
 
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import uz.wordbattle.common.ApiException;
 import uz.wordbattle.config.AppProperties;
@@ -14,11 +15,23 @@ public class PracticeController {
     private final PracticeWordRepository words;
     private final DictionaryService dictionary;
     private final AppProperties props;
+    private final RareLetterDrillService drills;
 
-    public PracticeController(PracticeWordRepository words, DictionaryService dictionary, AppProperties props) {
+    @Autowired
+    public PracticeController(
+            PracticeWordRepository words,
+            DictionaryService dictionary,
+            AppProperties props,
+            RareLetterDrillService drills) {
         this.words = words;
         this.dictionary = dictionary;
         this.props = props;
+        this.drills = drills;
+    }
+
+    /** Convenience constructor for unit tests without a Spring context. */
+    PracticeController(PracticeWordRepository words, DictionaryService dictionary, AppProperties props) {
+        this(words, dictionary, props, new RareLetterDrillService(dictionary, props));
     }
 
     public record WordOfTheDay(String word, String ipa, String meaning) {}
@@ -106,5 +119,20 @@ public class PracticeController {
             return new WordCheckResult(word, false, "Bu so'z ingliz lug'atida yo'q");
         }
         return new WordCheckResult(word, true, null);
+    }
+
+    /** Lists rare-letter specialization drills (currently X and Q). */
+    @GetMapping("/drills")
+    public List<RareLetterDrillService.RareLetterDrillDto> drills(
+            @RequestParam(value = "offset", defaultValue = "0") int offset) {
+        return drills.listDrills(offset);
+    }
+
+    /** Fetches a single rare-letter drill (`x` or `q`), supporting prompt rotation via [offset]. */
+    @GetMapping("/drills/{letter}")
+    public RareLetterDrillService.RareLetterDrillDto drill(
+            @PathVariable("letter") String letter,
+            @RequestParam(value = "offset", defaultValue = "0") int offset) {
+        return drills.getDrill(letter, offset);
     }
 }
